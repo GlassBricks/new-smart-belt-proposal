@@ -1,0 +1,9 @@
+shell.nix
+.envrc
+
+.idea
+.zed
+
+venv/
+__pycache__/
+.ropeproject
