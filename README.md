@@ -22,6 +22,6 @@ This starts with the [detailed spec](smart_belt_spec.md). It aims to:
 
 Next comes a comprehensive list of test cases, according to the spec.
 
-Then will come a prototype implementation, that people can play with to ensure everything is correct.
+Then will come a prototype implementation, that people can play with to ensure everything works.
 
 Finally, if everything is working, trying to convince Kovarex to get source access to put it in the main game.
