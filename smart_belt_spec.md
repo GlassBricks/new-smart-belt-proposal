@@ -239,6 +239,14 @@ Note: we don't care about the rotation of the pivot belt. This allows "continuin
 
 ## 5. Feature Interactions
 
+### Undo redo stack
+
+- Undragging manages a "mini" undo stack, but we also have the MAIN undo/redo stack.
+These should be main (ctrl-z) undoable:
+- The very first belt's fast replace, if applicable.
+- All belts placed in the last straight-line drag.
+   - Rotating ends the current straight-line drag, so multiple rotations creates multiple undo items.
+
 ### 5.1. Ghosts
 
 - **Real belt dragging**: Ghosts completely ignored
