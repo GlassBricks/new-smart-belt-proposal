@@ -4,7 +4,8 @@ A [detailed spec](smart_belt_spec.md) of a new, improved, and fixed version of F
 
 Will later have a prototype implementation.
 
-Comments and critiques are welcome! Feel free to open an issue or a pull request.
+#### Comments and critiques are welcome!
+Feel free to open an issue or a pull request.
 
 ## Background
 
@@ -23,6 +24,4 @@ Next comes a comprehensive list of test cases, according to the spec.
 
 Then will come a prototype implementation, that people can play with to ensure everything is correct.
 
-Finally, if everything is working, trying to convince `kovarex` to give me source access to put it in the main game.
-
-**Comments and critiques are welcome!** Feel free to open an issue or a pull request.
+Finally, if everything is working, trying to convince Kovarex to get source access to put it in the main game.
