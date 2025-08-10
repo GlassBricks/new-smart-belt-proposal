@@ -4,12 +4,10 @@
 
 Enable users to drag belts over obstacles with intuitive, reliable behavior.
 
-> **Note:** "Belts" in this document may also refers to transport belts, splitters, and underground belts, if applicable.
-
 ### 1.1. Basic Requirements
 
 - Belts automatically underground over obstacles
-- Undragging restores entities to their previous state
+- Un-dragging restores entities to their previous state
 - Rotation starts a new drag at the cursor position
   - Belt direction can be flipped by dragging left/right during rotation
 - Users are notified when belt lines cannot be completed for any reason.
@@ -17,7 +15,7 @@ Enable users to drag belts over obstacles with intuitive, reliable behavior.
 
 ### 1.2. Other requirements
 
-- **Traverses Obstacle**: Always goes over obstacles when possible
+- **Traverses Obstacles**: Always goes over obstacles when possible
 - **Continuity**: Dragged belt lines are always valid and continuous. An error occurs if the line cannot be completed for any reason.
 - **Error notification**: Operations stop and notify users when belt lines cannot be completed.
 - **Integrating existing belts**: Incorporates existing compatible belts, splitters, and undergrounds
@@ -107,14 +105,19 @@ If impossible, error at the first problematic position without affecting non-int
 
 The jist:
 
-- create undergrounds over obstacles.
-- Extend undergrounds if not enough room.
-- Handles pass-through for existing undergrounds, the moment the entrance is encountered.
+- Drags belt.
+- If going pass an obstacle, creates an underground (if possible).
+- Extend previous undergrounds if not enough room for new input underground.
+- If going through a pass-through underground:
+  - Checks for incompatible upgrade
+  - If valid, ignores everything until going pass the exit underground.
 - Creates errors if:
   - Underground too long
-  - Impassable object detected.
+  - Impassable object.
+  - Output of pass-through underground is blocked.
 
 NOTE:
+
 - The exceptional cases of the very first belt segment is not handled here. See section 4.1.3.
 
 Note: This is not the full thing; this only gives the expected outcome.
@@ -242,6 +245,7 @@ Similar to starting a drag, with the following differences:
 - A rotate _cannot_ be started at an invalid pivot. This creates an error and preserves the current drag.
 
 #### 4.2.1. Pivot validity:
+
 The pivot is valid if
 
 1. it is a belt, and
