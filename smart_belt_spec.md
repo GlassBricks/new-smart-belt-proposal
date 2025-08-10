@@ -1,221 +1,256 @@
-# Smart Belt Specs
+# Smart Belt Specification
 
 ## 1. Goals
 
-- User can drag belt over stuff, and it works.
-  Note: "belts" in this doc sometimes refers to all of belts, splitters, and undergrounds.
+Enable users to drag belts over obstacles with intuitive, reliable behavior.
 
-### 1.1. Basic specs
+> **Note:** "Belts" in this document may also refers to transport belts, splitters, and underground belts, if applicable.
 
-- Belt will underground over "obstacles".
-- Undragging will restore entities to a previous state.
-- Rotate will start a new drag at the cursor. Can be dragged left/right flip rotation direction.
-- If the belt line is broken for any reason, the user will be notified.
-- Intuitive behavior.
+### 1.1. Basic Requirements
 
-### 1.2. Expectations
+- Belts automatically underground over obstacles
+- Undragging restores entities to their previous state
+- Rotation starts a new drag at the cursor position
+  - Belt direction can be flipped by dragging left/right during rotation
+- Users are notified when belt lines cannot be completed for any reason.
+- Intuitive behavior
 
-- **Goes over obstacles if possible**.
-- **Always continuous**: If there are no errors (or explicit exceptional cases), the dragged belt line will _always_ be valid and continuous. If anything prevents the belt from being continuous, the user will be notified.
-- **Always stops and notifies on error**: If the belt line cannot be dragged for any reason, the user will be notified.
-- **Can integrate existing belts, splitters, and undergrounds**: Dragging will integrate already placed belt connectable items if they are "compatible" with the current drag.
-- **Does not affect non-integrated belts**: Any existing belts that that are not integrated should not be affected, includes changing a belt's curvature. This should also be true AFTER an error.
-- **Does not delete existing entities**: Dragging forwards will never _delete_ existing entities. They may only possibly be modified.
-- **Clean undo**: Dragging backwards will always return any entities to their previous state. This includes dragged belts, and previously existing belts.
-- **Same in both directions**: Dragging the same path backwards should yield the same path as dragging forwards in most reasonable cases.
+### 1.2. Other requirements
 
-### 1.3. Further details
+- **Traverses Obstacle**: Always goes over obstacles when possible
+- **Continuity**: Dragged belt lines are always valid and continuous. An error occurs if the line cannot be completed for any reason.
+- **Error notification**: Operations stop and notify users when belt lines cannot be completed.
+- **Integrating existing belts**: Incorporates existing compatible belts, splitters, and undergrounds
+- **Non-interference**: Does not affect non-integrated existing belts. This includes even after an error state.
+- **Non-destructive**: Forward dragging never deletes existing entities (but may modify them)
+- **Clean undo**: Backward dragging restores all entities to a previous state
+- **Bidirectional consistency**: Dragging the same path backward yields the same result as forward dragging
 
- - No new underground should be placed if it's pair cannot also be placed. Includes the on-error case.
+### 1.3. Additional details
 
-## 2. Obstacles
+An error state is any condition in which an underground belt cannot be successfully placed.
+New underground pairs are only placed when both entrance and exit can be placed.
+Non-interference rules apply EVEN after an error state.
 
-This definition of obstacles tries to encapsulate expectations above; it also classifies belts/entities as compatible or non-compatible.
+## 2. Obstacle classification
 
-### 2.1. Rules
+This goes into more detail about what counts as an "obstacle".
 
-When dragging over tiles, all tiles are exactly one of the following:
+### 2.1. Tile Types
 
-- Empty
-- Compatible belt
-- Compatible splitter
-- Obstacles
-- Un-passable obstacle (inaccessible existing undergrounds)
-- Pass-through underground belt (everything in between is ignored)
-- Fast-replaced underground belt (replaced with normal belt, possibly back to underground belt if needed)
+When dragging over tiles, each tile is classified as exactly one of the following:
 
-### 2.2. Entity classification
+- **Empty**: Available for belt placement
+- **Compatible belt**: Existing belt that can be integrated
+- **Compatible splitter**: Existing splitter that can be integrated
+- **Obstacle**: Blocks belt placement
+- **Impassable obstacle**: Cannot be undergrounded past (i.e. an inaccessible underground belts in the same axis)
+- **Pass-through underground**: Existing paired underground belt where contents between pairs are ignored
+- **Fast-replaceable underground**: Lonely underground belt replaced with normal belt
 
-#### 2.2.1. Belts:
+### 2.2. Belt Segment Accessibility
 
-- Perpendicular belts are always obstacles.
-- Otherwise, it's either an obstacle or compatible belt, depending on belt segment accessibility.
+A belt segment is accessible if the current drag can integrate it without affecting perpendicular transport lines.
+This will affect later rules
 
-#### 2.2.2. Splitters (and 1x1 splitters):
+**Classification rules**:
 
-- A splitter not in the same direction as the drag is an obstacle.
-- A splitter which the current drag can not connect to the entrance/exit of is an obstacle.
-- Otherwise, it's either an obstacle or compatible splitter, depending on belt segment accessibility.
+- All considerations, such as curvature, are done **ignoring** any newly placed belts from current drag
+- Curved belts are inaccessible
+- Any belt-connectable entity directly connected to inaccessible belts is also inaccessible
+- Side-loaded connections do not propagate inaccessibility
 
-#### 2.2.3. Underground belts:
+### 2.3. Entity Classification Rules
 
-- All perpendicular underground belts are obstacles.
-- If the underground belt is accessible:
-  - A same-direction lonely underground, will be replaced with a straight belt if dragged past, then all other rules apply.
-    - ^ TO BE DEBATED
-  - A same-axis paired underground belt is a pass-through underground belt.
-- If the underground belt is NOT accessible:
-  - If it is a different tier, it is an obstacle. (This handles belt weaving.)
-  - If it is the same tier, it is an UNPASSABLE obstacle.
+#### 2.3.1. Transport Belts
 
-#### 2.2.4. Loaders and anything else
+- **Perpendicular belts**: Always obstacles
+- **Parallel belts**: Compatible if accessible, otherwise obstacle
 
-- These are obstacles.
+#### 2.3.2. Splitters
 
-### 2.3. Accessible belt segments
+- **Different direction**: Obstacles
+- **Incompatible connection**: Obstacles (cannot connect to both entrance/exit)
+- **Correct direction**: Compatible if accessible, otherwise obstacle
 
-Loosely speaking, an belt segment is "accessible" if the current drag can integrate it without affecting any transport lines that go perpendicular to the current drag.
-All inaccessible belt segments count as obstacles.
+#### 2.3.3. Underground Belts
 
-- Belt segments are classified, ignoring any belts **newly added** by the current drag.
+- **Perpendicular undergrounds**: Always obstacles
+- **Accessible undergrounds**:
+  - Lonely same-axis underground: Fast-replaceable (replaced with straight belt)
+  - Paired same-axis underground: Pass-through
+- **Inaccessible undergrounds**:
+  - Different tier: Obstacle (enables belt weaving)
+  - Same tier: Impassable obstacle
 
-- Any curved belt is inaccessible.
-- Any (belts, splitters, 1x1 splitters, undergrounds) that connects to an inaccessible belt is also inaccessible.
-- A belt that connects to an inaccessible belt through side-loading only is _not_ part of the same segment.
+#### 2.3.4. Other
 
-## 3. Straight-line drag
+- **Loaders and all other entities**: Obstacles
 
-We want:
-A valid underground placement going over all obstacles, integrating existing belt, integrating pass-through undergrounds, if it exists.
+## 3. Straight-Line Dragging Algorithm
 
-Otherwise, an error at the first position where an underground is not possible, and not affecting non-integrated belt lines.
+### 3.1. Objective
 
-### 3.1. Algorithmically expected outcome (not direct implementation)
+Place valid underground belts over all obstacles, while integrating existing compatible belts and existing pass-through undergrounds.
+If impossible, error at the first problematic position without affecting non-integrated belt lines.
 
-Simplify the tile types in previous section to:
+### 3.2. The main belt logic algorithm
 
-- Place-able (empty, compatible belt, lonely underground).
-- Obstacle
-- Unpassable obstacle.
-- Pass through underground belt (with belt tier info)
+**Input requirements:**
 
-Important note: since a splitter is only accessible if it's possible to output to both sides, a splitter is never surrounded by obstacles.
+- First element must be already a belt
 
-Input:
-Assume the very first element is place-able.
+Pseudocode, but detailed.
+Some notes:
 
-- First array element must be place-able
+- Tracks when last underground entrance/exit was placed.
+- Updates state if underground needs to be placed.
+- Handles pass-through for existing undergrounds, the moment the entrance is encountered.
+- Creates errors in the appropriate locations if not possible.
+
+Note: This is not the full thing; this only gives the expected outcome.
+The full algorithm will also have determine (incrementally!) what things count as obstacles based on earlier rules, and handle errors, and keep track of other state.
 
-For obstacles:
+```python
+require(tiles[0] == 'belt')
+
+last_underground_entrance: int = 0
+obstacle_encountered: bool = False
+last_underground_exit: int | None = None
+pass_through = None
 
-- Ignore obstacles and unpassable obstacles continually touching the end of the array.
-- If an unpassable obstacle is encountered, an error occurs right after it.
-- If any non-obstacle tile is surrounded by obstacles on both sides, it is also an obstacle. If this destroys a pass-through underground, it is an error right at the entrance underground.
-- Going left to right, if any series of obstacles exceeds the underground length, an error occurs there.
-- If a pass-through underground contains an inpassable obstacle inside it AND is not the same belt tier, then an error occurs before the obstacle.
+def advance(index: int, tile_type: TileType):
+    # ignore everything if is pass_through_underground
+    if pass_through is not None:
+        if index <= pass_through:
+            return
+        pass_through = None
 
-- If no errors, have undergrounds before and after each obstacle block, respect pass-through undergrounds, and place belts on other empty tiles.
+    match tile_type:
+        case 'empty' | 'compatible_belt' | 'compatible_underground':
+            if not obstacle_encountered:
+                place(index, 'belt')
+                last_underground_entrance = index
+            elif not is_reachable(last_underground_entrance, index):
+                error('too long to connect', last_underground_entrance)
+            else:
+                if last_underground_exit is None:
+                    place(last_underground_entrance, 'underground')
+                else:
+                    restore(last_underground_exit)
+                place(index, 'underground')
+                last_underground_exit = index
+                obstacle_encountered = False
+        case 'obstacle':
+            obstacle_encountered = True
+            pass
+        case 'impassable_obstacle':
+            error("can't pass", last_underground_entrance or index)
+        case 'pass_through_underground':
+            #scan entire underground for impassable_obstacles
+            if needs_upgrade(index):
+                if any impassable_obstacle in between the undergrounds:
+                    error("Cannot upgrade underground")
+                if not try_upgrade(index):
+                    error("Cannot upgrade underground")
+            # otherwise, ok
+            pass_through = exit_of(index)
+```
 
-Notes:
-Any 2 consecutive empty tiles (not in a pass-through underground) creates a "reset" point where we can break the array in 2, run the same algorithm on each half, and get the same result.
+### 3.3. Placing entities
 
-### 3.2. Upgrading and fast-replacing belt
+When the above alg places entities:
 
-- For overlapping a compatible belt or underground belt, it will be flipped to the correct direction and possibly upgraded.
-- Splitters: also upgrade? (Currently, ignored)
+- **Compatible belts/undergrounds**: Rotated to correct direction and upgrade if needed
+- **Splitters**: assert not trying to set to underground, don't touch. TODO: should we try upgrading the splitter too?
 
-- If a pass-through underground belt is _downgraded_ such that it is no longer long enough to pair, the underground is not updated, and this creates an error at the entrance underground.
-- If upgrading the underground would change what it's paired with, it's also untouched and gives an error. Unsure if this case needs to be explicitly handled, given the below exception
+### 3.4. On Error
 
-### 3.3. Incremental dragging
+When underground placement or upgrades fail:
 
-At all points during dragging a drag, the placed belts should look like the spec above.
-Exception, for a pass-through underground belt, if it is upgraded:
+- No belt is placed at error position
+- Remove the last underground pair that caused the error (if applicable)
+  - **Exception**: If the underground entrance is also the drag start, restore to original state instead of mining it
 
-- Check the entire extent in-between for un-passable obstacles. Give error if any are found.
-- Otherwise, ignore everything in between the pass-through underground belt.
+Note: this removal should be undo-able by reverse dragging
 
-### 3.4. Error handling
+## 4. Drag Operations
 
-If an underground cannot be placed, or an upgrade fails:
+Starting the drag.
+Uses straight-line drags as a subroutine
 
-- No belt is placed at the error point
-- If applicable, the entity (belt or underground) at the last valid underground start position is removed.
-  - Exception: the underground start is the **drag starting** belt (both rotated and started). In that case, it's restored to it's original state.
-- This removal can be undone by reverse dragging.
+### 4.1. Undragging
 
-## 4. Starting, rotating, un-dragging
+Undragging always undoes actions performed by the current drag via maintained undo stack.
 
-### 4.1. Un-dragging belt
+**Supported undo actions:** Rotate, place/mine, upgrade. Everything else might be ignored.
+**Not supported:** Restoring settings, restoring ghosts from deleted undergrounds.
 
-Un-dragging belt in ALL CASES shall be the same as undoing actions this drag performed.
-This means maintaining an undo stack while dragging, for as long as the drag lasts.
+**Some consequences of this behavior:**
 
-Undo actions supported: rotate, place/mine, upgrade.
+- Only placed belts can be mined
+- Only rotated belts can be rotated
+- Undergrounds may shorten when dragged backward to early exit
 
-- Restoring belt settings or ghosts from deleted belt is not considered.
-  - ^ TO BE DEBATED.
-    Consequences:
-- Only placed belts can be mined, only rotated belts can be rotated.
-- An underground may get shorter if you drag it backwards to an early exit spot
+**Consistency check**: If world state is inconsistent (other players, explosions, biters), undo action is ignored entirely
 
-If the world is not consistent with the undo action, due to e.g. other players, explosions, or biters, the undo action is **ignored entirely**.
+### 4.2. Starting a Drag
 
-### 4.2. Starting a drag
+The very first click is special, in that it may fast_replace something else first before placing a belt.
+(That may also be considered as a separate player undo item).
 
-The first position is considered "valid" if:
+**Valid starting positions:**
 
-- It is a place-able tile. Belt is placed and the drag starts there
-- It an existing belt in the same direction. Drag starts there.
-- It is fast-replace-able to a belt. In this case, that is done, _before any other logic is applied_, then is treated as a belt. This effectively makes the very the first click special.
+- Placeable tile
+- Fast-replaceable entity
+- Existing same-direction belt
 
-If a position is not valid, an error is given (something is in the way).
-If continuing the drag, the first place-able position starts a drag.
+If the start position is not valid:
+- an error SOUND plays.
+- Continuing to drag in on edirection, will start a drag at first placeable position afterwards.
 
-- If the first belt placed is valid, it is un-removable by dragging in any direction.
-- Otherwise, if the first belt was not valid (started at a different tile), it IS removable by dragging backwards.
+**After start**:
+- Undragging and flipping direction, changes belt line direction (forward/backward).
+- A valid first belt can never be removed by dragging, only updated.
+- An invalid first belt (started elsewhere): _must_ be removed by backward dragging
 
-Regardless of validity:
-Dragging forwards/backwards from this belt creates a drag, with the belt going in that direction.
+### 4.3. Drag rotation
 
-### 4.3. Rotating
+Rotation happens when in the middle of another drag.
 
-This is similar to starting a drag. Difference are:
-- flipping the direction of the drag changes the rotation direction, instead of the belt direction.
-- If the first position is not valid, no drag is started.
+Similar to starting a drag, with the following differences:
 
-When rotating while holding down drag, a new perpendicular drag might be started at the cursor position, here called the "pivot".
-The pivot is only valid if:
-- It is a belt, and one of:
-  - It is "place-able", based on rules above in section 3.1
-  - Fancy exception: it is an "inaccessible" belt segment, but all parts of the segment encountered so far are belts in the same direction such that the current drag smoothly runs into it.
+- Undragging and flipping direction changes belt line direction (left/right), not belt direction (forward/backward).
 
-  This allows "continuing" a straight then curving belt, if not undergrounding over it.
-  Note: "valid" does _not_ depend on the rotation of the pivot, if it follows the rules above.
+**Pivot validity:**
+A drag can only be started if the cursor position's entity is valid.
+^ TO BE DEBATED
 
-At an invalid position, nothing happens when pressing rotate.
-^ TO BE DEBATED.
+The pivot is valid if
+1. it is a belt, and
+2. Either of the following:
+  - Is empty, compatible, or fast-replaceable underground
+  - Is an inaccessable belt segment, BUT where all encountered parts are same-direction belts (the belt drag encounters same direction belt, that eventually curves).
+Note: we don't care about the rotation of the pivot belt. This allows "continuing" a belt segment, at the end, that would otherwise be inaccessible.
 
-- The pivot belt will be rotated to match the rotation direction.
-- Un-dragging back to the pivot returns it to _it's initial state_, which may not be straight from the previous drag.
+**On starting a drag**:
+- Continues belt in given direction.
+- Undragging to pivot restores the pivot's **initial** state (may differ from the direction of the previous drag!!).
 
-## 5. Other feature interactions
+## 5. Feature Interactions
 
 ### 5.1. Ghosts
 
-- When dragging real belt, ghosts are **completely ignored**.
-  - (???) What happens if a ghost contributes to belt curvature? For now, also ignore
-- When dragging ghost belt, both ghosts and real entities are considered.
+- **Real belt dragging**: Ghosts completely ignored
+- **Ghost belt dragging**: Both ghosts and real entities considered
 
-### 5.2. Entities ordered for deconstruction
+### 5.2. Entities Marked for Deconstruction
 
-- When dragging with ghosts, deconstructed entities are **completely ignored**.
-- When dragging with real entities, deconstructed entities are **considered obstacles** and are not affected.
-  - currently you can "fast-delete" a belt this way. Do we want to actually allow this?
+- **Ghost dragging**: Deconstructed entities completely ignored
+- **Real entity dragging**: Deconstructed entities treated as obstacles
 
-### 5.3. User interactions
+### 5.3. User Interactions
 
-- If using real belt, running out of belt is same as cancelling the drag.
-- If using real belt, and there are not enough underground materials, ghosts will be created instead (with an error)
-  - Ghosts are still undo-able
-- If using real belt, upgrades are done if possible (or in editor mode), and bot upgrade-ordered if not.
+- **Material shortage**: Running out of real belts cancels drag
+- **Insufficient undergrounds**: Creates ghosts instead (with error notification), possibly mining an existing belt
+- **Upgrades**: Either actually places upgraded, or marks for bot upgrade, depending on type and if the player has enough materials.
