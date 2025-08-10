@@ -13,8 +13,8 @@ After months of smart belt bugs, limitations, regressions, and frustrations; man
 The goal is to overhaul smart belt, such that just always "just works" and is fixed once and for all.
 
 This starts with the [detailed spec](smart_belt_spec.md). It aims to:
-- Fix all smart belt bugs now an forever
-- Support all past building features, like upgrading and rotating
+- Fix all smart belt bugs now and forever.
+- Support all past building features, like upgrading and rotating.
 - Support some new features, like un-dragging belt and belt-weaving.
 - Cover _all_ possible scenarios.
 - **Changes** some smart belt behavior to be the most useful.
