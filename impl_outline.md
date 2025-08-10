@@ -1,34 +1,46 @@
-# Smart belt implementation
+# Implementation notes
 
-A few components needed, in roughly decreasing order of abstraction:
+## Outline
+
+A few components needed, in roughly decreasing order of abstraction/chain of responsibility:
 
 - Cursor tracking
 
 World abstraction.
 Handles:
   - Rotation, flipping, and geometry
-  - ghosts deconstructed entities, etc. depending on drag type
-  - Belt state/shape queries
-  - Applying actions in-world, with undo
-  - Sending entire drag main undo/redo stack
+  - Ghosts deconstructed entities, etc. depending on drag type
+  - Entity, belt state/shape queries
+  - Applying actions in-world
+  - Undo redo stack
 
 Undo stack and undo actions
   - To be able to restore world (and drag handler state!) to previous states
+  - Maybe just hijack existing undo redo stack
 
 Full drag handler
 - Handles starting drags, rotations, and reversing drag direction
 - Tracks drag start position and type (valid belt, original rotation)
-- Handles rotations
 
 Straight Drag handler
 - Main functions: advance, undo
 - Incremental obstacle detection and tracking
 - Tracks belt segments, including "continuable" segments
 
+## Drag handler
 
-## Naive straight-line drag handler
+### On belt accessibility
+
+We treat the definition of an inaccessible belt segment as the "ground truth" for behavior.
+However, we do not need to pre-compute all connected belt segments at once.
+This can be done incrementally as we advance the drag.
+
+Expect a state machine diagram here soon
+
+### Naive straight-line drag handler
 
 Does not handle all cases (yet).
+Actual implementation will be slightly different (incremental obstacle tracking)
 Handles:
 - obstacles
 - simple undergrounds
@@ -37,6 +49,8 @@ Handles:
 
 Not supported yet:
 - Undo
+- Incremental belt segment tracking
+- All rotations & upgrades
 - First belt segment special casing
 
 ```python
