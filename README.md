@@ -1,5 +1,5 @@
 # New smart belt proposal
 
-A detailed spec on a new, improved, and fixed version of smart belt: see [[smart_belt_spec.md]]
+A  [detailed spec](smart_belt_spec.md) of a new, improved, and fixed version of smart belt
 
 May also contain a prototype implementation in the future.
