@@ -13,18 +13,18 @@ Feel free to open an issue or a pull request.
 
 ## Background
 
-After months of smart belt bugs, limitations, regressions, and frustrations; many times thinking "I could (probably) implement that better"; I finally decided to find out if that is true and give a shot at implementing it myself.
+We've had many months of smart belt bugs, limitations, regressions, and frustrations, especially in the Factorio speedrunning discord. Many times thinking "I could (probably) implement that better so these bugs can never have existed in the first place"; I finally decided to find out if that is really true and give a shot at implementing things myself.
 The goal is to overhaul smart belt, such that just always "just works", and is fixed once and for all.
 
 This starts with the spec. it aims to:
-- Fix all smart belt bugs now an forever
+- Formalize what it means for smart belt to be correct and useful
+- Fix all smart belt bugs now and forever
+- Mathematically cover _all_ possible scenarios.
 - Support all past building features, like upgrading and rotating
 - Support some new features, like un-dragging belt and belt-weaving.
-- Cover _all_ possible scenarios.
-- **Changes** some smart belt behavior to be the most useful.
-   - For instance, ensuring the dragged belt will be always be continuous, and always giving an error if this is not possible.
+- _Changes_ some smart belt behavior to be the most useful.
 
-Next comes a comprehensive list of test cases, according to the spec.
+This includes a comprehensive list of test cases, according to the spec.
 
 Then will come a prototype implementation, that people can play with to get feedback and make sure everything works.
 
