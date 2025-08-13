@@ -15,7 +15,6 @@ Inspiration and sources for this spec include:
   - https://forums.factorio.com/viewtopic.php?p=675773
 - Several discussions with players (especially Factorio Speedrunners), about what should happen in specific situations
 - A good think about what makes a smart belt "smart"
-  ![[Pasted image 20250812220403.png]]
 
 ### 1.1. Basic Requirements
 
