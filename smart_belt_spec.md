@@ -140,9 +140,9 @@ In the middle, a partial underground is placed, which temporarily straightens a 
 
 ### 2.3. Other non-trivial non-obstacles.
 
-- Compatible splitters. Note, we cannot replace a splitter with an underground. As such, if we are going to integrate a splitter, the tile in front and behind it must be free; i.e. we must be able to enter and exit it.
+- Compatible splitters. Note, we cannot replace a splitter with an underground. As such, if we are going to integrate a splitter, the tile in front and behind it must be accessible; i.e. we must be able to enter and exit it.
 
-- Underground belts. Any underground belts on the same axis will be passed-through. However, upgrading an underground belt may break the current belt line. We need to handle these cases.
+- Underground belts. Any existing underground belts on the same axis will be passed-through. However, upgrading an underground belt may break the current belt line. We need to handle these cases.
 
 - Fast-replaceable underground belts. See Section 1.3.1.
 
