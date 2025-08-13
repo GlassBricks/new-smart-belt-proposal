@@ -6,7 +6,7 @@ Enable players to drag belts over obstacles with intuitive, reliable behavior.
 
 Inspiration and sources for this spec include:
 
-- Several smart belt bug reports, which indicate a desire for different behavior. Some highlights:
+- Many smart belt bug reports, which indicate a desire for different behavior. Some highlights:
   - https://forums.factorio.com/viewtopic.php?t=126645
   - https://forums.factorio.com/128742
   - https://forums.factorio.com/128715
@@ -67,45 +67,48 @@ This section goes into more detail about what counts as an obstacle.
 Most things are obstacles.
 However, some belt lines are obstacles, and some are not.
 
-Examples of non-obstacles.
+**Examples of non-obstacles.**
 These should be integrated into the belt line.
+
 ![Non obstacle belts](images/Non-obstacles.png)
 
-Examples of belt which are obstacles, and should be underground-ed over:
+**Examples of belt which are obstacles**:
+These should be undergrounded over.
+
 Below, all yellow belts are obstacles, and red belt is what would be dragged.
+
 ![Non obstacles](images/Obstacles.png)
 
-Examples of impossible-to-pass setups.
+**Examples of impassable belt**
 It's not possible to drag (yellow) belt through these while preserving all goals in Section 1.
 As such, the player will be notified with an error if they try to drag a belt through them:
+
 ![Impassable](images/Impassable.png)
 
-We should also consider all these examples in every rotation and mirroring, and also with dragging belt backwards.
+We should also consider all examples in every rotation and mirroring, and dragging forwards and backwards.
 
-### 2.2. Belt Segments Accessibility
+### 2.2. Belt Segment Accessibility
 
 Define a **belt segment** as a series of directly connected belts, underground belts, and splitters.
 
-The above examples show we need to consider belt segments together, not individually, to determine if they should be obstacles.
-A rotated belt at the end of a line, or an obstacle in front of a splitter, may change a belt segment's accessibility.
+The above examples show we need to consider belt segments together, rather than individually:
+A rotated belt at the end of a line, or an obstacle in front of a splitter, may change if a belt segment's is an obstacle or not.
 
-Define this as an **inaccessible belt segment**: as a belt segment that cannot be integrated into the current belt drag, without affecting other non-integrated belt lines.
+Define an **inaccessible belt segment**: as a belt segment that cannot be integrated into the current belt drag, without affecting other non-integrated belt lines.
 
 Smart belt should integrate all accessible belt segments, and not affect any entities of inaccessible belt segments.
 
 #### 2.2.1. Basic belt accessibility rules
 
-To formalize this, all the following are **inaccessible**.
+Note, we here only consider belt entities that might connect with a parallel belt to the current drag; otherwise, they should always be treated as obstacle.
 
 There are only 3 sources of inaccessibility:
 
-- All curved belts; since they go parallel to the current drag.
+- All curved belts; they can go parallel to the current drag.
 - Splitters that do not go in the direction of the drag.
 - Splitters that do go in the direction of the drag, but we cannot access both the entrance and exit of.
 
-From there, any other belt, underground belt, or splitter that directly connects to another inaccessible belt (segment).
-
-Note, we here only consider belt entities that might connect with a parallel belt; as otherwise, they should always be treated as obstacle
+From there, any other belt, underground belt, or splitter that directly connects to them, is part of the same inaccessible belt segment.
 
 Side-loaded connections do not propagate inaccessibility; this allows dragging over straight perpendicular belts:
 
