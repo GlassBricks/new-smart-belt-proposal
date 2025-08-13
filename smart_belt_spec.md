@@ -120,11 +120,12 @@ It's often desirable to end a drag at a straight-then-curved belt (or start a dr
 
 ![Curved end of line example](images/Curved-end-of-line.png)
 
-If we considered all belts, the above rules would classify this curved belt as inaccessible.
-As such, instead: **Only belts and entities that the current drag has overlapped, may count towards accessibility**
+If we considered all belts shown, the rules would classify this curved belt as inaccessible.
+As such, to deal with this instead: **Only belts and entities that the current drag has overlapped, may count towards accessibility**.
 
-E.g the above would not be considered inaccessible, if we have not yet passed the curved belt at the end.
-Only after passing the curved belt, would an underground be created.
+E.g. you can end a drag at the middle of the curved segment, and no underground is created. Only after passing the curved belt, would an underground be created.
+
+In general, when first running up against any obstacle, a straight belt may be created directly running into the start of the obstacle. It's only after going _past_ the obstacle, when it might create an underground belt, always a pair at a time. This allows ending your belt segment at any point.
 
 #### 2.2.3. Some implementation details
 
@@ -220,6 +221,7 @@ For every new tile dragged:
     - If the belt is up/downgraded, and there are any impassable underground belts inside, report an error; upgrading would change the pair! This ensures that you don't break belt weaving by upgrading.
   - Otherwise, ignore everything else, until passing the exit underground belt.
   - If it's not possible to place a new entity past the exit underground belt, report an error.
+
 
 ### 3.3. Special Handling for First Belt Segment
 
