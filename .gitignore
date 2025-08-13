@@ -3,6 +3,7 @@ shell.nix
 
 .idea
 .zed
+.obsidian
 
 venv/
 __pycache__/
