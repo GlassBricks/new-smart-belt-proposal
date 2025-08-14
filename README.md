@@ -2,9 +2,11 @@
 
 A proposal for a new, improved, and fixed version of Factorio smart belt!
 
-Spec is available as:
-- [This blueprint](showcase_blueprint.txt) showcasing visually all parts of the spec.
-- [Text spec](smart_belt_spec.md), formalizing goals and requirements.
+Available as:
+- [This blueprint](showcase_blueprint.txt) showcasing the spec visually.
+- [Text spec](smart_belt_spec.md), formalizing goals.
+
+**See also: [the forum post discussion](https://forums.factorio.com/viewtopic.php?p=678133#p678133)**,where open questions are being discussed!
 
 Will later have a prototype implementation.
 
