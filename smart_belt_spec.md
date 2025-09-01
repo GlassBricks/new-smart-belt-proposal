@@ -18,35 +18,30 @@ Inspiration and sources for this spec include:
 
 ### 1.1. Basic Requirements
 
-Basics of what smart belt should do:
-
 - Belt drags in a straight line and automatically places underground belts over obstacles.
 - Player is notified when belt lines cannot be completed for any reason.
 - Supports dragging belt in forwards and reverse directions.
-- Supports rotation.
-- Supports undoing actions by "un-dragging" belt in the reverse direction. Newly added in 2.0.61, but we want to support/improve this.
+- Supports rotation of the current drag.
 - Incorporates existing compatible belts, splitters, and underground belts going in the same direction as the drag if possible; flipping, rotating, and upgrading them as needed.
+  - This allows flipping and existing belt.
 - All behavior should be easily understood.
 
 ### 1.2. Desired Properties
 
-Tries to pinpoint what it means for smart belt to be "correct". Try comparing these against what's desired in the above bug reports:
+Tries to pinpoint what it means for smart belt to be "correct". Try comparing these with the above bug reports:
 
-- **Continuity**: Belt lines are always continuous and unbroken; the start of a drag will always be belt-connected to the end of the drag.
-- **Complete**: Creates a valid belt line if possible, and gives an error if not.
-- **Non-interference**: ALL non-integrated entities and belts should be completely untouched. This includes not changing the rotation of an existing belt. This applies even after an error state.
+- **Continuity**: In the absence of "errors", belt lines are continuous and unbroken; the start of a drag will always be belt-connected to the end of the drag.
+- **Complete**: Creates a valid belt line if possible. Always notifies the player with an error if not.
+- **Non-interference**: ALL non-integrated entities and belts should be completely untouched. This includes not changing the rotation of an existing belt.
 - **Non-destructive**: Forward dragging never deletes existing entities (but may modify incorporated belts).
-- **Clean undo**: Backward dragging restores all entities to exactly their previous state.
 
-### 1.3. More Details
-
-Other useful properties:
+### 1.3. Other desirable properties
 
 - Supports belt weaving (underground belts of different tiers don't interfere).
 - Support naturally continuing existing belt lines.
-- New underground belts are always placed as a pair.
-- Support fixing broken underground belts.
-- In an error state due to an unplaceable underground belt, the entrance underground belt should be removed.
+- New underground belts are always placed as a pair (no lonely underground belts).
+- Be able to easily fix broken underground belts.
+- In an error state due to an un-placeable underground belt, the entrance underground belt should be removed (?)
 
 #### 1.3.1. A note on unpaired underground belts
 
@@ -290,12 +285,6 @@ We consider a start position **valid** if the first belt is successfully placed,
 If the start position is not valid, due to being blocked, an error sound plays.
 However, continuing to hold and drag may start a new drag at the first placeable position afterwards. We treat this as starting a new drag at that point.
 
-However, there are some differences. Following the principle of clean undo:
-
-- A valid first belt can never be removed by dragging, only maybe replaced with an underground belt.
-- An invalid first belt (started elsewhere) _must_ be removed by backward dragging.
-- While flipping direction changes belt line direction (forward/backward). flipping direction should NOT create underground belts (current game behavior).
-
 ### 4.2. Rotation
 
 #### 4.2.1. Basic behavior
@@ -330,55 +319,43 @@ When initiating a rotate:
 
 - Hitting rotate twice on the pivot belt continues the PREVIOUS drag. This would allow saying, "Oops, I didn't want to rotate here."
 
-### 4.3. Un-dragging
-
-Un-dragging always undoes actions performed by the current drag.
-
-TO DECIDE: How rich of an undo support we want to provide. Allow restoring settings/ghosts? Hijack the existing undo stack?
-
-There is no need for special redo; when dragging forwards again, we just evaluate the world again; this may even have different behavior if entities have changed.
-
-Some consequences of a clean undo:
-
-- Only placed belts can be mined.
-- Only rotated belts can be rotated.
-- Un-dragging may _place_ entities (underground belts previously deleted).
-
 ## 5. Other Feature Interactions
 
 ### 5.1. Undo/Redo Stack
 
-- Un-dragging may need to manage a "mini" undo stack, but we also have the MAIN undo/redo stack.
-
-These should be Ctrl+Z undoable:
+These should be separate undo items:
 
 - The very first belt's fast replace, if applicable.
 - All belts placed in the last straight-line drag.
-- Rotating ends the current straight-line drag and starts a new one, creating a new undo action.
+- Previous straight-line drags (rotation ends the current drag and starts a new one)
 
 ### 5.2. Ghosts and ghost building
 
 - **Real belt dragging**: Ghosts completely ignored.
-  - Future enhancement: Interactions with ghosts (a.k.a. a séance).
+  - Future enhancement: Interactions with ghosts (séance).
 - **Ghost belt dragging**: Both ghosts and real entities considered.
 
 ### 5.3. Force building
+
+This always results in ghost placement.
 
 Force is only different from normal ghost placement, in that rocks and trees are no longer considered obstacles.
 
 ### 5.4. SUPER force building
 
-If using super force, any potential obstacles (belt or otherwise) are deleted/force-integrated (rotated/upgraded); then treated as integrable belt for the rest of this spec.
+If using super force, any potential obstacles, belt or otherwise, are either deleted (if not a belt) or force-integrated(if it happens to be the correct type); then treated as integrable belt for the rest of this spec.
 
 If you release super-force, future encountered entities are treated normally again.
 
 ### 5.5. Entities Marked for Deconstruction
 
-- **Real entity dragging**: Deconstructed entities _always_ treated as obstacles (if there is collision), even if they would otherwise be integrated.
+- **Real entity dragging**: Deconstructed entities are:
+  - if it is possible to fast-replace with a straight belt, this is done; and the belt may be un-deconstructed
+  - otherwise, treated as _normal_ obstacles. (Underground belt interactions are ignored)
 - **Ghost dragging**: Deconstructed entities completely ignored.
 
 ### 5.6. Player Interactions
 
-- **Material shortage**: Match existing behavior for now; running out of real belts ends the drag. This means you can't undo anymore, but dealing with this is complicated.
-- **Insufficient underground belts**: Creates ghosts instead (with error notification). This will mine the input underground belt position.
+- **Material shortage**: running out of real belts ends the drag.
+- **Insufficient underground belts**: Creates ghosts instead (with error notification). This will also mine the input underground belt position to prevent accidental sideloads.
 - **Upgrades**: Either places upgraded materials or marks for bot upgrade, depending on whether ghost dragging is active and whether the player has enough materials.
