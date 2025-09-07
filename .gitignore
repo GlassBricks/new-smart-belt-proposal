@@ -8,3 +8,9 @@ shell.nix
 venv/
 __pycache__/
 .ropeproject
+.direnv/
+
+
+# Added by cargo
+
+/target
