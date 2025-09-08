@@ -2,6 +2,9 @@
 
 A proposal for a new, improved, and fixed version of Factorio smart belt!
 
+**Note**: v2 of the spec is in progress, in the v2 branch, which will eventually replace this one.
+See here for the latest draft: https://github.com/GlassBricks/new-smart-belt-proposal/tree/v2
+
 Available as:
 - [This blueprint](showcase_blueprint.txt) showcasing the spec visually.
 - [Text spec](smart_belt_spec.md), formalizing goals.

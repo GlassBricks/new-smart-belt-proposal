@@ -11,6 +11,5 @@ __pycache__/
 .direnv/
 
 
-# Added by cargo
-
 /target
+markdown_proc/target
