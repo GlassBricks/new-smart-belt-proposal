@@ -68,37 +68,142 @@ Made simple modifications to get it to work with 2.0.
 **Non-obstacles.**
 These should be integrated into the belt line.
 
-![](images/spec_0.gif)
+```fac-img
+
+ _ _ l _ r
+ _ _ l r r l
+
+_ l l l l l
+_ r r r r r
+
+_ r ri _ ro r
+_ l lo _ li l
+_ l ri _ ro l
+
+
+_ _ r rs r r
+
+
+ri _ ro rs ri _ ro
+
+
+_ _ _ rs rs
+```
 
 **Obstacles**:
 These should be under grounded over.
 
-![](images/spec_1.gif)
+
+```fac-img
+
+_ X _ _
+
+_ l
+
+_ r u l
+
+_ u l _ _
+
+_ _ u _ _ u
+_ r u _ r u _
+_ u _ _ u
+
+_ d l l l _
+
+_ d l l l _
+_ r r r u _
+
+_ _ _ ls
+
+
+
+_ _r r rs
+_ _u
+
+
+_ _ rs r r d
+
+
+_ _ rs X
+```
 
 For this red belt can underground over it, allowing belt-weaving.
 
-![](images/spec_2.gif)
+```fac-img
+_ _ _ _  _ _ _ _  d _
+_ d l lo _ _ _ li l
+_ d
+
+```
 
 **Impassable obstacles**
-These are *not possible* to underground over;
+These are _not possible_ to underground over;
 the player will be notified with an error (X is in the way) if they try to drag a belt pass them.
 
-![](images/spec_3.gif)
+```fac-img
+
+_ l lo _ li X _
+
+_ _ _  _  d
+_ d lo li l
+_ d
+
+_ ri _ ro rs X
+
+```
+
 
 **Running into a curved belt**
-Running into an *existing belt* in the same direction, will force it to be integrated.
+Running into an _existing belt_ in the same direction, will force it to be integrated.
 However, if the existing belt then curves, since we don't know what to do, we don't touch the rotated belt, and give an error to the player.
 
-![](images/spec_4.gif)
+```fac-img
+
+_ _ r u
+_ _ r d
+
+_ _ ri _ ro u
+
+
+_ _ r rs r u
+
+```
 
 **More examples**
 Some notable before and after examples.
+```fac-img
 
-![](images/spec_5.gif)
+_ _  u _ l
+
+r ri u ro r r
+
+
+_ _ rs X _ _
+
+
+r ri rs X ro r
+
+_ _ r u l _ _
+
+r r ri u ro r r _
+
+
+
+_ _ ri _ ro _ _
+
+r r ri _ ro r r
+
+```
 
 This behavior is TBD, depending on how we want to handle the splitter (to be debated):
+```fac-img
 
-![](images/spec_6.gif)
+
+_ _ r r rs X r
+
+r r r ri rs X ro r _
+
+```
 
 We should consider these examples also in every rotation, mirroring, and dragging backwards.
 
@@ -108,13 +213,11 @@ After some fiddling and experimenting;
 here are the rules, that are hopefully understandable, cover all "obvious" cases, and settle less obvious ones.
 
 Some definitions:
-
 - **Belt-like entity**: a belt, ug belt, or splitter (including 1x1)
 - **Belt segment**: is a series of directly connected belts, underground belts, and splitters; only considering entities in the path of the current belt drag.
   Side-loading does not count towards belt segment connectivity.
 
 ### Informally
-
 For every tile:
 
 If you can't place belt on it, it's an obstacle or impassable obstacle.
@@ -122,29 +225,25 @@ Perpendicular belts-like entities, and backwards splitters are always obstacles.
 
 **Belt segment integration**:
 For an existing belt segment:
-
-- If we connect *directly* into it, we *always* integrate it (starts with a belt in the same direction, or a ug entrance belt in the shape direction)
+- If we connect _directly_ into it, we _always_ integrate it (starts with a belt in the same direction, or a ug entrance belt in the shape direction)
 - If we can't connect into it, it's an obstacle.
-  If we have a choice to use a belt segment or not:
+If we have a choice to use a belt segment or not:
 - If the belt segment ends in a splitter we can't exit, it's not integrated.
-- if it's possible to integrate the *entire belt segment*, we integrate it
+- if it's possible to integrate the _entire belt segment_, we integrate it
 
 **Impassable obstacles**
 All these create impassable obstacles:
-
 - The tile doesn't allow under-grounding through
 - If we are dragging over an existing integrated belt segment, and the end of the belt segment curves
-- If we encounter a underground belt of the *same* tier and axis that we aren't integrating, as we can't place undergrounds over an underground we aren't using... Distinguishing by tier allows for belt weaving.
+- If we encounter a underground belt of the _same_ tier and axis that we aren't integrating, as we can't place undergrounds over an underground we aren't using... Distinguishing by tier allows for belt weaving.
 - Trying to upgrade an underground in a way that will make it too short, or break belt weaving
 
 **Variations**:
 Here are some things we're not 100% sure about, and might consider:
-
-- Forwards belt should not *always* be force integrated (use some other logic)
+- Forwards belt should not _always_ be force integrated (use some other logic)
 - Forwards splitters might not be given special treatment (just treated as force-integrated)
 
 ### Tile Types
-
 Getting in to the gritty details
 
 Every tile is classified as exactly one of:
@@ -160,8 +259,7 @@ The very first belt successfully placed is always considered **Empty**
 ### Belt segments
 
 Checking if we can use a belt segment. It will either be fully integrated, or treated as an obstacle.
-
-``` python
+```python
 
 def belt_segment_connects(a, b): return if a and b connect to each other
 
@@ -175,14 +273,13 @@ def check_belt_segment_enter():
 ### Main classification: simple obstacles
 
 This handles the cases when the last tile was:
-
 - **Empty**
 - **Integrated output**
 - **Obstacle**
 
 Here comes a giant match statement
 
-``` python
+```python
 was_successful_placement = last_type in (Empty, IntegratedOutput)
 is_same_segment = belt_segment_connects(last_tile, current_tile)
 
@@ -243,9 +340,9 @@ def try_skip_underground():
   else -> Obstacle # this case allows belt weaving
 ```
 
-#### Belt curvature
 
-(For belt\_was\_curved())
+#### Belt curvature
+(For belt_was_curved())
 
 Belt curvature is considered **ignoring** newly placed belts from the current drag.
 See this example:
@@ -256,16 +353,14 @@ In the middle, a partial underground is placed, which temporarily straightens a 
 ### Skipping over undergrounds
 
 When last tile is **PassThrough**:
-
-- if the next tile is the corresponding output underground -\> IntegratedOutput
-  else -\> PassThrough
+- if the next tile is the corresponding output underground -> IntegratedOutput
+  else -> PassThrough
 
 ## Straight-Line Dragging
 
 Goes into detail about dragging in a straight line, and traversing obstacles.
 
 ### Informally
-
 Integrate compatible belts, splitters, and pass-through undergrounds.
 Place underground belts over obstacles; Keep track of the last valid input underground position.
 If encountering an impassable obstacle, or underground belt would be too long, notify the user.
@@ -315,7 +410,7 @@ If a fast replace is done, this may also create a separate undo/redo item; allow
 
 When pressing rotate in the middle of a drag, determine the direction (left/right) by where the cursor, and the belt orientation (forwards/backwards) as what it was previously.
 
-If the "pivot tile" is a belt: first rotate it to the correct direction if needed, whatever the previous direction was\!
+If the "pivot tile" is a belt: first rotate it to the correct direction if needed, whatever the previous direction was!
 
 Then, it's the same as starting a new drag.
 
@@ -357,10 +452,9 @@ TODO: formalize this
 ### Entities Marked for Deconstruction
 
 For deconstructed entities:
-
 - **Real entity dragging**:
   - if it is possible to fast-replace with a straight belt, this is done; and the belt is un-deconstructed
-  - otherwise, treated *normal* obstacles. Underground belt interactions are ignored
+  - otherwise, treated _normal_ obstacles. Underground belt interactions are ignored
 - **Ghost dragging**: Deconstructed entities completely ignored.
 
 TODO: formalize this

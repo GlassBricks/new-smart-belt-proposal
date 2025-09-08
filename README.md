@@ -2,15 +2,14 @@
 
 A proposal for a new, improved, and fixed version of Factorio smart belt!
 
-Available as:
-- [This blueprint](showcase_blueprint.txt) showcasing the spec visually.
-- [Text spec](smart_belt_spec.md), formalizing goals.
+Note: You are on the "version 2" branch; which is still WIP. See main branch for previous version.
 
+See the spec here [[smart_belt_spec.md]].
 **See also: [the forum post discussion](https://forums.factorio.com/viewtopic.php?p=678133#p678133)**, where open questions are being discussed!
 
-Will later have a prototype implementation.
+This repo will later have a prototype implementation.
 
-#### Comments and critiques are welcome!
+### Comments and critiques are welcome!
 Feel free to open an issue or a pull request.
 
 ## Background
