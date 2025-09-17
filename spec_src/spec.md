@@ -117,8 +117,8 @@ _ _ _ ls
 
 
 
-_ _r r rs
-_ _u
+_ _ r r rs
+_ _ u
 
 
 _ _ rs r r d
@@ -224,10 +224,8 @@ _ r _  d
 r r rs r r r r
 ```
 
-However, if input is actually _used_ (has some belt input), it's less clear if we should integrate or underground over it.
+However, if input is actually _used_ (has at least one belt input into it), it's less clear if we should integrate or underground over it.
 The compromise chosen is to always not underground, even if the splitter later runs into a dead end.
-
-````
 
 ```fac-img
 _ _ _  _ r d _
@@ -237,22 +235,21 @@ _ _ r rs r u _
 _ _ _  _ r d
 r r r  _ u r r
 r r r rs r u _ _
-````
+```
 
 This motivates treating belt segments starting with a splitter differently:
 
 - When running into _forwards_ belt or an entrance underground, we _always_ integrate it.
 - However, if it _starts_ with a splitter, we lookahead to see if we want to integrate or underground over it.
 
-In the first example, it's possible to override this behavior, as to not underground over the splitter:
-
-- you can end a drag right when you reach the splitter, then start a new drag.
+The player can override this behavior by stopping then starting a new drag right before the splitter.
 
 #### Running into a _backwards_ belt
-... and NOT a ug belt.
+(not a backwards underground belt)
 
-For backwards belt, we also want to lookahead to decide if we underground it, or overbuild it (rotating it):
+For backwards belt, we want to lookahead to decide if we underground over it, or integrate it.
 
+2 example cases:
 ```fac-img
 _ _ l l l _ _
 
@@ -267,26 +264,25 @@ r ri l l l ro r
 
 ```
 
-HOWEVER, we still don't want infinite lookahead, else this leads to possibly unexpected behavior.
-
-With infinite lookahead, dragging ghost belt to upgrade this will stop at the splitter, and eventually say "underground too long", even if you don't end up dragging to the curved belt:
+HOWEVER, we don't want infinite lookahead: With infinite lookahead, dragging ghost belt to upgrade this will stop at the splitter, and eventually say "underground too long". This is even if you don't end up dragging all the way to the curved belt:
 
 ```fac-img
 
 _ _ rs r r r r r r u
 
 
-r r rs r r r r r r
+r r rs r r r r r r u
 
 ```
 
-As such, we only lookahead as far as it might be possible to place an underground:
+As such, we limit our lookahead to up to as far as the last underground can reach.
 
-- If we can underground the whole thing, then do it
-- If it's longer than that, default to integrating it.
+- If we can underground over the whole thing, do it
+- If it's too long, integrate it.
+Note: there's also some cases where it's impossible to underground over the belt segment.
 
-This might not satisfy everyone in every single situation, but seems a decent compromise.
-And, it's possible to tell at a glance what behavior you'll get, so you can override the default behavior in those rare cases.
+This won't satisfy everyone in every single situation, but seems a decent compromise:
+it's possible to tell at a glance what behavior you'll get; you can still override the default behavior by dragging twice in these cases.
 
 # THE SPEC
 

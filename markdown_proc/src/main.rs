@@ -125,8 +125,8 @@ impl FromStr for GridImg {
 }
 
 fn render_with_factorio_sat(grid: GridImg, img_out_path: &Path) -> Result<()> {
-    let grid = apply_belt_curving(grid)?;
     let grid = apply_splitter_completion(grid)?;
+    let grid = apply_belt_curving(grid)?;
 
     let height = grid.content.len();
     if height == 0 {
@@ -247,6 +247,10 @@ fn apply_belt_curving(mut grid: GridImg) -> Result<GridImg> {
                 | TileType::UGBelt {
                     direction: belt_dir,
                     is_input: false,
+                }
+                | TileType::Splitter {
+                    direction: belt_dir,
+                    ..
                 } => {
                     let (next_x, next_y) = match belt_dir {
                         Direction::Right => (x + 1, y),
