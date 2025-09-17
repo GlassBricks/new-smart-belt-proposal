@@ -75,7 +75,8 @@ impl FromStr for TileType {
             Some('u') => Direction::Up,
             Some('r') => Direction::Right,
             Some('d') => Direction::Down,
-            _ => anyhow::bail!("invalid direction"),
+            Some(c) => anyhow::bail!("invalid direction: {c}"),
+            None => anyhow::bail!("invalid direction, empty string"),
         };
         Ok(match chars.next() {
             Some('i') => TileType::UGBelt {
@@ -104,16 +105,20 @@ impl FromStr for GridImg {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self> {
-        let content = s
+        let mut content = s
             .lines()
-            .map(|line| line.trim())
-            .filter(|l| !l.is_empty())
             .map(|line| {
-                line.split_whitespace()
+                line.trim()
+                    .split_whitespace()
                     .map(|s| s.parse())
                     .collect::<Result<_>>()
             })
-            .collect::<Result<_>>()?;
+            .collect::<Result<Vec<Vec<TileType>>>>()?;
+
+        let max_width = content.iter().map(|row| row.len()).max().unwrap_or(0);
+        for row in &mut content {
+            row.resize(max_width, TileType::Empty);
+        }
 
         Ok(GridImg { content })
     }
@@ -223,40 +228,60 @@ fn belt_type_to_json(belt: &TileType) -> Result<Value> {
     Ok(serde_json::json!({ "tile": tile_data }))
 }
 
-fn apply_belt_curving(grid: GridImg) -> Result<GridImg> {
-    let height = grid.content.len();
+fn apply_belt_curving(mut grid: GridImg) -> Result<GridImg> {
+    let content = &mut grid.content;
+    let height = content.len();
     if height == 0 {
         return Ok(grid);
     }
-    let width = grid.content[0].len();
-
-    let mut new_grid = grid.content.clone();
+    let width = content[0].len();
 
     for y in 0..height {
         for x in 0..width {
-            if let TileType::Belt(belt_dir) = grid.content[y][x] {
-                let (next_x, next_y) = match belt_dir {
-                    Direction::Right => (x + 1, y),
-                    Direction::Down => (x, y + 1),
-                    Direction::Left => (x.saturating_sub(1), y),
-                    Direction::Up => (x, y.saturating_sub(1)),
-                };
-                if next_x < width && next_y < height {
-                    if let TileType::Belt(next_belt_dir) = grid.content[next_y][next_x] {
-                        if are_perpendicular(belt_dir, next_belt_dir) {
+            match content[y][x] {
+                TileType::Belt(belt_dir)
+                | TileType::CurvedBelt {
+                    output_direction: belt_dir,
+                    ..
+                }
+                | TileType::UGBelt {
+                    direction: belt_dir,
+                    is_input: false,
+                } => {
+                    let (next_x, next_y) = match belt_dir {
+                        Direction::Right => (x + 1, y),
+                        Direction::Down => (x, y + 1),
+                        Direction::Left => (x.wrapping_sub(1), y),
+                        Direction::Up => (x, y.wrapping_sub(1)),
+                    };
+                    if !(next_x < width && next_y < height) {
+                        continue;
+                    }
+                    match content[next_y][next_x] {
+                        TileType::Belt(next_belt_dir)
+                            if are_perpendicular(belt_dir, next_belt_dir) =>
+                        {
                             // Create a curved belt: input from current belt direction, output to next belt direction
-                            new_grid[next_y][next_x] = TileType::CurvedBelt {
+                            content[next_y][next_x] = TileType::CurvedBelt {
                                 input_direction: belt_dir,
                                 output_direction: next_belt_dir,
                             };
                         }
+                        TileType::CurvedBelt {
+                            output_direction, ..
+                        } if are_perpendicular(belt_dir, output_direction) => {
+                            // make straight again
+                            content[next_y][next_x] = TileType::Belt(output_direction);
+                        }
+                        _ => {}
                     }
                 }
+                _ => {}
             }
         }
     }
 
-    Ok(GridImg { content: new_grid })
+    Ok(grid)
 }
 
 fn apply_splitter_completion(grid: GridImg) -> Result<GridImg> {
@@ -304,7 +329,6 @@ fn process_markdown(
 ) -> Result<()> {
     let arena = Arena::new();
     let root = parse_document(&arena, input, &Default::default());
-    let mut id = 0;
 
     let mut nodes_to_replace = Vec::new();
     for node in root.descendants() {
@@ -315,20 +339,20 @@ fn process_markdown(
         }
     }
 
+    let mut id = 0;
     for (node, literal) in nodes_to_replace {
-        let img_block = GridImg::from_str(&literal)?;
         let img_out_path = image_out_dir.join(format!("{}_{}.gif", prefix, id));
         id += 1;
-        render_with_factorio_sat(img_block, &img_out_path)?;
-        let img_link = NodeLink {
-            url: pathdiff::diff_paths(&img_out_path, file_out_path.parent().unwrap())
-                .with_context(|| "Failed to generate image link")?
-                .to_string_lossy()
-                .to_string(),
-            ..Default::default()
+        let link = match try_make_img(file_out_path, &img_out_path, &literal) {
+            Ok(link) => link,
+            Err(err) => {
+                eprintln!("Failed to process image: {}, content: {}", err, literal);
+                continue;
+            }
         };
+
         let paragraph = arena.alloc(NodeValue::Paragraph.into());
-        let img_node = arena.alloc(NodeValue::Image(img_link).into());
+        let img_node = arena.alloc(NodeValue::Image(link).into());
         paragraph.append(img_node);
         node.insert_after(paragraph);
         node.detach();
@@ -337,6 +361,22 @@ fn process_markdown(
     let mut file = fs::File::create(file_out_path)?;
     format_commonmark(root, &Default::default(), &mut file)?;
     Ok(())
+}
+
+fn try_make_img<'a>(
+    file_out_path: &Path,
+    img_out_path: &Path,
+    literal: &str,
+) -> Result<NodeLink, anyhow::Error> {
+    let img_block = GridImg::from_str(literal)?;
+    render_with_factorio_sat(img_block, img_out_path)?;
+    Ok(NodeLink {
+        url: pathdiff::diff_paths(img_out_path, file_out_path.parent().unwrap())
+            .with_context(|| "Failed to generate image link")?
+            .to_string_lossy()
+            .to_string(),
+        ..Default::default()
+    })
 }
 
 fn remove_old_images(image_out_dir: &Path, prefix: &str) {

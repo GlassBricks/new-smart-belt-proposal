@@ -1,6 +1,6 @@
 # Smart Belt Specification
 
-## 1. Goals
+## Goals
 
 Enable players to drag belts over obstacles with intuitive, reliable behavior.
 
@@ -16,7 +16,7 @@ Inspiration and sources for this spec include:
 - Several discussions with players (especially Factorio Speedrunners), about what should happen in specific situations
 - A good think about what makes a smart belt "smart"
 
-### 1.1. Basic Requirements
+### Basic Requirements
 
 - Belt drags in a straight line and automatically places underground belts over obstacles.
 - Player is notified when belt lines cannot be completed for any reason.
@@ -26,220 +26,259 @@ Inspiration and sources for this spec include:
   - This allows flipping and existing belt.
 - All behavior should be easily understood.
 
-### 1.2. Desired Properties
+### Desired Properties
 
 Tries to pinpoint what it means for smart belt to be "correct". Try comparing these with the above bug reports:
 
 - **Continuity**: In the absence of "errors", belt lines are continuous and unbroken; the start of a drag will always be belt-connected to the end of the drag.
-- **Complete**: Creates a valid belt line if possible. Always notifies the player with an error if not.
-- **Non-interference**: ALL non-integrated entities and belts should be completely untouched. This includes not changing the rotation of an existing belt.
-- **Non-destructive**: Forward dragging never deletes existing entities (but may modify incorporated belts).
+- **Complete**: Creates a valid belt line if possible (from below rules). Always notifies the player with an error if not.
+- **Non-interference**: ALL non-integrated entities and belts should be untouched. This means not changing the rotation of another belt.
 
-### 1.3. Other desirable properties
+### Other desirable properties
 
 - Supports belt weaving (underground belts of different tiers don't interfere).
-- Support naturally continuing existing belt lines.
-- New underground belts are always placed as a pair (no lonely underground belts).
-- Be able to easily fix broken underground belts.
-- In an error state due to an un-placeable underground belt, the entrance underground belt should be removed (?)
+- New underground belts are always placed as a pair; no lonely underground belts.
+- Behavior allows:
+  - "naturally" continuing existing belt lines.
+  - fixing broken underground belts.
+- In an error state due to an un-placeable underground belt, the entrance underground belt should be removed
 
-#### 1.3.1. A note on unpaired underground belts
+#### Unpaired underground belts
 
-Currently, unpaired underground belts are treated like belts, and are easily over-built, which might break existing side-loads.
-Supporting the former (preserving side loads) would be more complicated, and the value of quickly fixing broken underground belts may be higher.
+Currently, this spec treats unpaired underground belts like belts, and can be easily over-built.
+This which might break existing side-loads.
+Supporting the former (preserving side loads) would be more complicated, and not much of a value add.
+We'll relegate this to a potential future extension
 
-### 1.4. Nice to Have (Future Extensions?)
+### Future Extensions?
 
 - Support un-rotating by pressing rotate twice on the original pivot point.
 - Support interactions with ghost belts.
+- Smarter lonely underground belt behavior
 
-## 2. Obstacle Classification
+## Obstacle classification examples
 
-This section goes into more detail about what counts as an obstacle.
+This are some examples of what counts as an obstacle, detailed later in this spec.
 
-### 2.1. Intro and Examples
+All examples are when dragging left to right.
 
-Most things are obstacles.
-However, some belt lines are obstacles, and some are not.
+Images generated using [Factorio-Sat](https://github.com/R-O-C-K-E-T/Factorio-SAT), which is licensed under GNU GPL.
+Made simple modifications to get it to work with 2.0.
 
-**Examples of non-obstacles.**
+**Non-obstacles.**
 These should be integrated into the belt line.
 
-![Non obstacle belts](images/Non-obstacles.png)
+![](images/spec_0.gif)
 
-**Examples of belt which are obstacles**:
-These should be undergrounded over.
+**Obstacles**:
+These should be under grounded over.
 
-Below, all yellow belts are obstacles, and red belt is what would be dragged.
+![](images/spec_1.gif)
 
-![Non obstacles](images/Obstacles.png)
+For this red belt can underground over it, allowing belt-weaving.
 
-**Examples of impassable belt**
-It's not possible to drag (yellow) belt through these while preserving all goals in Section 1.
-As such, the player will be notified with an error if they try to drag a belt through them:
+![](images/spec_2.gif)
 
-![Impassable](images/Impassable.png)
+**Impassable obstacles**
+These are *not possible* to underground over;
+the player will be notified with an error (X is in the way) if they try to drag a belt pass them.
 
-We should also consider all examples in every rotation and mirroring, and dragging forwards and backwards.
+![](images/spec_3.gif)
 
-### 2.2. Belt Segment Accessibility
+**Running into a curved belt**
+Running into an *existing belt* in the same direction, will force it to be integrated.
+However, if the existing belt then curves, since we don't know what to do, we don't touch the rotated belt, and give an error to the player.
 
-Define a **belt segment** as a series of directly connected belts, underground belts, and splitters.
+![](images/spec_4.gif)
 
-The above examples show we need to consider belt segments together, rather than individually:
-A rotated belt at the end of a line, or an obstacle in front of a splitter, may change if a belt segment's is an obstacle or not.
+**More examples**
+Some notable before and after examples.
 
-Define an **inaccessible belt segment**: as a belt segment that cannot be integrated into the current belt drag, without affecting other non-integrated belt lines.
+![](images/spec_5.gif)
 
-Smart belt should integrate all accessible belt segments, and not affect any entities of inaccessible belt segments.
+This behavior is TBD, depending on how we want to handle the splitter (to be debated):
 
-#### 2.2.1. Basic belt accessibility rules
+![](images/spec_6.gif)
 
-Note, we here only consider belt entities that might connect with a parallel belt to the current drag; otherwise, they should always be treated as obstacle.
+We should consider these examples also in every rotation, mirroring, and dragging backwards.
 
-There are only 3 sources of inaccessibility:
+## Obstacle/tile classification
 
-- All curved belts; they can go parallel to the current drag.
-- Splitters that do not go in the direction of the drag.
-- Splitters that do go in the direction of the drag, but we cannot access both the entrance and exit of.
+After some fiddling and experimenting;
+here are the rules, that are hopefully understandable, cover all "obvious" cases, and settle less obvious ones.
 
-From there, any other belt, underground belt, or splitter that directly connects to them, is part of the same inaccessible belt segment.
+Some definitions:
 
-Side-loaded connections do not propagate inaccessibility; this allows dragging over straight perpendicular belts:
+- **Belt-like entity**: a belt, ug belt, or splitter (including 1x1)
+- **Belt segment**: is a series of directly connected belts, underground belts, and splitters; only considering entities in the path of the current belt drag.
+  Side-loading does not count towards belt segment connectivity.
 
-![Sideload example](images/Sideload-example.png)
+### Informally
 
-#### 2.2.2. Consider only overlapped entities
+For every tile:
 
-It's often desirable to end a drag at a straight-then-curved belt (or start a drag on one):
+If you can't place belt on it, it's an obstacle or impassable obstacle.
+Perpendicular belts-like entities, and backwards splitters are always obstacles.
 
-![Curved end of line example](images/Curved-end-of-line.png)
+**Belt segment integration**:
+For an existing belt segment:
 
-If we considered all belts shown, the rules would classify this curved belt as inaccessible.
-As such, to deal with this instead: **Only belts and entities that the current drag has overlapped, may count towards accessibility**.
+- If we connect *directly* into it, we *always* integrate it (starts with a belt in the same direction, or a ug entrance belt in the shape direction)
+- If we can't connect into it, it's an obstacle.
+  If we have a choice to use a belt segment or not:
+- If the belt segment ends in a splitter we can't exit, it's not integrated.
+- if it's possible to integrate the *entire belt segment*, we integrate it
 
-E.g. you can end a drag at the middle of the curved segment, and no underground is created. Only after passing the curved belt, would an underground be created.
+**Impassable obstacles**
+All these create impassable obstacles:
 
-In general, when first running up against any obstacle, a straight belt may be created directly running into the start of the obstacle. It's only after going _past_ the obstacle, when it might create an underground belt, always a pair at a time. This allows ending your belt segment at any point.
+- The tile doesn't allow under-grounding through
+- If we are dragging over an existing integrated belt segment, and the end of the belt segment curves
+- If we encounter a underground belt of the *same* tier and axis that we aren't integrating, as we can't place undergrounds over an underground we aren't using... Distinguishing by tier allows for belt weaving.
+- Trying to upgrade an underground in a way that will make it too short, or break belt weaving
 
-#### 2.2.3. Some implementation details
+**Variations**:
+Here are some things we're not 100% sure about, and might consider:
 
-We only need to consider belts and entities the current drag overlaps; belt segments outside this line can only enter the drag area again as a curved or perpendicular belt, which would be considered inaccessible.
+- Forwards belt should not *always* be force integrated (use some other logic)
+- Forwards splitters might not be given special treatment (just treated as force-integrated)
 
-All belt accessibility considerations, such as curvature, are done **ignoring** any newly placed belts from the current drag.
-The following example demonstrates why:
+### Tile Types
 
-![Double-curve](images/Double-curve.png)
+Getting in to the gritty details
+
+Every tile is classified as exactly one of:
+
+- **Empty**: All tiles where belt can be placed or fast-replaced. May end up being either a belt or a newly placed underground.
+- **Integrated output**: Existing splitter, or output underground belt, that must be used. Can't be replaced with underground belt.
+- **Pass-through**: An integrated input underground, or tiles inbetween an integrated underground pair. We ignore what's on it until we reach the exit underground.
+- **Obstacle**
+- **Impassable**
+
+The very first belt successfully placed is always considered **Empty**
+
+### Belt segments
+
+Checking if we can use a belt segment. It will either be fully integrated, or treated as an obstacle.
+
+``` python
+
+def belt_segment_connects(a, b): return if a and b connect to each other
+
+def check_belt_segment_enter():
+    # Consider the whole belt segment (traverse belt_segment_connect forward).
+    if any part of the segment contains a curved belt -> False // not integrable
+    else if it ends with a splitter, but the output is blocked -> False
+    else -> True
+```
+
+### Main classification: simple obstacles
+
+This handles the cases when the last tile was:
+
+- **Empty**
+- **Integrated output**
+- **Obstacle**
+
+Here comes a giant match statement
+
+``` python
+was_successful_placement = last_type in (Empty, IntegratedOutput)
+is_same_segment = belt_segment_connects(last_tile, current_tile)
+
+match next_tile_type:
+  case belt:
+    match belt.direction:
+      case perpendicular:
+        if is_same_segment -> Impassable # this is the running into a curved belt case!
+        else -> Obstacle
+      case same direction:
+        if belt_was_curved() -> Obstacle # curved belts are obstacles.
+        else if was_successful_placement -> Empty # if belt runs into another belt, _always_ use it.
+        else -> try_enter_belt_segment()
+      else -> # opposite direction
+        try_enter_belt_segment()
+  case underground_belt:
+    if belt.is_unpaired
+      if belt.direction perpendicular -> Obstacle
+      else -> Empty # Fast replace un-paired undergrounds. Insert logic here if we want to do something different
+    else: match belt.shape_direction:
+      case perpendicular -> Obstacle
+      case inputting ->
+        if was_successful_placement -> try_integrate_underground()
+        else -> try_skip_underground()
+      case outputting -> # running into the back of the underground
+        try_skip_underground()
+  case splitter: # including 1x1 splitters
+    if splitter.direction != drag_direction -> Obstacle
+    else if not was_successful_placement -> Obstacle # can't enter
+    else: # same direction. Note: currently don't treat "directly running into a splitter" the same way as belt
+        try_enter_belt_segment_splitter()
+  case loader, linked belt, ...:
+    if belt connects into it -> Impassable # Join to it, but don't underground it
+    else -> Obstacle
+  else: # not a belt like entity
+    if belt can be placed -> Empty
+    else if not an undergroundable tile -> Impassable
+    else -> Obstacle
+
+def try_enter_belt_segment():
+  if check_belt_segment_enter() -> Empty
+  else -> Obstacle
+
+def try_enter_belt_segment_splitter():
+  if check_belt_segment_enter() -> IntegratedOutput
+  else -> Obstacle
+
+# these are for undergrounds in the same direction as the current belt line
+def try_integrate_underground():
+  if is same tier -> PassThrough
+  else:
+    if upgrading would make underground too short -> Impassable
+    if any tiles in between the underground are same-axis undergrounds of the same tier -> Impassable
+    else -> PassThrough
+
+def try_skip_underground():
+  if same-tier underground -> Impassable # We can't underground over the same
+  else -> Obstacle # this case allows belt weaving
+```
+
+#### Belt curvature
+
+(For belt\_was\_curved())
+
+Belt curvature is considered **ignoring** newly placed belts from the current drag.
+See this example:
+![Double-curve](../images/Double-curve.png)
 
 In the middle, a partial underground is placed, which temporarily straightens a belt. However, the straightened belt should still be considered inaccessible.
 
-### 2.3. Other non-trivial non-obstacles.
+### Skipping over undergrounds
 
-- Compatible splitters. Note, we cannot replace a splitter with an underground. As such, if we are going to integrate a splitter, the tile in front and behind it must be accessible; i.e. we must be able to enter and exit it.
+When last tile is **PassThrough**:
 
-- Underground belts. Any existing underground belts on the same axis will be passed-through. However, upgrading an underground belt may break the current belt line. We need to handle these cases.
+- if the next tile is the corresponding output underground -\> IntegratedOutput
+  else -\> PassThrough
 
-- Fast-replaceable underground belts. See Section 1.3.1.
-
-- Impassable underground belts. These are existing underground belts, of the same tier of the belt we are dragging, that we cannot integrate. It's impossible to create an underground belt over these, so we consider them impassable.
-
-### 2.4. Implementation: Tile Types
-
-This starts to get into implementation details, handling all cases shown above:
-
-We consider all tiles the drag overlaps to be exactly one of the following:
-
-- **Empty**. Placeable tile.
-- **Compatible belt**: Existing belt that should be integrated.
-- **Fast-replaceable underground belt**: Lonely (unpaired) underground belt that may be replaced with a normal belt.
-- **Pass-through underground belt**: Existing paired underground belt that the drag will use. Tiles in between are mostly ignored.
-- **Compatible splitter**: Existing splitter that must be integrated.
-- **Obstacle**: Blocks belt placement.
-- **Impassable obstacle**: Cannot be traversed past (an inaccessible underground belt in the same axis, which would break a new underground belt pair).
-
-### 2.5. Classification Rules
-
-Rules to put all tiles (and entities on them) into one of the tile types described above:
-
-#### 2.5.1. Transport Belts
-
-- **Perpendicular belts**: Always obstacles.
-- **Parallel belts**: Compatible if in an accessible belt segment. Obstacle otherwise.
-
-#### 2.5.2. Splitters (Including 1x1 Splitters)
-
-- **Different direction**: Obstacle.
-- **Same direction**: Follow accessibility rules.
-
-#### 2.5.3. Underground Belts
-
-- **Perpendicular underground belts**: Always obstacles.
-- **Part of accessible belt segment**:
-  - Unpaired underground belt: Fast-replaceable (may be replaced with straight belt).
-  - Paired underground belt: Pass-through underground belt (dragging belt will mostly ignore tiles in between).
-- **Part of inaccessible belt segment**:
-  - Different tier of underground belt: Obstacle. This enables belt weaving!
-  - Same tier of underground belt: _Impassable_.
-
-#### 2.5.4. Tiles
-
-If there are otherwise no entities, there may be tiles that you cannot build on.
-These are either:
-- Normal obstacles
-- **impassable**: some tiles do not allow you to underground through them.
-
-#### 2.5.5. Other
-
-- **Loaders and all other entities**: Obstacles.
-
-## 3. Straight-Line Dragging
+## Straight-Line Dragging
 
 Goes into detail about dragging in a straight line, and traversing obstacles.
 
-### 3.1. The Jist
+### Informally
 
-Place valid underground belts over all obstacle. Integrating compatible belts, splitters, and pass-through undergrounds.
-Place new undergrounds over all obstacles, possibly replacing old entities with underground belts.
-If it is impossible to do so, notify the user error at the first problematic position.
+Integrate compatible belts, splitters, and pass-through undergrounds.
+Place underground belts over obstacles; Keep track of the last valid input underground position.
+If encountering an impassable obstacle, or underground belt would be too long, notify the user.
 
 Never affect non-integrated entities.
 
-### 3.2. Basic Expected Behavior
+### More formally
 
-Note: there are a lot of details missing to turn this into a complete implementation! See [[impl_outline.md]] for a more detailed view.
+TODO: another giant match statement
 
-For every new tile dragged:
+## Error recovery
 
-- If possible, place a new belt.
-- If just going past an obstacle, create an underground belt connecting the last valid underground belt entrance position. Remove the old exit underground, if already placed.
-- If encountering an impassable obstacle, report an error immediately.
-- If going through a pass-through underground belt.
-  - If the underground belt needs to be upgraded, check:
-    - If the belt is downgraded, ensure that the belt is still able to connect to both ends. If not, report an error.
-    - If the belt is up/downgraded, and there are any impassable underground belts inside, report an error; upgrading would change the pair! This ensures that you don't break belt weaving by upgrading.
-
-  - If it's not possible to place a new entity past the exit underground belt, report an error.
-
-
-### 3.3. Special Handling for First Belt Segment
-
-Similarly to as described in Section 2.2.2., we (may) want to treat the first belt segment specially, even if they would otherwise be inaccessble. This allows naturally continuing existing belt lines.
-
-Note that we do not consider entities behind the first belt, as per Section 2.2.2.
-
-Consider a otherwise inaccessible belt segment: ![straighten](images/Straighten.png)
-
-To count as an "connected" first belt segment, it must first start with 1 or more belts, splitters, and undergrounds in the same direction as the drag.
-
-The first entity that does not, and would make the first belt segment inaccessible, can only be the following (from Section 2.2.1.):
-
-- If it's a curved belt:
-  - Option 1: error and do nothing.
-  - Option 2: straighten it out and continue. This ends the belt segment.
-  - **This is TBD! These NEW behaviors should discussed. Please leave feedback on what you think make the most sense.**
-- If it's a splitter, it must be in the same direction as the drag. The only way this can be an inaccessible belt segment, is if the output is blocked. In this case, we can treat this the same as a blocked underground belt; just give an error.
-
-### 3.4. Error Handling
+TODO: refine this
 
 What do do when we cannot continue:
 
@@ -247,7 +286,7 @@ What do do when we cannot continue:
 - If due to a pass-through underground we cannot upgrade, do not upgrade the underground belt.
 - IF the output is blocked, notify the player that "X is in the way."
 
-### 3.5. Placing Entities
+## Placing and overlapping entities
 
 Final notes on placing and "overlapping" existing entities:
 
@@ -255,106 +294,78 @@ Final notes on placing and "overlapping" existing entities:
 - **Compatible belts/underground belts**: Rotate, upgrade, or fast-replace as needed.
 - **Compatible splitters**: Rotation should not be necessary. TBD: Should we also upgrade the splitter? It currently doesn't today.
 
-## 4. Full Drag Operations
+## Full dragging and rotation
 
 Logic for the full "drag lifecycle": starting, rotating, and "un-dragging".
 
-### 4.1. Starting a Drag
-
-#### 4.1.1. Basic behavior
+### Starting a Drag
 
 A drag starts when the player places and holds down a belt.
 A drag is created in the same line as the belt.
 Dragging forwards or backwards determines the belt orientation.
-You can un-drag to flip between forward and backward.
+Un-dragging backwards changes the belt orientation.
 
-#### 4.1.2. Fast Replace on the First Entity
+### Fast Replace on the First Entity
 
 The very first click is special: it may fast replace something (such as replace a splitter with a belt, or remove an underground).
+This behavior is independent from any other rules. This allows the user to override any behavior by clicking another time.
+If a fast replace is done, this may also create a separate undo/redo item; allows recovering from "accidental" dragging.
 
-This should be excluded from any of the other rules here; this allows the user to override any behavior here by simply clicking again.
+### Rotation
 
-Since it's logically a separate operation, a change due to _fast-replace_ should also be a separate undo/redo item from the drag.
+When pressing rotate in the middle of a drag, determine the direction (left/right) by where the cursor, and the belt orientation (forwards/backwards) as what it was previously.
 
-#### 4.1.3. Valid vs Invalid Starting Position
+If the "pivot tile" is a belt: first rotate it to the correct direction if needed, whatever the previous direction was\!
 
-Behavior may differ depending on whether the start position is "valid" or not.
+Then, it's the same as starting a new drag.
 
-We consider a start position **valid** if the first belt is successfully placed, resulting in a belt in the same direction as the drag.
+## Other Feature Interactions
 
-If the start position is not valid, due to being blocked, an error sound plays.
-However, continuing to hold and drag may start a new drag at the first placeable position afterwards. We treat this as starting a new drag at that point.
+### Undo/Redo Stack
 
-### 4.2. Rotation
+These should separate undo items:
 
-#### 4.2.1. Basic behavior
+- The very first belt's fast replace if applicable.
+- Each "segment" of a a drag; rotation ends the current segment and starts a new one
 
-Rotation happens when pressing rotate in the middle of a drag, perpendicular to the belt line.
-This is very similar to starting a drag, with the following differences:
-
-- Un-dragging and flipping direction changes the rotation direction (left/right), not belt direction (forward/backward).
-
-TBD decide on one of these:
-- A rotation _cannot_ be started at an invalid position; e.g. no rotation is created.
-- A rotation at an invalid position is treated similarly to starting a drag at an invalid position;
-
-#### 4.2.2. Rotation Position Validity
-
-If the start position of a rotation is valid, is slightly more strict:
-It must be a belt, that the current belt line runs directly into.
-
-Note: allow the rotation point to be a curved belt! This allows merging into, then continuing, a curved belt end, like as shown in Section 2.2.2.
-
-This is better explained visually.
-
-#### 4.2.3. Starting a Rotation
-
-When initiating a rotate:
-
-- The pivot belt is rotated to the previous drag direction, if needed.
-- Dragging left or right creates a new drag, in a perpendicular direction.
-- If un-dragging all the way back to the pivot, straighten the pivot belt back to the previous drag direction.
-
-#### 4.2.4. Possible Enhancements?
-
-- Hitting rotate twice on the pivot belt continues the PREVIOUS drag. This would allow saying, "Oops, I didn't want to rotate here."
-
-## 5. Other Feature Interactions
-
-### 5.1. Undo/Redo Stack
-
-These should be separate undo items:
-
-- The very first belt's fast replace, if applicable.
-- All belts placed in the last straight-line drag.
-- Previous straight-line drags (rotation ends the current drag and starts a new one)
-
-### 5.2. Ghosts and ghost building
+### Ghosts and ghost building
 
 - **Real belt dragging**: Ghosts completely ignored.
-  - Future enhancement: Interactions with ghosts (séance).
+  - Future enhancement: Interactions with ghosts?
 - **Ghost belt dragging**: Both ghosts and real entities considered.
 
-### 5.3. Force building
+This is considered one entity at a time, at the time when you placed the belt.
+
+TODO: exceptions
+
+### Force building
 
 This always results in ghost placement.
 
 Force is only different from normal ghost placement, in that rocks and trees are no longer considered obstacles.
 
-### 5.4. SUPER force building
+### SUPER force building
 
-If using super force, any potential obstacles, belt or otherwise, are either deleted (if not a belt) or force-integrated(if it happens to be the correct type); then treated as integrable belt for the rest of this spec.
+If using super force, any potential obstacles, belt or otherwise, are either deleted (if not a belt) or force-integrated
+(if it happens to be the correct type);
+then treated as integrable belt for the rest of this spec.
 
 If you release super-force, future encountered entities are treated normally again.
 
-### 5.5. Entities Marked for Deconstruction
+TODO: formalize this
 
-- **Real entity dragging**: Deconstructed entities are:
-  - if it is possible to fast-replace with a straight belt, this is done; and the belt may be un-deconstructed
-  - otherwise, treated as _normal_ obstacles. (Underground belt interactions are ignored)
+### Entities Marked for Deconstruction
+
+For deconstructed entities:
+
+- **Real entity dragging**:
+  - if it is possible to fast-replace with a straight belt, this is done; and the belt is un-deconstructed
+  - otherwise, treated *normal* obstacles. Underground belt interactions are ignored
 - **Ghost dragging**: Deconstructed entities completely ignored.
 
-### 5.6. Player Interactions
+TODO: formalize this
+
+### Player Interactions
 
 - **Material shortage**: running out of real belts ends the drag.
 - **Insufficient underground belts**: Creates ghosts instead (with error notification). This will also mine the input underground belt position to prevent accidental sideloads.
