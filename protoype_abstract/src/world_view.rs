@@ -1,4 +1,4 @@
-use crate::{Direction, Entity, Ray, UndergroundBelt};
+use crate::{BeltTier, Direction, Entity, Ray, UndergroundBelt};
 
 #[derive(Debug)]
 pub struct DragWorldView {
@@ -23,19 +23,11 @@ impl DragWorldView {
         todo!()
     }
 
-    pub fn belt_drag_connects_to(&self, _index: i32) -> bool {
-        todo!()
-    }
-
     pub fn belt_was_curved(&self, _index: i32) -> bool {
         todo!()
     }
 
-    pub fn check_belt_segment_enter(&self, _index: i32) -> bool {
-        todo!()
-    }
-
-    pub fn can_place_belt(&self, _index: i32) -> bool {
+    pub fn can_place_belt_on_tile(&self, _index: i32) -> bool {
         todo!()
     }
 
@@ -43,11 +35,7 @@ impl DragWorldView {
         todo!()
     }
 
-    pub fn upgrading_would_make_too_short(&self, _ug: &UndergroundBelt) -> bool {
-        todo!()
-    }
-
-    pub fn has_conflicting_undergrounds_between(&self, _ug: &UndergroundBelt) -> bool {
+    pub fn can_upgrade_underground(&self, _ug: &UndergroundBelt, _new_tier: BeltTier) -> bool {
         todo!()
     }
 

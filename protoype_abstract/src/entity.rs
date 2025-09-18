@@ -5,7 +5,7 @@ use crate::geometry::{Direction, Position};
 #[derive(Debug)]
 pub struct BeltTierData {
     pub name: String,
-    pub underground_length: u8,
+    pub underground_distance: u8,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -44,7 +44,7 @@ impl UndergroundBelt {
         !self.is_input
     }
 
-    pub fn get_shape_direction(&self) -> Direction {
+    pub fn shape_direction(&self) -> Direction {
         if self.is_input {
             self.direction.opposite()
         } else {
@@ -72,4 +72,5 @@ pub enum Entity {
     UndergroundBelt(UndergroundBelt),
     Splitter(Splitter),
     LoaderLike(LoaderLike),
+    OtherColliding,
 }
