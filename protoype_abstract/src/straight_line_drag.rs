@@ -1,6 +1,5 @@
 use crate::entity::{Belt, Entity, Splitter, UndergroundBelt};
 use crate::geometry::Direction::*;
-use crate::geometry::Ray;
 use crate::{BeltTier, DragWorldView, LoaderLike};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -19,7 +18,7 @@ pub enum Action {
 
 // todo: split out tile type with saved type
 // todo: add last_tile_type, next_tile_type, etc. to the state
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TileType {
     Usable,
     IntegratedOutput,
@@ -34,8 +33,7 @@ impl TileType {
         matches!(self, TileType::Usable | TileType::IntegratedOutput)
     }
 }
-
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct LineDragState {
     // last position
     pub last_position: i32,
@@ -70,21 +68,21 @@ impl LineDragState {
 
 // todo: backwards
 #[derive(Debug)]
-pub struct LineDragHandler {
-    pub world_view: DragWorldView,
+pub struct LineDragHandler<'a> {
+    pub world_view: DragWorldView<'a>,
     pub belt_tier: BeltTier,
 }
 
-impl LineDragHandler {
-    pub fn new(ray: Ray, belt_tier: BeltTier) -> Self {
+impl<'a> LineDragHandler<'a> {
+    pub fn new(world_view: DragWorldView<'a>, belt_tier: BeltTier) -> Self {
         Self {
-            world_view: DragWorldView::new(ray),
+            world_view,
             belt_tier,
         }
     }
 
     pub fn process_next_tile(self, prev_state: &LineDragState) -> StepResult {
-        match prev_state.last_tile_type {
+        match &prev_state.last_tile_type {
             TileType::PassThrough(tier) => {
                 self.process_pass_through(prev_state.last_position + 1, tier)
             }
@@ -96,16 +94,15 @@ impl LineDragHandler {
         }
     }
 
-    fn process_pass_through(&self, position: i32, tier: BeltTier) -> StepResult {
+    fn process_pass_through(&self, position: i32, tier: &BeltTier) -> StepResult {
         let entity = self.world_view.get_entity_at_position(position);
         let next_tile_type = match entity {
             Some(Entity::UndergroundBelt(ug))
-                if ug.belt_tier == tier
-                    && ug.shape_direction() == self.world_view.drag_direction() =>
+                if ug.tier == *tier && ug.shape_direction() == self.world_view.drag_direction() =>
             {
                 TileType::IntegratedOutput
             }
-            _ => TileType::PassThrough(tier),
+            _ => TileType::PassThrough(tier.clone()),
         };
         StepResult {
             action: Action::None,
@@ -161,7 +158,7 @@ impl LineDragHandler {
     fn classify_belt(&self, belt: &Belt, state: &LineDragState) -> TileType {
         match self.world_view.relative_direction(belt.direction) {
             East | West => {
-                if self.belt_drag_connects_to(state.next_position()) {
+                if self.belt_was_connected_forward(state.last_position) {
                     TileType::Impassable
                 } else {
                     TileType::Obstacle
@@ -169,25 +166,25 @@ impl LineDragHandler {
             }
             North => {
                 // todo: handle had_output
-                if self.world_view.belt_was_curved(state.next_position()) {
+                if self.world_view.belt_was_curved(belt) {
                     TileType::Obstacle
                 } else if state.last_tile_type.is_output() {
                     TileType::Usable
                 } else {
-                    self.try_enter_belt_segment(state)
+                    self.try_enter_belt_segment(state, belt)
                 }
             }
-            South => self.try_enter_belt_segment(state),
+            South => self.try_enter_belt_segment(state, belt),
         }
     }
 
-    fn belt_drag_connects_to(&self, _position: i32) -> bool {
+    fn belt_was_connected_forward(&self, _position: i32) -> bool {
         // todo: handle cases when a belt only used to be curved
         true
     }
 
-    fn try_enter_belt_segment(&self, state: &LineDragState) -> TileType {
-        if self.should_ug_over_belt_segment(state) {
+    fn try_enter_belt_segment(&self, state: &LineDragState, _belt: &Belt) -> TileType {
+        if self.should_ug_over_belt_segment_backwards_belt(state) {
             TileType::Obstacle
         } else {
             TileType::Usable
@@ -208,17 +205,16 @@ impl LineDragHandler {
     }
 
     fn try_integrate_underground(&self, ug: &UndergroundBelt) -> TileType {
-        if self.belt_tier != ug.belt_tier
-            && self.world_view.can_upgrade_underground(ug, self.belt_tier)
+        if self.belt_tier != ug.tier && self.world_view.can_upgrade_underground(ug, &self.belt_tier)
         {
             TileType::UnusableUnderground
         } else {
-            TileType::PassThrough(self.belt_tier)
+            TileType::PassThrough(self.belt_tier.clone())
         }
     }
 
     fn try_skip_underground(&self, ug: &UndergroundBelt) -> TileType {
-        if self.belt_tier == ug.belt_tier {
+        if self.belt_tier == ug.tier {
             TileType::Impassable
         } else {
             TileType::Obstacle
@@ -230,7 +226,7 @@ impl LineDragHandler {
             self.world_view.relative_direction(splitter.direction),
             North
         ) && state.last_tile_type.is_output()
-            && self.should_ug_over_belt_segment(state)
+            && self.should_ug_over_belt_segment_after_splitter(state)
         {
             TileType::Obstacle
         } else {
@@ -278,9 +274,22 @@ impl LineDragHandler {
         }
     }
 
-    fn should_ug_over_belt_segment(&self, state: &LineDragState) -> bool {
+    /// After a _forwards_ splitter:
+    ///
+    /// splitter* forwards_belt* curved_belt
+    ///
+    /// Future extension 1: also consider belt weaving
+    /// splitter* (forwards_belt | diff_tier_paired_ug)* curved_belt
+    ///
+    /// Extension 2: also consider blocked undergrounds
+    /// splitter* (forwards_belt | diff_tier_paired_ug)* obstacle
+    fn should_ug_over_belt_segment_after_splitter(&self, state: &LineDragState) -> bool {
+        // assumes: first_belt_entity is straight
+
         // todo: refactor to remove need for this assertion
         assert!(state.last_tile_type.is_output());
+
+        let belt_direction = self.world_view.belt_direction();
 
         // ug over a belt segment, if there's something in it that would break the belt line if we try to enter it.
         let last_input_position = state
@@ -288,18 +297,35 @@ impl LineDragHandler {
             .expect("todo: refactor to remove need for this assertion");
         let furthest_output_position =
             last_input_position + self.belt_tier.underground_distance as i32;
-        for position in state.next_position()..furthest_output_position - 1 {
-            let entity = self.world_view.get_entity_at_position(position);
-            match entity {
-                Some(Entity::Belt(belt)) => todo!(),
-                Some(Entity::Splitter(splitter)) => todo!(),
-                Some(Entity::UndergroundBelt(ug)) => todo!(),
-                Some(Entity::LoaderLike(loader)) => todo!(),
-                Some(Entity::OtherColliding) => todo!(),
-                None => todo!(),
-            }
-        }
 
+        let entity_iter = (state.next_position()..furthest_output_position)
+            .into_iter()
+            .map_while(|position| {
+                self.world_view
+                    .get_entity_at_position(position)
+                    .and_then(|e| e.as_belt_like())
+                    .map(|e| (position, e))
+            });
+        let splitter_skip = entity_iter.skip_while(|(_, e)| {
+            e.as_splitter()
+                .is_some_and(|s| s.direction == belt_direction)
+        });
+
+        let last_entity = splitter_skip
+            .skip_while(|(_, e)| {
+                e.as_belt().is_some_and(|belt| {
+                    belt.direction == belt_direction && !self.world_view.belt_is_curved(belt)
+                })
+            })
+            .next();
+        last_entity.is_some_and(|(position, belt)| {
+            belt.as_belt().is_some_and(|belt| {
+                belt.direction == belt_direction && self.world_view.belt_is_curved(belt)
+            }) && self.world_view.belt_directly_connects_into_next(position)
+        })
+    }
+
+    fn should_ug_over_belt_segment_backwards_belt(&self, _state: &LineDragState) -> bool {
         todo!()
     }
 }

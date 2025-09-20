@@ -1,7 +1,16 @@
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Position {
     pub x: i32,
     pub y: i32,
+}
+impl Position {
+    pub fn new(x: i32, y: i32) -> Position {
+        Position { x, y }
+    }
+}
+
+pub fn pos(x: i32, y: i32) -> Position {
+    Position { x, y }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -59,16 +68,21 @@ impl Direction {
         }
     }
 
-    pub fn relative_direction(&self, other: Direction) -> Direction {
-        let diff = (other.to_ordinal() - self.to_ordinal() + 4) % 4;
+    /// from current to other
+    pub fn direction_to(&self, other: Direction) -> Direction {
+        let diff = (other.to_ordinal() + 4 - self.to_ordinal()) % 4;
         Direction::from_ordinal(diff).unwrap()
+    }
+
+    pub fn opposite_if(self, cond: bool) -> Direction {
+        if cond { self.opposite() } else { self }
     }
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct Ray {
-    pub position: Position,
-    pub direction: Direction,
+    position: Position,
+    direction: Direction,
 }
 
 impl Ray {
@@ -79,45 +93,150 @@ impl Ray {
         }
     }
 
+    pub fn start_position(&self) -> Position {
+        self.position
+    }
     pub fn direction(&self) -> Direction {
         self.direction
     }
-
     pub fn relative_direction(&self, direction: Direction) -> Direction {
-        self.direction.relative_direction(direction)
+        self.direction.direction_to(direction)
     }
-
-    pub fn index_of(&self, position: Position) -> i32 {
+    pub fn ray_distance(&self, position: Position) -> i32 {
+        // north is +y, east is +x
         match self.direction {
-            Direction::North => self.position.y - position.y,
+            Direction::North => position.y - self.position.y,
             Direction::East => position.x - self.position.x,
-            Direction::South => position.y - self.position.y,
+            Direction::South => self.position.y - position.y,
             Direction::West => self.position.x - position.x,
         }
     }
-
     pub fn position_at(&self, index: i32) -> Position {
+        let Position { x, y } = self.position;
         match self.direction {
-            Direction::North => Position {
-                x: self.position.x,
-                y: self.position.y - index,
-            },
-            Direction::East => Position {
-                x: self.position.x + index,
-                y: self.position.y,
-            },
-            Direction::South => Position {
-                x: self.position.x,
-                y: self.position.y + index,
-            },
-            Direction::West => Position {
-                x: self.position.x - index,
-                y: self.position.y,
-            },
+            Direction::North => Position { x, y: y + index },
+            Direction::East => Position { x: x + index, y },
+            Direction::South => Position { x, y: y - index },
+            Direction::West => Position { x: x - index, y },
         }
     }
-
     pub fn snap(&self, position: Position) -> Position {
-        self.position_at(self.index_of(position))
+        self.position_at(self.ray_distance(position))
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_direction_opposite() {
+        assert_eq!(Direction::North.opposite(), Direction::South);
+        assert_eq!(Direction::East.opposite(), Direction::West);
+        assert_eq!(Direction::South.opposite(), Direction::North);
+        assert_eq!(Direction::West.opposite(), Direction::East);
+    }
+
+    #[test]
+    fn test_direction_rotate() {
+        assert_eq!(Direction::North.rotate_cw(), Direction::East);
+        assert_eq!(Direction::East.rotate_cw(), Direction::South);
+        assert_eq!(Direction::South.rotate_cw(), Direction::West);
+        assert_eq!(Direction::West.rotate_cw(), Direction::North);
+
+        assert_eq!(Direction::North.rotate_ccw(), Direction::West);
+        assert_eq!(Direction::East.rotate_ccw(), Direction::North);
+        assert_eq!(Direction::South.rotate_ccw(), Direction::East);
+        assert_eq!(Direction::West.rotate_ccw(), Direction::South);
+    }
+
+    #[test]
+    fn test_direction_ordinal() {
+        assert_eq!(Direction::North.to_ordinal(), 0);
+        assert_eq!(Direction::East.to_ordinal(), 1);
+        assert_eq!(Direction::South.to_ordinal(), 2);
+        assert_eq!(Direction::West.to_ordinal(), 3);
+
+        assert_eq!(Direction::from_ordinal(0), Some(Direction::North));
+        assert_eq!(Direction::from_ordinal(1), Some(Direction::East));
+        assert_eq!(Direction::from_ordinal(2), Some(Direction::South));
+        assert_eq!(Direction::from_ordinal(3), Some(Direction::West));
+        assert_eq!(Direction::from_ordinal(4), None);
+    }
+
+    #[test]
+    fn test_relative_direction() {
+        assert_eq!(
+            Direction::North.direction_to(Direction::East),
+            Direction::East
+        );
+        assert_eq!(
+            Direction::East.direction_to(Direction::North),
+            Direction::West
+        );
+        assert_eq!(
+            Direction::East.direction_to(Direction::East),
+            Direction::North
+        );
+        assert_eq!(
+            Direction::North.direction_to(Direction::South),
+            Direction::South
+        );
+        assert_eq!(
+            Direction::East.direction_to(Direction::West),
+            Direction::South
+        );
+        assert_eq!(
+            Direction::South.direction_to(Direction::West),
+            Direction::East
+        );
+    }
+
+    #[test]
+    fn test_ray_distance() {
+        let ray_north = Ray::new(pos(0, 0), Direction::North);
+        assert_eq!(ray_north.ray_distance(pos(0, 5)), 5);
+        assert_eq!(ray_north.ray_distance(pos(0, -5)), -5);
+
+        let ray_east = Ray::new(pos(0, 0), Direction::East);
+        assert_eq!(ray_east.ray_distance(pos(5, 0)), 5);
+        assert_eq!(ray_east.ray_distance(pos(-5, 0)), -5);
+
+        let ray_south = Ray::new(pos(0, 0), Direction::South);
+        assert_eq!(ray_south.ray_distance(pos(0, 5)), -5);
+        assert_eq!(ray_south.ray_distance(pos(0, -5)), 5);
+
+        let ray_west = Ray::new(pos(0, 0), Direction::West);
+        assert_eq!(ray_west.ray_distance(pos(5, 0)), -5);
+        assert_eq!(ray_west.ray_distance(pos(-5, 0)), 5);
+    }
+
+    #[test]
+    fn test_position_at() {
+        let ray_north = Ray::new(pos(1, 1), Direction::North);
+        assert_eq!(ray_north.position_at(5), pos(1, 6));
+
+        let ray_east = Ray::new(pos(1, 1), Direction::East);
+        assert_eq!(ray_east.position_at(5), pos(6, 1));
+
+        let ray_south = Ray::new(pos(1, 1), Direction::South);
+        assert_eq!(ray_south.position_at(5), pos(1, -4));
+
+        let ray_west = Ray::new(pos(1, 1), Direction::West);
+        assert_eq!(ray_west.position_at(5), pos(-4, 1));
+    }
+
+    #[test]
+    fn test_snap() {
+        let ray_north = Ray::new(pos(1, 1), Direction::North);
+        assert_eq!(ray_north.snap(pos(5, 6)), pos(1, 6));
+
+        let ray_east = Ray::new(pos(1, 1), Direction::East);
+        assert_eq!(ray_east.snap(pos(6, 5)), pos(6, 1));
+
+        let ray_south = Ray::new(pos(1, 1), Direction::South);
+        assert_eq!(ray_south.snap(pos(5, -4)), pos(1, -4));
+
+        let ray_west = Ray::new(pos(1, 1), Direction::West);
+        assert_eq!(ray_west.snap(pos(-4, 5)), pos(-4, 1));
     }
 }
