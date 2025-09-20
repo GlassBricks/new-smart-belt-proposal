@@ -59,7 +59,7 @@ impl<'a> LineDrag<'a> {
     // }
 
     fn process_normal_tile(&self) -> StepResult {
-        match self.get_next_tile_type() {
+        match self.classify_next_tile() {
             TileType::Usable => {
                 if self.last_state.is_outputting(self.next_position()) {
                     self.place_belt()

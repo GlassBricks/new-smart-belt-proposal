@@ -1,5 +1,4 @@
 use crate::Belt;
-use crate::BeltTier;
 use crate::Direction::*;
 use crate::Entity;
 use crate::LoaderLike;
@@ -8,24 +7,28 @@ use crate::UndergroundBelt;
 
 use super::LineDrag;
 
-// todo: split out tile type with saved type
-// todo: add last_tile_type, next_tile_type, etc. to the state
 #[derive(Debug, Clone, PartialEq)]
 pub enum TileType {
+    /// A tile we can place or fast-replace belt on.
     Usable,
+    /// An obstacle we want to underground over.
     Obstacle,
-    /// An obstacle that's impossible to underground past.
-    Impassable,
-    /// Either: output underground we won't replace, or a splitter.
-    IntegratedOutput,
-    /// An input underground we will "pass-through" (don't do anything until reading the other side)
-    PassThroughUnderground(BeltTier),
-    /// An underground belt that we can't use (upgrading would break stuff)
-    UnupgradableUnderground,
+    // An obstacle that's impossible to underground past. Includes:
+    // - Impassable tiles
+    // - Curved belt
+    // - An underground belt of the same tier we don't or can't integrate
+    // Impassable,
+    // An integrated splitter. Should not be replaced with underground belt.
+    // IntegratedSplitter,
+    // An input underground we will "pass-through" (don't do anything until reading the other side)
+    // PassThroughUnderground(BeltTier),
+    // An input underground belt that we can't use (as upgrading would break stuff).
+    // UnupgradableUnderground,
 }
 
 impl<'a> LineDrag<'a> {
-    pub(super) fn get_next_tile_type(&self) -> TileType {
+    /// most things are simple to classify. The tricky cases are in existing belt-like-entities.
+    pub(super) fn classify_next_tile(&self) -> TileType {
         let entity = self
             .world_view()
             .get_entity_at_position(self.next_position());
@@ -42,31 +45,34 @@ impl<'a> LineDrag<'a> {
     fn classify_belt(&self, belt: &Belt) -> TileType {
         match self.world_view().relative_direction(belt.direction) {
             East | West => {
-                if self.belt_was_connected_forward(self.last_position) {
-                    TileType::Impassable
-                } else {
-                    TileType::Obstacle
-                }
+                todo!()
+                // if self.belt_was_connected_forward(self.last_position) {
+                //     TileType::Impassable
+                // } else {
+                //     TileType::Obstacle
+                // }
             }
             North => {
-                if self.world_view().belt_was_curved(belt) {
-                    TileType::Obstacle
-                } else if self.last_state.is_outputting(self.last_position) {
+                // if self.world_view().belt_was_curved(belt) {
+                //     TileType::Obstacle
+                // } else
+                if self.last_state.is_outputting(self.last_position) {
+                    // Running into belt in same direction.
                     TileType::Usable
                 } else {
-                    self.try_enter_belt_segment(belt)
+                    self.check_enter_belt_segment(belt)
                 }
             }
-            South => self.try_enter_belt_segment(belt),
+            South => self.check_enter_belt_segment(belt),
         }
     }
 
-    fn belt_was_connected_forward(&self, _position: i32) -> bool {
-        // todo: handle cases when a belt only used to be curved
-        true
-    }
+    // fn belt_was_connected_forward(&self, _position: i32) -> bool {
+    // todo: handle cases when a belt only used to be curved
+    // true
+    // }
 
-    fn try_enter_belt_segment(&self, _belt: &Belt) -> TileType {
+    fn check_enter_belt_segment(&self, _belt: &Belt) -> TileType {
         if self.should_ug_over_belt_segment_backwards_belt() {
             TileType::Obstacle
         } else {
@@ -89,17 +95,21 @@ impl<'a> LineDrag<'a> {
 
     fn try_integrate_underground(&self, ug: &UndergroundBelt) -> TileType {
         if self.tier != ug.tier && self.world_view().can_upgrade_underground(ug, &self.tier) {
-            TileType::UnupgradableUnderground
+            todo!()
+            // TileType::UnupgradableUnderground
         } else {
-            TileType::PassThroughUnderground(self.tier)
+            todo!()
+            // TileType::PassThroughUnderground(self.tier)
         }
     }
 
     fn try_skip_underground(&self, ug: &UndergroundBelt) -> TileType {
         if self.tier == ug.tier {
-            TileType::Impassable
+            todo!()
+            // TileType::Impassable
         } else {
-            TileType::Obstacle
+            todo!()
+            // TileType::Obstacle
         }
     }
 
@@ -110,23 +120,28 @@ impl<'a> LineDrag<'a> {
         ) && self.last_state.is_outputting(self.last_position)
             && self.should_ug_over_belt_segment_after_splitter()
         {
-            TileType::Obstacle
+            todo!()
+            // TileType::Obstacle
         } else {
-            TileType::IntegratedOutput
+            todo!()
+            // TileType::IntegratedSplitter
         }
     }
 
     fn classify_loader(&self, loader: &LoaderLike) -> TileType {
         if self.belt_connects_into_loader(loader) {
-            TileType::Impassable
+            todo!()
+            // TileType::Impassable
         } else {
-            TileType::Obstacle
+            todo!()
+            // TileType::Obstacle
         }
     }
 
-    pub fn belt_connects_into_loader(&self, loader: &LoaderLike) -> bool {
+    fn belt_connects_into_loader(&self, _loader: &LoaderLike) -> bool {
+        todo!()
         // todo: handle backwards dragging
-        loader.is_input && loader.direction == self.world_view().drag_direction()
+        // loader.is_input && loader.direction == self.world_view().drag_direction()
     }
 
     fn classify_empty_tile(&self) -> TileType {
