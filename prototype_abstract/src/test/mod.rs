@@ -1,8 +1,9 @@
+use crate::entity::BELT_TIERS;
 use crate::{BeltTier, Direction, Entities, Entity, pos};
 use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct TestCase {
     pub before: Entities,
     pub after: Entities,
