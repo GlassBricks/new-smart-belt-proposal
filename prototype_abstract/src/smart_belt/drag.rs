@@ -1,6 +1,6 @@
 use crate::{Belt, BeltTier, Direction, Entity, Position, Ray, World};
 
-use super::{Action, LineDragLogic, LineDragState, StepResult};
+use super::{Action, DragState, DragWorldView, StepResult};
 
 /**
  * Handles line dragging; includes mutable methods
@@ -9,8 +9,10 @@ use super::{Action, LineDragLogic, LineDragState, StepResult};
 pub struct LineDrag<'a> {
     world: &'a mut World,
     ray: Ray,
-    tier: BeltTier,
-    last_state: LineDragState,
+
+    pub(super) tier: BeltTier,
+    pub(super) last_state: DragState,
+    pub(super) last_position: i32,
 }
 
 impl<'a> LineDrag<'a> {
@@ -25,30 +27,30 @@ impl<'a> LineDrag<'a> {
 
         LineDrag {
             world,
-            tier,
             ray: Ray::new(start_pos, direction),
-            last_state: LineDragState::initial(true),
+            tier,
+            last_state: DragState::BeltPlaced,
+            last_position: 0,
         }
     }
 
+    pub(super) fn world_view(&self) -> DragWorldView<'_> {
+        DragWorldView::new(self.world, self.ray)
+    }
+
+    pub(super) fn next_position(&self) -> i32 {
+        self.last_position + 1
+    }
+
     pub fn step_forward(&mut self) {
-        let logic = LineDragLogic::new(self.world, self.ray, self.tier);
-        let StepResult {
-            action,
-            next_tile_type,
-        } = logic.process_next_tile(&self.last_state);
-        self.process_action(action, self.last_state.next_position());
-        let new_state = LineDragState {
-            last_position: self.last_state.next_position(),
-            last_tile_type: next_tile_type,
-            ..self.last_state
-        };
-        self.last_state = new_state;
+        let StepResult(action, next_state) = self.process_next_tile_forwards();
+        self.process_action(action, self.next_position());
+        self.last_state = next_state;
     }
 
     pub fn interpolate_to(&mut self, new_position: Position) {
         let dist = self.ray.ray_position(new_position);
-        while self.last_state.last_position < dist {
+        while self.last_position < dist {
             self.step_forward();
         }
     }

@@ -1,10 +1,10 @@
 use crate::{Belt, BeltTier, Direction, Entity, Ray, UndergroundBelt, World};
 
 /**
- * World view for LineDragLogic.
- *
- * Handles geometric transformations, belt shapes, and abstracting over forwards/backwards logic.
- */
+World view for LineDragLogic.
+
+Handles geometric transformations, belt shapes, and abstracting over forwards/backwards logic.
+*/
 #[derive(Debug)]
 pub struct DragWorldView<'a> {
     world: &'a World,
@@ -32,12 +32,13 @@ impl<'a> DragWorldView<'a> {
     }
 
     // World interaction methods - stubbed for implementation
-    pub fn get_entity_at_position(&self, index: i32) -> Option<&Entity> {
+    pub fn get_entity_at_position(&self, index: i32) -> Option<&'a Entity> {
         self.world.get(self.ray.get_position(index))
     }
 
     pub fn belt_was_curved(&self, _belt: &Belt /* todo: more param */) -> bool {
-        todo!()
+        false
+        // todo!()
     }
 
     pub fn belt_is_curved(&self, _belt: &Belt) -> bool {
