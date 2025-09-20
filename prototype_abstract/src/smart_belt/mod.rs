@@ -1,9 +1,10 @@
 pub mod action;
 pub mod drag;
-pub mod straight_line_drag;
+pub mod drag_logic;
+pub mod tile_classification;
 pub mod world_view;
 
-pub use action::*;
+use action::*;
 pub use drag::*;
-pub use straight_line_drag::*;
-pub use world_view::*;
+use drag_logic::*;
+use world_view::*;

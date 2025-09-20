@@ -45,6 +45,7 @@ impl<'a> LineDrag<'a> {
     pub fn step_forward(&mut self) {
         let StepResult(action, next_state) = self.process_next_tile_forwards();
         self.process_action(action, self.next_position());
+        self.last_position += 1;
         self.last_state = next_state;
     }
 
@@ -62,14 +63,6 @@ impl<'a> LineDrag<'a> {
                 self.world
                     .place_belt(position, self.ray.direction, self.tier);
             }
-            Action::PlaceNewUnderground { .. } => todo!(),
-            Action::ReplaceUnderground { .. } => todo!(),
-            Action::IntegrateEntity => todo!(),
-            Action::None => todo!(),
-            Action::EntityInTheWay => todo!(),
-            Action::ImpassableObstacle => todo!(),
-            Action::TooLongToReach => todo!(),
-            Action::CannotUpgradeUnderground => todo!(),
         }
     }
 }
