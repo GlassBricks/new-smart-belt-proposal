@@ -333,111 +333,8 @@ Some things we're not 100% sure about, and might consider:
 - Forwards belt should not _always_ be force integrated, in some cases?
 - Forwards splitters should not be given special treatment
 
-### Tile Types
-
-Getting in to the gritty details.
-
-Every tile is classified as exactly one of:
-
-- **Usable**: All tiles where belt can be placed or fast-replaced. May end up being either a belt or a newly placed underground.
-- **IntegratedOutput**: Existing splitter, or output underground belt, that must be used. Can't be replaced with underground belt.
-- **Obstacle**: Can underground over
-- **PassThrough**: An integrated input underground, or tiles inbetween an integrated underground pair. We ignore what's on it until we reach the exit underground.
-- **Impassable**: Can't underground over. Can be an un-undergroundable tile (lava), or a curved belt. It's ok to "hover over" the obstacle, though.
-- **UnusableUnderground**: An underground we encounter but can't use.
-
-The very first belt successfully placed is always considered **Usable**
-
-### Belt segments
-
-For the cases we need to look-forward, to decide if we want to integrate or jump over a belt segment.
-
-```python
-
-def belt_segment_connects(a, b): ...
-
-def check_belt_segment_enter():
-    # Consider the whole belt segment, up to the furthest tile the next underground may be placed.
-    if any part of the segment contains a curved belt -> False // not integrable
-    else if it ends with a splitter, but the output is blocked -> False
-    else -> True
-```
-
-### Main obstacle classification
-
-Tiles are classified one at a time, as we encounter them.
-This will also depend on the last tile's classification.
-
-The first belt placed is always declared **Usable**.
-
-If the last tile was...
-
-- **Usable**
-- **Integrated output**
-- **Obstacle**
-
-Here comes a giant match statement
-
-```python
-last_tile_was_output = last_type in (Usable, IntegratedOutput)
-is_same_segment = belt_segment_connects(last_tile, current_tile)
-
-match next_tile_type:
-  case belt:
-    match belt.direction:
-      case perpendicular:
-        if is_same_segment -> Impassable # this is the running into a curved belt case!
-        else -> Obstacle
-      case same direction:
-        if belt_was_curved() -> Obstacle # curved belts are obstacles.
-        else if last_tile_was_output -> Usable # if belt runs into another belt, _always_ use it.
-        else -> try_enter_belt_segment()
-      else -> # opposite direction
-        try_enter_belt_segment()
-  case underground_belt:
-    if belt.is_unpaired
-      if belt.direction perpendicular -> Obstacle
-      else -> Usable # Fast replace un-paired undergrounds. Insert logic here if we want to do something different
-    else: match belt.shape_direction:
-      case perpendicular -> Obstacle
-      case inputting ->
-        if last_tile_was_output -> try_integrate_underground()
-        else -> try_skip_underground()
-      case outputting -> # running into the back of the underground
-        try_skip_underground()
-  case splitter: # including 1x1 splitters
-    if splitter.direction != drag_direction -> Obstacle
-    else if not last_tile_was_output -> Obstacle # can't enter
-    else: # same direction. Note: currently don't treat "directly running into a splitter" the same way as belt
-        try_enter_belt_segment_splitter()
-  case loader, linked belt, ...:
-    if belt connects into it -> Impassable # Join to it, but don't underground it
-    else -> Obstacle
-  else: # not a belt like entity
-    if belt can be placed -> Usable
-    else if not an undergroundable tile -> Impassable
-    else -> Obstacle
-
-def try_enter_belt_segment():
-  if check_belt_segment_enter() -> Usable
-  else -> Obstacle
-
-def try_enter_belt_segment_splitter():
-  if check_belt_segment_enter() -> IntegratedOutput
-  else -> Obstacle
-
-# these are for undergrounds in the same direction as the current belt line
-def try_integrate_underground():
-  if is same tier -> PassThrough
-  else:
-    if upgrading would make underground too short -> UnusableUnderground
-    if any tiles in between the underground are same-axis undergrounds of the same tier -> UnusableUnderground
-    else -> PassThrough
-
-def try_skip_underground():
-  if same-tier underground -> Impassable # We can't underground over the same
-  else -> Obstacle # this case allows belt weaving
-```
+### Formally
+See [[prototype_abstract/src/smart_belt/tile_classification.rs]], which aims to be self-documenting code.
 
 #### A note on belt curvature
 
@@ -446,13 +343,6 @@ See this example:
 ![Double-curve](../images/Double-curve.png)
 
 In the middle, a partial underground is placed, which temporarily straightens a belt. However, the straightened belt should still be considered inaccessible.
-
-### Integrating existing undergrounds
-
-When last tile is **PassThrough**:
-
-- if the next tile is the corresponding output underground -> IntegratedOutput
-  else -> PassThrough
 
 ## Straight-Line Dragging
 
@@ -468,76 +358,8 @@ If encountering an impassable obstacle, or underground belt would be too long, g
 
 Never affect non-integrated entities.
 
-### Normal action handling
-The action taken is also handled one tile at a time,
-and depends on the last tile classification.
-
-Given last tile classification, and current tile classification (from above):
-
-- **Usable**
-- **IntegratedOutput**
-- **Obstacle**
-
-```python
-
-last_tile_was_output = last_tile_type in (Usable, IntegratedOutput)
-
-match new_tile_type:
-    case Usable:
-        if last_tile_was_output -> place_belt()
-        else: place_or_extend_underground()
-    case IntegratedOutput:
-        integrate_entity()
-    case PassThrough:
-        assert last_tile_was_output
-        assert current tile is input underground
-        integrate_entity()
-    case Obstacle:
-      if last_tile_type is IntegratedOutput:
-        # output must be followed by a usable space
-        error("entity in the way")
-      else if underground_would_be_too_long():
-        error("underground too long")
-      else: pass
-    case Impassable:
-        pass # do nothing, but only error when we try to traverse past it later
-
-def place_or_extend_underground():
-  assert underground is long enough
-  if no existing input, place input underground at last valid position
-  revert previous output underground if it exists
-  place output underground at current tile
-```
-
-### Pass through
-When last tile type is **PassThrough**:
-
-```python
-assert new_tile_type in (PassThrough, IntegratedOutput)
-pass
-# output underground would have already been upgraded/rotated at this point
-# do nothing
-```
-### Impassable
-When last tile type is **Impassable**, give an appropriate error right after.
-
-### Error recovery
-
-If error was due to:
-- Underground too long
-- Stuff in the way
-- Impassable tile/curved belt
-
-Then, we pretend the last tile type is now **Usable** instead of whatever it used to be.
-This results in placing or integrating a belt on the next available tile.
-
-- Impassable underground (lonely, or paired)
-- Unusable underground
-
-In the case of an impassable or unusable underground:
-- if it is a paired underground, don't do anything until going past the other end of the pair.
-  - Implementation TBD. Probably needs a new tile type, e.g. **PassThroughError**; or a modification of the existing PassThrough state
-- afterwards, pretend the last tile type is now **Usable**, like the first 3 cases.
+### Formally
+See [drag_logic.rs](prototype_abstract/src/smart_belt/drag_logic.rs), which aims to be self-documenting code.
 
 ### Placing entities
 

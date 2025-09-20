@@ -1,7 +1,6 @@
 use std::{
     fs,
     path::{Path, PathBuf},
-    process::Command,
     str::FromStr,
 };
 
@@ -14,6 +13,7 @@ use comrak::{
 };
 use serde_json::Value;
 use tempfile;
+use tokio::process::Command;
 
 #[derive(Clone, Copy)]
 enum Direction {
@@ -124,7 +124,7 @@ impl FromStr for GridImg {
     }
 }
 
-fn render_with_factorio_sat(grid: GridImg, img_out_path: &Path) -> Result<()> {
+async fn render_with_factorio_sat(grid: GridImg, img_out_path: &Path) -> Result<()> {
     let grid = apply_splitter_completion(grid)?;
     let grid = apply_belt_curving(grid)?;
 
@@ -167,13 +167,13 @@ fn render_with_factorio_sat(grid: GridImg, img_out_path: &Path) -> Result<()> {
 
     // Send JSON input to the process
     if let Some(stdin) = child.stdin.take() {
-        use std::io::Write;
+        use tokio::io::AsyncWriteExt;
         let mut stdin = stdin;
-        stdin.write_all(json_input.as_bytes())?;
-        stdin.flush()?;
+        stdin.write_all(json_input.as_bytes()).await?;
+        stdin.flush().await?;
     }
 
-    let output = child.wait_with_output()?;
+    let output = child.wait_with_output().await?;
 
     let generated_gif = temp_dir.path().join("0.gif");
     if output.status.success() && generated_gif.exists() {
@@ -325,7 +325,7 @@ fn apply_splitter_completion(grid: GridImg) -> Result<GridImg> {
     Ok(GridImg { content: new_grid })
 }
 
-fn process_markdown(
+async fn process_markdown(
     input: &str,
     image_out_dir: &Path,
     file_out_path: &Path,
@@ -335,22 +335,41 @@ fn process_markdown(
     let root = parse_document(&arena, input, &Default::default());
 
     let mut nodes_to_replace = Vec::new();
+    let mut image_contents = Vec::new();
+
     for node in root.descendants() {
         if let NodeValue::CodeBlock(cb) = &node.data.borrow().value {
             if cb.info == "fac-img" {
-                nodes_to_replace.push((node, cb.literal.clone()));
+                nodes_to_replace.push(node);
+                image_contents.push(cb.literal.clone());
             }
         }
     }
 
-    let mut id = 0;
-    for (node, literal) in nodes_to_replace {
+    // Process images concurrently with async
+    let mut tasks = Vec::new();
+    for (id, literal) in image_contents.iter().enumerate() {
         let img_out_path = image_out_dir.join(format!("{}_{}.gif", prefix, id));
-        id += 1;
-        let link = match try_make_img(file_out_path, &img_out_path, &literal) {
-            Ok(link) => link,
+        let file_out_path = file_out_path.to_path_buf();
+        let literal = literal.clone();
+
+        tasks.push(tokio::spawn(async move {
+            let result = try_make_img(&file_out_path, &img_out_path, &literal).await;
+            (id, result)
+        }));
+    }
+
+    let mut image_results = Vec::new();
+    for task in tasks {
+        image_results.push(task.await?);
+    }
+
+    // Apply results sequentially to maintain DOM order
+    for (node, (id, result)) in nodes_to_replace.iter().zip(image_results.iter()) {
+        let link = match result {
+            Ok(link) => link.clone(),
             Err(err) => {
-                eprintln!("Failed to process image: {}, content: {}", err, literal);
+                eprintln!("Failed to process image {}: {}", id, err);
                 continue;
             }
         };
@@ -367,13 +386,13 @@ fn process_markdown(
     Ok(())
 }
 
-fn try_make_img<'a>(
+async fn try_make_img(
     file_out_path: &Path,
     img_out_path: &Path,
     literal: &str,
 ) -> Result<NodeLink, anyhow::Error> {
     let img_block = GridImg::from_str(literal)?;
-    render_with_factorio_sat(img_block, img_out_path)?;
+    render_with_factorio_sat(img_block, img_out_path).await?;
     Ok(NodeLink {
         url: pathdiff::diff_paths(img_out_path, file_out_path.parent().unwrap())
             .with_context(|| "Failed to generate image link")?
@@ -412,7 +431,8 @@ struct Args {
     )]
     remove_old: bool,
 }
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let args = Args::parse();
     let output_md = match args.output_md {
         Some(path) => path,
@@ -430,7 +450,7 @@ fn main() -> Result<()> {
     if args.remove_old {
         remove_old_images(&args.img_dir, &prefix);
     }
-    process_markdown(&input, &args.img_dir, &output_md, &prefix)?;
+    process_markdown(&input, &args.img_dir, &output_md, &prefix).await?;
 
     Ok(())
 }
