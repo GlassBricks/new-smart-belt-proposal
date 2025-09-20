@@ -1,3 +1,4 @@
+use crate::geometry::RelativeDirection;
 use crate::{Belt, BeltTier, Direction, Entity, Ray, UndergroundBelt, World};
 
 /**
@@ -18,7 +19,7 @@ impl<'a> DragWorldView<'a> {
 }
 
 impl<'a> DragWorldView<'a> {
-    pub fn relative_direction(&self, direction: Direction) -> Direction {
+    pub fn relative_direction(&self, direction: Direction) -> RelativeDirection {
         self.drag_direction().direction_to(direction)
     }
 

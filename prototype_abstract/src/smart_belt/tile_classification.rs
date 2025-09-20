@@ -1,7 +1,7 @@
 use crate::Belt;
-use crate::Direction::*;
 use crate::Entity;
 use crate::LoaderLike;
+use crate::RelativeDirection::*;
 use crate::Splitter;
 use crate::UndergroundBelt;
 
@@ -44,7 +44,7 @@ impl<'a> LineDrag<'a> {
 
     fn classify_belt(&self, belt: &Belt) -> TileType {
         match self.world_view().relative_direction(belt.direction) {
-            East | West => {
+            Left | Right => {
                 todo!()
                 // if self.belt_was_connected_forward(self.last_position) {
                 //     TileType::Impassable
@@ -52,7 +52,7 @@ impl<'a> LineDrag<'a> {
                 //     TileType::Obstacle
                 // }
             }
-            North => {
+            Forward => {
                 // if self.world_view().belt_was_curved(belt) {
                 //     TileType::Obstacle
                 // } else
@@ -63,7 +63,7 @@ impl<'a> LineDrag<'a> {
                     self.check_enter_belt_segment(belt)
                 }
             }
-            South => self.check_enter_belt_segment(belt),
+            Backward => self.check_enter_belt_segment(belt),
         }
     }
 
@@ -86,10 +86,10 @@ impl<'a> LineDrag<'a> {
             .relative_direction(ug.shape_direction().opposite());
 
         match relative_dir {
-            East | West => TileType::Obstacle,
-            North | South if !self.world_view().is_ug_paired(ug) => TileType::Usable,
-            North => self.try_integrate_underground(ug),
-            South => self.try_skip_underground(ug),
+            Left | Right => TileType::Obstacle,
+            Forward | Backward if !self.world_view().is_ug_paired(ug) => TileType::Usable,
+            Forward => self.try_integrate_underground(ug),
+            Backward => self.try_skip_underground(ug),
         }
     }
 
@@ -116,7 +116,7 @@ impl<'a> LineDrag<'a> {
     fn classify_splitter(&self, splitter: &Splitter) -> TileType {
         if matches!(
             self.world_view().relative_direction(splitter.direction),
-            North
+            Forward
         ) && self.last_state.is_outputting(self.last_position)
             && self.should_ug_over_belt_segment_after_splitter()
         {

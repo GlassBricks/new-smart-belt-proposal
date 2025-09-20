@@ -21,6 +21,14 @@ pub enum Direction {
     West,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RelativeDirection {
+    Forward,
+    Right,
+    Left,
+    Backward,
+}
+
 impl Direction {
     pub fn opposite(&self) -> Direction {
         match self {
@@ -31,25 +39,7 @@ impl Direction {
         }
     }
 
-    pub fn rotate_cw(&self) -> Direction {
-        match self {
-            Direction::North => Direction::East,
-            Direction::East => Direction::South,
-            Direction::South => Direction::West,
-            Direction::West => Direction::North,
-        }
-    }
-
-    pub fn rotate_ccw(&self) -> Direction {
-        match self {
-            Direction::North => Direction::West,
-            Direction::East => Direction::North,
-            Direction::South => Direction::East,
-            Direction::West => Direction::South,
-        }
-    }
-
-    pub fn to_ordinal(&self) -> u8 {
+    fn to_ordinal(self) -> u8 {
         match self {
             Direction::North => 0,
             Direction::East => 1,
@@ -69,13 +59,30 @@ impl Direction {
     }
 
     /// from current to other
-    pub fn direction_to(&self, other: Direction) -> Direction {
+    pub fn direction_to(&self, other: Direction) -> RelativeDirection {
         let diff = (other.to_ordinal() + 4 - self.to_ordinal()) % 4;
-        Direction::from_ordinal(diff).unwrap()
+        RelativeDirection::from_ordinal(diff).unwrap()
+    }
+}
+
+impl RelativeDirection {
+    pub fn to_ordinal(self) -> u8 {
+        match self {
+            RelativeDirection::Forward => 0,
+            RelativeDirection::Right => 1,
+            RelativeDirection::Backward => 2,
+            RelativeDirection::Left => 3,
+        }
     }
 
-    pub fn opposite_if(self, cond: bool) -> Direction {
-        if cond { self.opposite() } else { self }
+    fn from_ordinal(ordinal: u8) -> Option<RelativeDirection> {
+        match ordinal {
+            0 => Some(RelativeDirection::Forward),
+            1 => Some(RelativeDirection::Right),
+            2 => Some(RelativeDirection::Backward),
+            3 => Some(RelativeDirection::Left),
+            _ => None,
+        }
     }
 }
 
@@ -93,7 +100,7 @@ impl Ray {
         }
     }
 
-    pub fn relative_directon(&self, direction: Direction) -> Direction {
+    pub fn relative_directon(&self, direction: Direction) -> RelativeDirection {
         self.direction.direction_to(direction)
     }
     pub fn ray_position(&self, position: Position) -> i32 {
@@ -182,19 +189,6 @@ mod tests {
     }
 
     #[test]
-    fn test_direction_rotate() {
-        assert_eq!(Direction::North.rotate_cw(), Direction::East);
-        assert_eq!(Direction::East.rotate_cw(), Direction::South);
-        assert_eq!(Direction::South.rotate_cw(), Direction::West);
-        assert_eq!(Direction::West.rotate_cw(), Direction::North);
-
-        assert_eq!(Direction::North.rotate_ccw(), Direction::West);
-        assert_eq!(Direction::East.rotate_ccw(), Direction::North);
-        assert_eq!(Direction::South.rotate_ccw(), Direction::East);
-        assert_eq!(Direction::West.rotate_ccw(), Direction::South);
-    }
-
-    #[test]
     fn test_direction_ordinal() {
         assert_eq!(Direction::North.to_ordinal(), 0);
         assert_eq!(Direction::East.to_ordinal(), 1);
@@ -212,28 +206,54 @@ mod tests {
     fn test_relative_direction() {
         assert_eq!(
             Direction::North.direction_to(Direction::East),
-            Direction::East
+            RelativeDirection::Right
         );
         assert_eq!(
             Direction::East.direction_to(Direction::North),
-            Direction::West
+            RelativeDirection::Left
         );
         assert_eq!(
             Direction::East.direction_to(Direction::East),
-            Direction::North
+            RelativeDirection::Forward
         );
         assert_eq!(
             Direction::North.direction_to(Direction::South),
-            Direction::South
+            RelativeDirection::Backward
         );
         assert_eq!(
             Direction::East.direction_to(Direction::West),
-            Direction::South
+            RelativeDirection::Backward
         );
         assert_eq!(
             Direction::South.direction_to(Direction::West),
-            Direction::East
+            RelativeDirection::Right
         );
+    }
+
+    #[test]
+    fn test_relative_direction_ordinal() {
+        assert_eq!(RelativeDirection::Forward.to_ordinal(), 0);
+        assert_eq!(RelativeDirection::Right.to_ordinal(), 1);
+        assert_eq!(RelativeDirection::Backward.to_ordinal(), 2);
+        assert_eq!(RelativeDirection::Left.to_ordinal(), 3);
+
+        assert_eq!(
+            RelativeDirection::from_ordinal(0),
+            Some(RelativeDirection::Forward)
+        );
+        assert_eq!(
+            RelativeDirection::from_ordinal(1),
+            Some(RelativeDirection::Right)
+        );
+        assert_eq!(
+            RelativeDirection::from_ordinal(2),
+            Some(RelativeDirection::Backward)
+        );
+        assert_eq!(
+            RelativeDirection::from_ordinal(3),
+            Some(RelativeDirection::Left)
+        );
+        assert_eq!(RelativeDirection::from_ordinal(4), None);
     }
 
     #[test]

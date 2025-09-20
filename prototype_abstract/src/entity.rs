@@ -1,7 +1,7 @@
 use lazy_static::lazy_static;
 use std::{any::Any, ops::Deref};
 
-use crate::geometry::Direction;
+use crate::geometry::{Direction, RelativeDirection};
 
 #[derive(Debug)]
 pub struct BeltTierData {
@@ -26,6 +26,23 @@ impl Deref for BeltTier {
         self.0
     }
 }
+
+pub static YELLOW_BELT: BeltTier = BeltTier(&BeltTierData {
+    name: "Yellow",
+    underground_distance: 5,
+});
+
+pub static RED_BELT: BeltTier = BeltTier(&BeltTierData {
+    name: "Red",
+    underground_distance: 7,
+});
+
+pub static BLUE_BELT: BeltTier = BeltTier(&BeltTierData {
+    name: "Blue",
+    underground_distance: 9,
+});
+
+pub static BELT_TIERS: [BeltTier; 3] = [YELLOW_BELT, RED_BELT, BLUE_BELT];
 
 pub trait BeltConnectable: Any {
     fn belt_direction(&self) -> Direction;
@@ -202,12 +219,12 @@ impl Entity {
 }
 
 impl dyn BeltConnectable {
-    // the entity's relative placement should be approach_direction.opposite
+    // the entity's relative placement should be entering_direction.opposite()
     pub fn accepts_input_going(&self, entering_direction: Direction) -> bool {
         match entering_direction.direction_to(self.belt_direction()) {
-            Direction::North => self.has_backwards_input(),
-            Direction::East | Direction::West => self.accepts_sideways_input(),
-            Direction::South => false,
+            RelativeDirection::Forward => self.has_backwards_input(),
+            RelativeDirection::Left | RelativeDirection::Right => self.accepts_sideways_input(),
+            RelativeDirection::Backward => false,
         }
     }
 
@@ -227,24 +244,6 @@ impl dyn BeltConnectable {
         }
     }
 }
-
-pub static YELLOW_BELT: BeltTier = BeltTier(&BeltTierData {
-    name: "Yellow",
-    underground_distance: 5,
-});
-
-pub static RED_BELT: BeltTier = BeltTier(&BeltTierData {
-    name: "Red",
-    underground_distance: 7,
-});
-
-pub static BLUE_BELT: BeltTier = BeltTier(&BeltTierData {
-    name: "Blue",
-    underground_distance: 9,
-});
-
-pub static BELT_TIERS: [BeltTier; 3] = [YELLOW_BELT, RED_BELT, BLUE_BELT];
-
 lazy_static! {}
 #[cfg(test)]
 mod tests {
