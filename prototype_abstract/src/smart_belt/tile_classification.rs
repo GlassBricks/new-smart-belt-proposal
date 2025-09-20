@@ -4,11 +4,13 @@ use crate::LoaderLike;
 use crate::RelativeDirection::*;
 use crate::Splitter;
 use crate::UndergroundBelt;
+use crate::note;
 
 use super::LineDrag;
+use super::drag_logic::DragState;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum TileType {
+pub(super) enum TileType {
     /// A tile we can place or fast-replace belt on.
     Usable,
     /// An obstacle we want to underground over.
@@ -56,11 +58,9 @@ impl<'a> LineDrag<'a> {
                 // if self.world_view().belt_was_curved(belt) {
                 //     TileType::Obstacle
                 // } else
-                if self.last_state.is_outputting(self.last_position) {
-                    // Running into belt in same direction.
-                    TileType::Usable
-                } else {
-                    self.check_enter_belt_segment(belt)
+                match self.last_state {
+                    DragState::BeltPlaced | DragState::OutputUgPlaced { .. } => TileType::Usable,
+                    DragState::TraversingObstacle { .. } => self.check_enter_belt_segment(belt),
                 }
             }
             Backward => self.check_enter_belt_segment(belt),
@@ -80,52 +80,52 @@ impl<'a> LineDrag<'a> {
         }
     }
 
-    fn classify_underground(&self, ug: &UndergroundBelt) -> TileType {
-        let relative_dir = self
-            .world_view()
-            .relative_direction(ug.shape_direction().opposite());
+    fn classify_underground(&self, _ug: &UndergroundBelt) -> TileType {
+        todo!()
+        // let relative_dir = self
+        //     .world_view()
+        //     .relative_direction(ug.shape_direction().opposite());
 
-        match relative_dir {
-            Left | Right => TileType::Obstacle,
-            Forward | Backward if !self.world_view().is_ug_paired(ug) => TileType::Usable,
-            Forward => self.try_integrate_underground(ug),
-            Backward => self.try_skip_underground(ug),
-        }
+        // match relative_dir {
+        //     Left | Right => TileType::Obstacle,
+        //     Forward | Backward if !self.world_view().is_ug_paired(ug) => TileType::Usable,
+        //     Forward => self.try_integrate_underground(ug),
+        //     Backward => self.try_skip_underground(ug),
+        // }
     }
 
-    fn try_integrate_underground(&self, ug: &UndergroundBelt) -> TileType {
-        if self.tier != ug.tier && self.world_view().can_upgrade_underground(ug, &self.tier) {
-            todo!()
-            // TileType::UnupgradableUnderground
-        } else {
-            todo!()
-            // TileType::PassThroughUnderground(self.tier)
-        }
-    }
+    // fn try_integrate_underground(&self, ug: &UndergroundBelt) -> TileType {
+    //     if self.tier != ug.tier && self.world_view().can_upgrade_underground(ug, &self.tier) {
+    //         todo!()
+    //         // TileType::UnupgradableUnderground
+    //     } else {
+    //         todo!()
+    //         // TileType::PassThroughUnderground(self.tier)
+    //     }
+    // }
 
-    fn try_skip_underground(&self, ug: &UndergroundBelt) -> TileType {
-        if self.tier == ug.tier {
-            todo!()
-            // TileType::Impassable
-        } else {
-            todo!()
-            // TileType::Obstacle
-        }
-    }
+    // fn try_skip_underground(&self, ug: &UndergroundBelt) -> TileType {
+    //     if self.tier == ug.tier {
+    //         todo!()
+    //         // TileType::Impassable
+    //     } else {
+    //         todo!()
+    //         // TileType::Obstacle
+    //     }
+    // }
 
-    fn classify_splitter(&self, splitter: &Splitter) -> TileType {
-        if matches!(
-            self.world_view().relative_direction(splitter.direction),
-            Forward
-        ) && self.last_state.is_outputting(self.last_position)
-            && self.should_ug_over_belt_segment_after_splitter()
-        {
-            todo!()
-            // TileType::Obstacle
-        } else {
-            todo!()
-            // TileType::IntegratedSplitter
-        }
+    fn classify_splitter(&self, _splitter: &Splitter) -> TileType {
+        todo!()
+        // if self.world_view().relative_direction(splitter.direction) == Forward
+        //     && self.should_ug_over_belt_segment_after_splitter()
+        //     && todo!()
+        // {
+        //     todo!()
+        //     // TileType::Obstacle
+        // } else {
+        //     todo!()
+        //     // TileType::IntegratedSplitter
+        // }
     }
 
     fn classify_loader(&self, loader: &LoaderLike) -> TileType {
@@ -157,55 +157,56 @@ impl<'a> LineDrag<'a> {
         }
     }
 
-    /// After a _forwards_ splitter:
-    ///
-    /// splitter* forwards_belt* curved_belt
-    ///
-    /// Future extension 1: also consider belt weaving
-    /// splitter* (forwards_belt | diff_tier_paired_ug)* curved_belt
-    ///
-    /// Extension 2: also consider blocked undergrounds
-    /// splitter* (forwards_belt | diff_tier_paired_ug)* obstacle
-    fn should_ug_over_belt_segment_after_splitter(&self) -> bool {
-        todo!()
-        // // assumes: first_belt_entity is straight
+    // After a _forwards_ splitter:
+    //
+    // splitter* forwards_belt* curved_belt
+    //
+    // Future extension 1: also consider belt weaving
+    // splitter* (forwards_belt | diff_tier_paired_ug)* curved_belt
+    //
+    // Extension 2: also consider blocked undergrounds
+    // splitter* (forwards_belt | diff_tier_paired_ug)* obstacle
+    // fn should_ug_over_belt_segment_after_splitter(&self) -> bool {
+    //     todo!()
+    // // assumes: first_belt_entity is straight
 
-        // // todo: refactor to remove need for this assertion
-        // assert!(state.last_tile_type.is_output());
+    // // todo: refactor to remove need for this assertion
+    // assert!(state.last_tile_type.is_output());
 
-        // let belt_direction = self.world_view.belt_direction();
+    // let belt_direction = self.world_view.belt_direction();
 
-        // // ug over a belt segment, if there's something in it that would break the belt line if we try to enter it.
-        // let last_input_position = state
-        //     .last_possible_entrance
-        //     .expect("todo: refactor to remove need for this assertion");
-        // let furthest_output_position =
-        //     last_input_position + self.belt_tier.underground_distance as i32;
+    // // ug over a belt segment, if there's something in it that would break the belt line if we try to enter it.
+    // let last_input_position = state
+    //     .last_possible_entrance
+    //     .expect("todo: refactor to remove need for this assertion");
+    // let furthest_output_position =
+    //     last_input_position + self.belt_tier.underground_distance as i32;
 
-        // let entity_iter = (state.next_position()..furthest_output_position).map_while(|position| {
-        //     self.world_view
-        //         .get_entity_at_position(position)
-        //         .and_then(|e| e.as_belt_like())
-        //         .map(|e| (position, e))
-        // });
-        // let mut splitter_skip = entity_iter.skip_while(|(_, e)| {
-        //     e.as_splitter()
-        //         .is_some_and(|s| s.direction == belt_direction)
-        // });
+    // let entity_iter = (state.next_position()..furthest_output_position).map_while(|position| {
+    //     self.world_view
+    //         .get_entity_at_position(position)
+    //         .and_then(|e| e.as_belt_like())
+    //         .map(|e| (position, e))
+    // });
+    // let mut splitter_skip = entity_iter.skip_while(|(_, e)| {
+    //     e.as_splitter()
+    //         .is_some_and(|s| s.direction == belt_direction)
+    // });
 
-        // let last_entity = splitter_skip.find(|(_, e)| {
-        //     !e.as_belt().is_some_and(|belt| {
-        //         belt.direction == belt_direction && !self.world_view.belt_is_curved(belt)
-        //     })
-        // });
-        // last_entity.is_some_and(|(position, belt)| {
-        //     belt.as_belt().is_some_and(|belt| {
-        //         belt.direction == belt_direction && self.world_view.belt_is_curved(belt)
-        //     }) && self.world_view.belt_directly_connects_into_next(position)
-        // })
-    }
+    // let last_entity = splitter_skip.find(|(_, e)| {
+    //     !e.as_belt().is_some_and(|belt| {
+    //         belt.direction == belt_direction && !self.world_view.belt_is_curved(belt)
+    //     })
+    // });
+    // last_entity.is_some_and(|(position, belt)| {
+    //     belt.as_belt().is_some_and(|belt| {
+    //         belt.direction == belt_direction && self.world_view.belt_is_curved(belt)
+    //     }) && self.world_view.belt_directly_connects_into_next(position)
+    // })
+    // }
 
     fn should_ug_over_belt_segment_backwards_belt(&self) -> bool {
-        todo!()
+        note!("Curved belt segment handling");
+        false
     }
 }

@@ -96,7 +96,7 @@ pub struct UndergroundBelt {
     pub is_input: bool,
 }
 impl UndergroundBelt {
-    pub fn new(direction: Direction, tier: BeltTier, is_input: bool) -> Self {
+    pub fn new(direction: Direction, is_input: bool, tier: BeltTier) -> Self {
         UndergroundBelt {
             direction,
             tier,

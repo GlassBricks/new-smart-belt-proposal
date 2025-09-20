@@ -7,3 +7,10 @@ pub mod world;
 pub use entity::*;
 pub use geometry::*;
 pub use world::*;
+
+macro_rules! note {
+    ($($arg:tt)*) => {
+        eprintln!("Note: {}", format_args!($($arg)*));
+    };
+}
+pub(crate) use note;

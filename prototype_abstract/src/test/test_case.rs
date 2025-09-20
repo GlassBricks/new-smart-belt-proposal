@@ -1,5 +1,6 @@
 use crate::entity::BELT_TIERS;
-use crate::{BeltTier, Direction, Entity, World, pos};
+use crate::smart_belt::action;
+use crate::{BeltTier, Direction, Entity, Position, World, pos};
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Deserializer};
 
@@ -10,6 +11,7 @@ pub struct DragTestCase {
     pub after: World,
     pub drag_row: i32,
     pub belt_tier: BeltTier,
+    pub expected_error: Option<(Position, action::Error)>,
 }
 
 fn deserialize_belt_tier(tier_int: i32) -> Result<BeltTier, String> {
@@ -23,6 +25,7 @@ fn deserialize_belt_tier(tier_int: i32) -> Result<BeltTier, String> {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "snake_case")]
 struct TestCaseSerde {
     name: Option<String>,
     before: String,
@@ -31,6 +34,7 @@ struct TestCaseSerde {
     drag_row: i32,
     #[serde(default)]
     belt_tier: i32,
+    expected_error: Option<action::Error>,
 }
 
 impl<'de> Deserialize<'de> for DragTestCase {
@@ -38,18 +42,34 @@ impl<'de> Deserialize<'de> for DragTestCase {
     where
         D: Deserializer<'de>,
     {
+        use serde::de::Error;
+
         let serde_case = TestCaseSerde::deserialize(deserializer)?;
 
-        let before = parse_world(&serde_case.before).map_err(|e| {
-            serde::de::Error::custom(format!("Failed to parse 'before' entities: {}", e))
-        })?;
+        let (before, before_markers) = parse_world(&serde_case.before)
+            .map_err(|e| Error::custom(format!("Failed to parse 'before' entities: {}", e)))?;
 
-        let after = parse_world(&serde_case.after).map_err(|e| {
-            serde::de::Error::custom(format!("Failed to parse 'after' entities: {}", e))
-        })?;
+        let (after, after_markers) = parse_world(&serde_case.after)
+            .map_err(|e| Error::custom(format!("Failed to parse 'after' entities: {}", e)))?;
+
+        if !before_markers.is_empty() {
+            return Err(Error::custom("Before markers should be empty"));
+        }
 
         let belt_tier =
             deserialize_belt_tier(serde_case.belt_tier).map_err(serde::de::Error::custom)?;
+
+        let expected_error = if let Some(expected_error) = serde_case.expected_error {
+            if after_markers.len() != 1 {
+                return Err(Error::custom(
+                    "Expected exactly one after marker for error location",
+                ));
+            }
+            let position = after_markers[0];
+            Some((position, expected_error))
+        } else {
+            None
+        };
 
         Ok(DragTestCase {
             name: serde_case.name,
@@ -57,6 +77,7 @@ impl<'de> Deserialize<'de> for DragTestCase {
             after,
             drag_row: serde_case.drag_row,
             belt_tier,
+            expected_error,
         })
     }
 }
@@ -121,17 +142,26 @@ pub fn parse_word(input: &str) -> Result<Option<Entity>> {
     }))
 }
 
-pub fn parse_world(input: &str) -> Result<World> {
+pub type WorldParse = (World, Vec<Position>);
+
+pub fn parse_world(input: &str) -> Result<WorldParse> {
     let mut world = World::new();
+    let mut markers = Vec::new();
     for (y, line) in input.lines().enumerate() {
         let words = line.split_whitespace();
-        for (x, word) in words.enumerate() {
+        for (x, mut word) in words.enumerate() {
+            let pos = Position::new(x as i32, y as i32);
+            if word.starts_with('*') {
+                markers.push(pos);
+                word = &word[1..];
+            }
+
             if let Some(entity) = parse_word(word)? {
-                world.set(pos(x as i32, y as i32), entity);
+                world.set(pos, entity);
             }
         }
     }
-    Ok(world)
+    Ok((world, markers))
 }
 pub fn print_entity(entity: &Entity) -> String {
     use crate::entity::*;
@@ -369,6 +399,39 @@ after: "r"
         assert_eq!(test_case.drag_row, 0); // Default drag_row
         assert_eq!(test_case.belt_tier, BELT_TIERS[0]); // Default belt_tier (yellow)
     }
+    #[test]
+    fn test_parse_world_with_marker() {
+        let input = "r *2u\nls _ X";
+        let (world, markers) = parse_world(input).expect("Failed to parse world");
+
+        // Check that we have one marker at position (1, 0)
+        assert_eq!(markers.len(), 1);
+        assert_eq!(markers[0], pos(1, 0));
+
+        // Check that entities were parsed correctly
+        assert!(matches!(
+            world.get(pos(0, 0)),
+            Some(Entity::Belt(Belt {
+                direction: Direction::East,
+                ..
+            }))
+        ));
+        assert!(matches!(
+            world.get(pos(1, 0)),
+            Some(Entity::Belt(Belt {
+                direction: Direction::North,
+                ..
+            }))
+        ));
+        assert!(matches!(
+            world.get(pos(0, 1)),
+            Some(Entity::Splitter(Splitter {
+                direction: Direction::West,
+                ..
+            }))
+        ));
+        assert!(matches!(world.get(pos(2, 1)), Some(Entity::OtherColliding)));
+    }
 
     #[test]
     fn test_print_world() {
@@ -403,7 +466,7 @@ r    2ui  _
 ls   _    X"#
             .trim_start();
         assert_eq!(output, expected);
-        let back_to_world = parse_world(&output).expect("Failed to parse world");
+        let (back_to_world, _) = parse_world(&output).expect("Failed to parse world");
         assert_eq!(back_to_world, world);
     }
 }

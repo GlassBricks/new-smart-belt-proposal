@@ -1,4 +1,4 @@
-use super::{Action, LineDrag, tile_classification::TileType};
+use super::{Action, LineDrag, action::Error, tile_classification::TileType};
 
 #[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
@@ -9,12 +9,15 @@ pub enum DragState {
     // ErrorRecovery,
     // Passing a splitter or output underground belt. This means we can't create an underground here.
     // IntegratedOutput,
-    // TraversingObstacle {
-    //     // The last position where we can create (or have created) an underground belt.
-    //     entrance_position: i32,
-    //     // The output underground belt position, if we've created one.
-    //     last_output_position_relative: Option<NonZeroI8>,
-    // },
+    /// We hovered over an obstacle.
+    TraversingObstacle {
+        // Last position we may place an underground belt.
+        last_input_position: i32,
+        // Last position we placed an underground belt, if any.
+        output_position: Option<i32>,
+    },
+    /// After we have placed our _own_ output underground belt. This output underground may be moved later.
+    OutputUgPlaced { entrance_position: i32 },
     // We have just encountered an impassable obstacle. However, we don't error until the user tries to _pass_ the obstacle.
     // OverImpassable,
     // We are passing through an underground belt.
@@ -23,22 +26,14 @@ pub enum DragState {
     // },
 }
 
-impl DragState {
-    pub(super) fn is_outputting(&self, _position: i32) -> bool {
-        match self {
-            DragState::BeltPlaced => true,
-        }
-    }
-}
-
-pub struct StepResult(pub Action, pub DragState);
+pub(super) struct StepResult(pub Action, pub Option<Error>, pub DragState);
 
 /**
  * Purely functional logic for straight line dragging.
  */
 impl<'a> LineDrag<'a> {
-    pub fn process_next_tile_forwards(&self) -> StepResult {
-        self.process_normal_tile()
+    pub(super) fn process_next_tile_forwards(&self) -> StepResult {
+        self.process_normal_state()
     }
 
     // fn process_pass_through(&self) -> StepResult {
@@ -58,15 +53,10 @@ impl<'a> LineDrag<'a> {
     // }
     // }
 
-    fn process_normal_tile(&self) -> StepResult {
+    fn process_normal_state(&self) -> StepResult {
         match self.classify_next_tile() {
-            TileType::Usable => {
-                if self.last_state.is_outputting(self.next_position()) {
-                    self.place_belt()
-                } else {
-                    self.place_or_extend_underground()
-                }
-            }
+            TileType::Usable => self.place_belt_or_underground(),
+            TileType::Obstacle => self.handle_obstacle(),
             // TileType::IntegratedOutput => Action::IntegrateEntity,
             // TileType::PassThroughUnderground(_) => Action::IntegrateEntity, // beginning pass_through means seeing input ug
             // TileType::Obstacle => {
@@ -79,32 +69,54 @@ impl<'a> LineDrag<'a> {
             //     Action::None
             // }
             // }
-            _ => todo!(),
         }
     }
 
-    fn place_belt(&self) -> StepResult {
-        let new_state = match self.last_state {
-            DragState::BeltPlaced => DragState::BeltPlaced,
-        };
-        StepResult(Action::PlaceBelt, new_state)
+    fn place_belt_or_underground(&self) -> StepResult {
+        match self.last_state {
+            DragState::BeltPlaced | DragState::OutputUgPlaced { .. } => {
+                StepResult(Action::PlaceBelt, None, DragState::BeltPlaced)
+            }
+            DragState::TraversingObstacle {
+                last_input_position: input_position,
+                output_position,
+            } => {
+                if let Some(ug) = output_position {
+                    todo!("Handle moving output underground, {:?}", ug)
+                } else {
+                    let next_position = self.next_position();
+                    let distance = next_position - input_position;
+                    if distance > self.tier.underground_distance.into() {
+                        StepResult(
+                            Action::PlaceBelt,
+                            Some(Error::TooFarToConnect),
+                            DragState::BeltPlaced,
+                        )
+                    } else {
+                        StepResult(
+                            Action::CreateUnderground(input_position, next_position),
+                            None,
+                            DragState::OutputUgPlaced {
+                                entrance_position: input_position,
+                            },
+                        )
+                    }
+                }
+            }
+        }
     }
 
-    fn place_or_extend_underground(&self) -> StepResult {
-        todo!()
-        // if let Some(input_position) = state.last_possible_entrance {
-        //     if state.next_position() - input_position > self.belt_tier.underground_distance as i32 {
-        //         Action::TooLongToReach
-        //     } else if let Some(last_output_position) = state.last_output_position {
-        //         Action::ReplaceUnderground {
-        //             last_output_position,
-        //         }
-        //     } else {
-        //         Action::PlaceNewUnderground { input_position }
-        //     }
-        // } else {
-        //     // no entrance position; either recovering from an error or starting with an error.
-        //     Action::PlaceBelt
-        // }
+    fn handle_obstacle(&self) -> StepResult {
+        let new_state = match self.last_state {
+            DragState::BeltPlaced => DragState::TraversingObstacle {
+                last_input_position: self.last_position,
+                output_position: None,
+            },
+            DragState::TraversingObstacle { .. } => self.last_state,
+            DragState::OutputUgPlaced { .. } => {
+                todo!()
+            }
+        };
+        StepResult(Action::None, None, new_state)
     }
 }

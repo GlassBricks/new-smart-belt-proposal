@@ -1,18 +1,19 @@
-use crate::{Belt, BeltTier, Direction, Entity, Position, Ray, World};
+use crate::{BeltTier, Direction, Position, Ray, World};
 
-use super::{Action, DragState, DragWorldView, StepResult};
+use super::{DragState, DragWorldView, Error, StepResult};
 
 /**
  * Handles line dragging; includes mutable methods
  */
 #[derive(Debug)]
 pub struct LineDrag<'a> {
-    world: &'a mut World,
-    ray: Ray,
-
+    pub(super) world: &'a mut World,
+    pub(super) ray: Ray,
     pub(super) tier: BeltTier,
     pub(super) last_state: DragState,
     pub(super) last_position: i32,
+    // for testing
+    pub(super) errors: Vec<(Position, Error)>,
 }
 
 impl<'a> LineDrag<'a> {
@@ -31,6 +32,7 @@ impl<'a> LineDrag<'a> {
             tier,
             last_state: DragState::BeltPlaced,
             last_position: 0,
+            errors: Vec::new(),
         }
     }
 
@@ -42,9 +44,17 @@ impl<'a> LineDrag<'a> {
         self.last_position + 1
     }
 
-    pub fn step_forward(&mut self) {
-        let StepResult(action, next_state) = self.process_next_tile_forwards();
-        self.process_action(action, self.next_position());
+    pub(crate) fn get_errors(self) -> Vec<(Position, Error)> {
+        self.errors
+    }
+
+    fn step_forward(&mut self) {
+        let StepResult(action, error, next_state) = self.process_next_tile_forwards();
+        self.apply_action(action);
+        if let Some(error) = error {
+            self.errors
+                .push((self.ray.get_position(self.next_position()), error));
+        }
         self.last_position += 1;
         self.last_state = next_state;
     }
@@ -54,21 +64,5 @@ impl<'a> LineDrag<'a> {
         while self.last_position < dist {
             self.step_forward();
         }
-    }
-
-    fn process_action(&mut self, action: Action, index: i32) {
-        match action {
-            Action::PlaceBelt => {
-                let position = self.ray.get_position(index);
-                self.world
-                    .place_belt(position, self.ray.direction, self.tier);
-            }
-        }
-    }
-}
-
-impl World {
-    fn place_belt(&mut self, position: Position, direction: Direction, tier: BeltTier) {
-        self.set(position, Entity::Belt(Belt::new(direction, tier)));
     }
 }

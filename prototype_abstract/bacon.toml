@@ -8,6 +8,8 @@
 default_job = "check"
 env.CARGO_TERM_COLOR = "always"
 
+watch=["src", "tests", "../test_suite"]
+
 [jobs.check]
 command = ["cargo", "check"]
 need_stdout = false

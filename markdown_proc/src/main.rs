@@ -12,7 +12,6 @@ use comrak::{
     parse_document,
 };
 use serde_json::Value;
-use tempfile;
 use tokio::process::Command;
 
 #[derive(Clone, Copy)]
@@ -108,8 +107,7 @@ impl FromStr for GridImg {
         let mut content = s
             .lines()
             .map(|line| {
-                line.trim()
-                    .split_whitespace()
+                line.split_whitespace()
                     .map(|s| s.parse())
                     .collect::<Result<_>>()
             })
