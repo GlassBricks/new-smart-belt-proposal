@@ -13,7 +13,7 @@ pub fn pos(x: i32, y: i32) -> Position {
     Position { x, y }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Direction {
     North,
     East,
@@ -81,38 +81,32 @@ impl Direction {
 
 #[derive(Debug, Clone, Copy)]
 pub struct Ray {
-    position: Position,
-    direction: Direction,
+    pub start_position: Position,
+    pub direction: Direction,
 }
 
 impl Ray {
     pub fn new(position: Position, direction: Direction) -> Self {
         Self {
-            position,
+            start_position: position,
             direction,
         }
     }
 
-    pub fn start_position(&self) -> Position {
-        self.position
-    }
-    pub fn direction(&self) -> Direction {
-        self.direction
-    }
-    pub fn relative_direction(&self, direction: Direction) -> Direction {
+    pub fn relative_directon(&self, direction: Direction) -> Direction {
         self.direction.direction_to(direction)
     }
-    pub fn ray_distance(&self, position: Position) -> i32 {
+    pub fn ray_position(&self, position: Position) -> i32 {
         // north is +y, east is +x
         match self.direction {
-            Direction::North => position.y - self.position.y,
-            Direction::East => position.x - self.position.x,
-            Direction::South => self.position.y - position.y,
-            Direction::West => self.position.x - position.x,
+            Direction::North => position.y - self.start_position.y,
+            Direction::East => position.x - self.start_position.x,
+            Direction::South => self.start_position.y - position.y,
+            Direction::West => self.start_position.x - position.x,
         }
     }
-    pub fn position_at(&self, index: i32) -> Position {
-        let Position { x, y } = self.position;
+    pub fn get_position(&self, index: i32) -> Position {
+        let Position { x, y } = self.start_position;
         match self.direction {
             Direction::North => Position { x, y: y + index },
             Direction::East => Position { x: x + index, y },
@@ -121,9 +115,60 @@ impl Ray {
         }
     }
     pub fn snap(&self, position: Position) -> Position {
-        self.position_at(self.ray_distance(position))
+        self.get_position(self.ray_position(position))
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct BoundingBox {
+    top_left: Position,
+    bottom_right: Position,
+}
+
+impl BoundingBox {
+    pub fn new(top_left: Position, bottom_right: Position) -> Self {
+        Self {
+            top_left,
+            bottom_right,
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.top_left == self.bottom_right
+    }
+
+    pub fn min_x(&self) -> i32 {
+        self.top_left.x
+    }
+
+    pub fn min_y(&self) -> i32 {
+        self.top_left.y
+    }
+
+    pub fn max_x(&self) -> i32 {
+        self.bottom_right.x
+    }
+
+    pub fn max_y(&self) -> i32 {
+        self.bottom_right.y
+    }
+}
+
+pub trait PositionIteratorExt: Iterator<Item = Position> + Sized {
+    fn bounds(mut self) -> Option<BoundingBox> {
+        let first = self.next()?;
+        let (min, max) = self.fold((first, first), |(min, max), next_pos| {
+            (
+                pos(min.x.min(next_pos.x), min.y.min(next_pos.y)),
+                pos(max.x.max(next_pos.x), max.y.max(next_pos.y)),
+            )
+        });
+        Some(BoundingBox::new(min, max))
+    }
+}
+
+impl<T: Iterator<Item = Position>> PositionIteratorExt for T {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -194,35 +239,35 @@ mod tests {
     #[test]
     fn test_ray_distance() {
         let ray_north = Ray::new(pos(0, 0), Direction::North);
-        assert_eq!(ray_north.ray_distance(pos(0, 5)), 5);
-        assert_eq!(ray_north.ray_distance(pos(0, -5)), -5);
+        assert_eq!(ray_north.ray_position(pos(0, 5)), 5);
+        assert_eq!(ray_north.ray_position(pos(0, -5)), -5);
 
         let ray_east = Ray::new(pos(0, 0), Direction::East);
-        assert_eq!(ray_east.ray_distance(pos(5, 0)), 5);
-        assert_eq!(ray_east.ray_distance(pos(-5, 0)), -5);
+        assert_eq!(ray_east.ray_position(pos(5, 0)), 5);
+        assert_eq!(ray_east.ray_position(pos(-5, 0)), -5);
 
         let ray_south = Ray::new(pos(0, 0), Direction::South);
-        assert_eq!(ray_south.ray_distance(pos(0, 5)), -5);
-        assert_eq!(ray_south.ray_distance(pos(0, -5)), 5);
+        assert_eq!(ray_south.ray_position(pos(0, 5)), -5);
+        assert_eq!(ray_south.ray_position(pos(0, -5)), 5);
 
         let ray_west = Ray::new(pos(0, 0), Direction::West);
-        assert_eq!(ray_west.ray_distance(pos(5, 0)), -5);
-        assert_eq!(ray_west.ray_distance(pos(-5, 0)), 5);
+        assert_eq!(ray_west.ray_position(pos(5, 0)), -5);
+        assert_eq!(ray_west.ray_position(pos(-5, 0)), 5);
     }
 
     #[test]
     fn test_position_at() {
         let ray_north = Ray::new(pos(1, 1), Direction::North);
-        assert_eq!(ray_north.position_at(5), pos(1, 6));
+        assert_eq!(ray_north.get_position(5), pos(1, 6));
 
         let ray_east = Ray::new(pos(1, 1), Direction::East);
-        assert_eq!(ray_east.position_at(5), pos(6, 1));
+        assert_eq!(ray_east.get_position(5), pos(6, 1));
 
         let ray_south = Ray::new(pos(1, 1), Direction::South);
-        assert_eq!(ray_south.position_at(5), pos(1, -4));
+        assert_eq!(ray_south.get_position(5), pos(1, -4));
 
         let ray_west = Ray::new(pos(1, 1), Direction::West);
-        assert_eq!(ray_west.position_at(5), pos(-4, 1));
+        assert_eq!(ray_west.get_position(5), pos(-4, 1));
     }
 
     #[test]

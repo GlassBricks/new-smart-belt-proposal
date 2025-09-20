@@ -1,13 +1,18 @@
-use crate::{Belt, BeltTier, Direction, Entities, Entity, Ray, UndergroundBelt};
+use crate::{Belt, BeltTier, Direction, Entity, Ray, UndergroundBelt, World};
 
+/**
+ * World view for LineDragLogic.
+ *
+ * Handles geometric transformations, belt shapes, and abstracting over forwards/backwards logic.
+ */
 #[derive(Debug)]
 pub struct DragWorldView<'a> {
-    world: &'a Entities,
+    world: &'a World,
     ray: Ray,
 }
 
 impl<'a> DragWorldView<'a> {
-    pub fn new(world: &'a Entities, ray: Ray) -> Self {
+    pub fn new(world: &'a World, ray: Ray) -> Self {
         Self { world, ray }
     }
 }
@@ -18,17 +23,17 @@ impl<'a> DragWorldView<'a> {
     }
 
     pub fn drag_direction(&self) -> Direction {
-        self.ray.direction()
+        self.ray.direction
     }
 
     pub fn belt_direction(&self) -> Direction {
         // TODO: backwards dragging
-        self.ray.direction()
+        self.ray.direction
     }
 
     // World interaction methods - stubbed for implementation
     pub fn get_entity_at_position(&self, index: i32) -> Option<&Entity> {
-        self.world.entity_at(self.ray.position_at(index))
+        self.world.get(self.ray.get_position(index))
     }
 
     pub fn belt_was_curved(&self, _belt: &Belt /* todo: more param */) -> bool {
@@ -44,11 +49,13 @@ impl<'a> DragWorldView<'a> {
     }
 
     pub fn can_place_belt_on_tile(&self, _index: i32) -> bool {
-        todo!()
+        // todo
+        true
     }
 
     pub fn is_undergroundable_tile(&self, _index: i32) -> bool {
-        todo!()
+        // todo
+        true
     }
 
     pub fn can_upgrade_underground(&self, _ug: &UndergroundBelt, _new_tier: &BeltTier) -> bool {

@@ -6,5 +6,4 @@ pub mod world;
 
 pub use entity::*;
 pub use geometry::*;
-pub use smart_belt::*;
 pub use world::*;

@@ -1,20 +1,8 @@
 use crate::entity::{Belt, Entity, Splitter, UndergroundBelt};
 use crate::geometry::Direction::*;
-use crate::{BeltTier, DragWorldView, LoaderLike};
+use crate::{BeltTier, LoaderLike, Ray, World};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Action {
-    PlaceBelt,
-    PlaceNewUnderground { input_position: i32 },
-    ReplaceUnderground { last_output_position: i32 },
-    IntegrateEntity,
-    None,
-    // errors
-    EntityInTheWay,
-    ImpassableObstacle,
-    TooLongToReach,
-    CannotUpgradeUnderground,
-}
+use super::{Action, DragWorldView};
 
 // todo: split out tile type with saved type
 // todo: add last_tile_type, next_tile_type, etc. to the state
@@ -33,6 +21,7 @@ impl TileType {
         matches!(self, TileType::Usable | TileType::IntegratedOutput)
     }
 }
+
 #[derive(Debug, Clone)]
 pub struct LineDragState {
     // last position
@@ -67,16 +56,19 @@ impl LineDragState {
 }
 
 // todo: backwards
+/**
+ * Purely functional logic for straight line dragging.
+ */
 #[derive(Debug)]
-pub struct LineDragHandler<'a> {
+pub struct LineDragLogic<'a> {
     pub world_view: DragWorldView<'a>,
     pub belt_tier: BeltTier,
 }
 
-impl<'a> LineDragHandler<'a> {
-    pub fn new(world_view: DragWorldView<'a>, belt_tier: BeltTier) -> Self {
+impl<'a> LineDragLogic<'a> {
+    pub fn new(world: &'a World, ray: Ray, belt_tier: BeltTier) -> Self {
         Self {
-            world_view,
+            world_view: DragWorldView::new(world, ray),
             belt_tier,
         }
     }

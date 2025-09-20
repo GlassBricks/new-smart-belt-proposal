@@ -1,24 +1,28 @@
 use std::collections::HashMap;
 
-use crate::{Entity, Position};
+use crate::{BoundingBox, Entity, Position, PositionIteratorExt as _};
 
-#[derive(Debug, Clone, Default)]
-pub struct Entities {
-    entities: HashMap<Position, Entity>,
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct World {
+    pub entities: HashMap<Position, Entity>,
 }
 
-impl Entities {
+impl World {
     pub fn new() -> Self {
-        Entities {
+        World {
             entities: HashMap::new(),
         }
     }
 
-    pub fn entity_at(&self, position: Position) -> Option<&Entity> {
+    pub fn get(&self, position: Position) -> Option<&Entity> {
         self.entities.get(&position)
     }
 
-    pub fn add_entity(&mut self, position: Position, entity: Entity) {
+    pub fn set(&mut self, position: Position, entity: Entity) {
         self.entities.insert(position, entity);
+    }
+
+    pub fn bounds(&self) -> Option<BoundingBox> {
+        self.entities.keys().copied().bounds()
     }
 }

@@ -44,10 +44,15 @@ pub trait BeltConnectable: Any {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Belt {
     pub direction: Direction,
     pub tier: BeltTier,
+}
+impl Belt {
+    pub fn new(direction: Direction, tier: BeltTier) -> Self {
+        Belt { direction, tier }
+    }
 }
 impl BeltConnectable for Belt {
     fn belt_direction(&self) -> Direction {
@@ -67,11 +72,20 @@ impl BeltConnectable for Belt {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UndergroundBelt {
     pub direction: Direction,
     pub tier: BeltTier,
     pub is_input: bool,
+}
+impl UndergroundBelt {
+    pub fn new(direction: Direction, tier: BeltTier, is_input: bool) -> Self {
+        UndergroundBelt {
+            direction,
+            tier,
+            is_input,
+        }
+    }
 }
 impl BeltConnectable for UndergroundBelt {
     fn belt_direction(&self) -> Direction {
@@ -88,11 +102,20 @@ impl BeltConnectable for UndergroundBelt {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoaderLike {
     pub direction: Direction,
     pub tier: BeltTier,
     pub is_input: bool,
+}
+impl LoaderLike {
+    pub fn new(direction: Direction, tier: BeltTier, is_input: bool) -> Self {
+        LoaderLike {
+            direction,
+            tier,
+            is_input,
+        }
+    }
 }
 impl BeltConnectable for LoaderLike {
     fn belt_direction(&self) -> Direction {
@@ -119,12 +142,17 @@ impl UndergroundBelt {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Splitter {
     pub direction: Direction,
     pub tier: BeltTier,
 }
 
+impl Splitter {
+    pub fn new(direction: Direction, tier: BeltTier) -> Self {
+        Splitter { direction, tier }
+    }
+}
 impl BeltConnectable for Splitter {
     fn belt_direction(&self) -> Direction {
         self.direction
@@ -139,7 +167,6 @@ impl BeltConnectable for Splitter {
         true
     }
 }
-
 impl dyn BeltConnectable {
     pub fn as_belt(&self) -> Option<&Belt> {
         (self as &dyn Any).downcast_ref::<Belt>()
@@ -153,7 +180,7 @@ impl dyn BeltConnectable {
 }
 
 // eh.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Entity {
     Belt(Belt),
     UndergroundBelt(UndergroundBelt),

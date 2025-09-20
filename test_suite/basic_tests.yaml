@@ -1,0 +1,7 @@
+- name: Empty world
+  before: ""
+  after: "r r r"
+
+- name: Overlapping exisiting belt
+  before: _ r r
+  after: r r r
