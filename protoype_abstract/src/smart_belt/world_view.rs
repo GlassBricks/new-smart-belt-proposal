@@ -1,13 +1,13 @@
-use crate::{Belt, BeltTier, Direction, Entity, Ray, UndergroundBelt, World};
+use crate::{Belt, BeltTier, Direction, Entities, Entity, Ray, UndergroundBelt};
 
 #[derive(Debug)]
 pub struct DragWorldView<'a> {
-    world: &'a World,
+    world: &'a Entities,
     ray: Ray,
 }
 
 impl<'a> DragWorldView<'a> {
-    pub fn new(world: &'a World, ray: Ray) -> Self {
+    pub fn new(world: &'a Entities, ray: Ray) -> Self {
         Self { world, ray }
     }
 }

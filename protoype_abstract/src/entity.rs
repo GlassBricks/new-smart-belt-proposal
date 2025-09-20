@@ -1,5 +1,5 @@
 use lazy_static::lazy_static;
-use std::{any::Any, ops::Deref, sync::Arc};
+use std::{any::Any, ops::Deref};
 
 use crate::geometry::Direction;
 
@@ -9,12 +9,12 @@ pub struct BeltTierData {
     pub underground_distance: u8,
 }
 
-#[derive(Debug, Clone)]
-pub struct BeltTier(pub Arc<BeltTierData>);
+#[derive(Debug, Clone, Copy)]
+pub struct BeltTier(&'static BeltTierData);
 
 impl PartialEq for BeltTier {
     fn eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.0, &other.0)
+        std::ptr::eq(self.0, other.0)
     }
 }
 
@@ -23,7 +23,7 @@ impl Deref for BeltTier {
     type Target = BeltTierData;
 
     fn deref(&self) -> &Self::Target {
-        self.0.as_ref()
+        self.0
     }
 }
 
@@ -201,20 +201,24 @@ impl dyn BeltConnectable {
     }
 }
 
-lazy_static! {
-    pub static ref YELLOW_BELT: BeltTier = BeltTier(Arc::new(BeltTierData {
-        name: "Yellow",
-        underground_distance: 5,
-    }));
-    pub static ref RED_BELT: BeltTier = BeltTier(Arc::new(BeltTierData {
-        name: "Red",
-        underground_distance: 7,
-    }));
-    pub static ref BLUE_BELT: BeltTier = BeltTier(Arc::new(BeltTierData {
-        name: "Blue",
-        underground_distance: 9,
-    }));
-}
+pub static YELLOW_BELT: BeltTier = BeltTier(&BeltTierData {
+    name: "Yellow",
+    underground_distance: 5,
+});
+
+pub static RED_BELT: BeltTier = BeltTier(&BeltTierData {
+    name: "Red",
+    underground_distance: 7,
+});
+
+pub static BLUE_BELT: BeltTier = BeltTier(&BeltTierData {
+    name: "Blue",
+    underground_distance: 9,
+});
+
+pub static BELT_TIERS: [BeltTier; 3] = [YELLOW_BELT, RED_BELT, BLUE_BELT];
+
+lazy_static! {}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -224,7 +228,7 @@ mod tests {
     fn test_underground_belt_shape_direction() {
         let belt = UndergroundBelt {
             direction: North,
-            tier: YELLOW_BELT.clone(),
+            tier: YELLOW_BELT,
             is_input: true,
         };
 
@@ -232,7 +236,7 @@ mod tests {
 
         let belt = UndergroundBelt {
             direction: South,
-            tier: YELLOW_BELT.clone(),
+            tier: YELLOW_BELT,
             is_input: true,
         };
 
@@ -243,7 +247,7 @@ mod tests {
     fn test_belt_accepts_input_going() {
         let belt = Belt {
             direction: North,
-            tier: YELLOW_BELT.clone(),
+            tier: YELLOW_BELT,
         };
         let belt_connectable: &dyn BeltConnectable = &belt;
 
@@ -259,7 +263,7 @@ mod tests {
     fn test_underground_belt_input_accepts_input_going() {
         let underground = UndergroundBelt {
             direction: East,
-            tier: YELLOW_BELT.clone(),
+            tier: YELLOW_BELT,
             is_input: true,
         };
         let belt_connectable: &dyn BeltConnectable = &underground;
@@ -277,7 +281,7 @@ mod tests {
     fn test_underground_belt_output_accepts_input_going() {
         let underground = UndergroundBelt {
             direction: East,
-            tier: YELLOW_BELT.clone(),
+            tier: YELLOW_BELT,
             is_input: false,
         };
         let belt_connectable: &dyn BeltConnectable = &underground;
@@ -292,7 +296,7 @@ mod tests {
     fn test_splitter_accepts_input_going() {
         let splitter = Splitter {
             direction: East,
-            tier: YELLOW_BELT.clone(),
+            tier: YELLOW_BELT,
         };
         let belt_connectable: &dyn BeltConnectable = &splitter;
 
@@ -307,14 +311,14 @@ mod tests {
     fn test_belt_output_direction() {
         let belt = Belt {
             direction: South,
-            tier: YELLOW_BELT.clone(),
+            tier: YELLOW_BELT,
         };
         let belt_connectable: &dyn BeltConnectable = &belt;
         assert_eq!(belt_connectable.output_direction(), Some(South));
 
         let underground_input = UndergroundBelt {
             direction: North,
-            tier: YELLOW_BELT.clone(),
+            tier: YELLOW_BELT,
             is_input: true,
         };
         let belt_connectable: &dyn BeltConnectable = &underground_input;
@@ -322,7 +326,7 @@ mod tests {
 
         let underground_output = UndergroundBelt {
             direction: North,
-            tier: YELLOW_BELT.clone(),
+            tier: YELLOW_BELT,
             is_input: false,
         };
         let belt_connectable: &dyn BeltConnectable = &underground_output;
@@ -333,7 +337,7 @@ mod tests {
     fn test_belt_connects_to_from_directional() {
         let belt = Belt {
             direction: East,
-            tier: YELLOW_BELT.clone(),
+            tier: YELLOW_BELT,
         };
         let belt_connectable: &dyn BeltConnectable = &belt;
 
@@ -354,7 +358,7 @@ mod tests {
     fn test_splitter_connects_to_from_directional() {
         let splitter = Splitter {
             direction: West,
-            tier: BLUE_BELT.clone(),
+            tier: BLUE_BELT,
         };
         let belt_connectable: &dyn BeltConnectable = &splitter;
 

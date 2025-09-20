@@ -4,5 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+anyhow = { version = "1.0.100", features = ["backtrace"] }
 itertools = "0.14.0"
 lazy_static = "1.5.0"
+serde = { version = "1.0.225", features = ["derive"] }
+serde_yaml = "0.9.34"

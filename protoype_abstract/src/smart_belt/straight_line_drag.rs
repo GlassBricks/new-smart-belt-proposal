@@ -84,7 +84,7 @@ impl<'a> LineDragHandler<'a> {
     pub fn process_next_tile(self, prev_state: &LineDragState) -> StepResult {
         match &prev_state.last_tile_type {
             TileType::PassThrough(tier) => {
-                self.process_pass_through(prev_state.last_position + 1, tier)
+                self.process_pass_through(prev_state.last_position + 1, *tier)
             }
             TileType::Impassable => StepResult {
                 action: Action::ImpassableObstacle,
@@ -94,15 +94,15 @@ impl<'a> LineDragHandler<'a> {
         }
     }
 
-    fn process_pass_through(&self, position: i32, tier: &BeltTier) -> StepResult {
+    fn process_pass_through(&self, position: i32, tier: BeltTier) -> StepResult {
         let entity = self.world_view.get_entity_at_position(position);
         let next_tile_type = match entity {
             Some(Entity::UndergroundBelt(ug))
-                if ug.tier == *tier && ug.shape_direction() == self.world_view.drag_direction() =>
+                if ug.tier == tier && ug.shape_direction() == self.world_view.drag_direction() =>
             {
                 TileType::IntegratedOutput
             }
-            _ => TileType::PassThrough(tier.clone()),
+            _ => TileType::PassThrough(tier),
         };
         StepResult {
             action: Action::None,
@@ -146,10 +146,10 @@ impl<'a> LineDragHandler<'a> {
             .world_view
             .get_entity_at_position(state.next_position());
         match entity {
-            Some(Entity::Belt(belt)) => self.classify_belt(&belt, state),
-            Some(Entity::UndergroundBelt(ug)) => self.classify_underground(&ug),
-            Some(Entity::Splitter(splitter)) => self.classify_splitter(&splitter, state),
-            Some(Entity::LoaderLike(loader)) => self.classify_loader(&loader),
+            Some(Entity::Belt(belt)) => self.classify_belt(belt, state),
+            Some(Entity::UndergroundBelt(ug)) => self.classify_underground(ug),
+            Some(Entity::Splitter(splitter)) => self.classify_splitter(splitter, state),
+            Some(Entity::LoaderLike(loader)) => self.classify_loader(loader),
             Some(Entity::OtherColliding) => TileType::Obstacle,
             None => self.classify_empty_tile(state.next_position()),
         }
@@ -209,7 +209,7 @@ impl<'a> LineDragHandler<'a> {
         {
             TileType::UnusableUnderground
         } else {
-            TileType::PassThrough(self.belt_tier.clone())
+            TileType::PassThrough(self.belt_tier)
         }
     }
 
@@ -298,26 +298,22 @@ impl<'a> LineDragHandler<'a> {
         let furthest_output_position =
             last_input_position + self.belt_tier.underground_distance as i32;
 
-        let entity_iter = (state.next_position()..furthest_output_position)
-            .into_iter()
-            .map_while(|position| {
-                self.world_view
-                    .get_entity_at_position(position)
-                    .and_then(|e| e.as_belt_like())
-                    .map(|e| (position, e))
-            });
-        let splitter_skip = entity_iter.skip_while(|(_, e)| {
+        let entity_iter = (state.next_position()..furthest_output_position).map_while(|position| {
+            self.world_view
+                .get_entity_at_position(position)
+                .and_then(|e| e.as_belt_like())
+                .map(|e| (position, e))
+        });
+        let mut splitter_skip = entity_iter.skip_while(|(_, e)| {
             e.as_splitter()
                 .is_some_and(|s| s.direction == belt_direction)
         });
 
-        let last_entity = splitter_skip
-            .skip_while(|(_, e)| {
-                e.as_belt().is_some_and(|belt| {
-                    belt.direction == belt_direction && !self.world_view.belt_is_curved(belt)
-                })
+        let last_entity = splitter_skip.find(|(_, e)| {
+            !e.as_belt().is_some_and(|belt| {
+                belt.direction == belt_direction && !self.world_view.belt_is_curved(belt)
             })
-            .next();
+        });
         last_entity.is_some_and(|(position, belt)| {
             belt.as_belt().is_some_and(|belt| {
                 belt.direction == belt_direction && self.world_view.belt_is_curved(belt)
