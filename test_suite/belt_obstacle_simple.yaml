@@ -1,0 +1,16 @@
+- name: Perpendicular belt obstacle
+  before: _ _ u
+  after: r ri u ro r r
+
+- name: Multiple perpendicular belt obstacles
+  before: _ _ u d
+  after: r ri u d ro r r
+
+- name: Forward curved belt is obstacle
+  skip: true
+  before: |
+    _ _ d
+    _ _ l
+  after: |
+    _ _  d _
+    r ri l ro r

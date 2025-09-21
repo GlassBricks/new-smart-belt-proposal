@@ -50,7 +50,7 @@ need_stdout = true
 [jobs.nextest]
 command = [
     "cargo", "nextest", "run",
-    "--hide-progress-bar", "--failure-output", "final"
+    "--hide-progress-bar", "--failure-output", "final", "--no-fail-fast"
 ]
 need_stdout = true
 analyzer = "nextest"

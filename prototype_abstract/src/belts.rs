@@ -220,7 +220,7 @@ impl dyn BeltConnectable {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BeltConnectableEnum<'a> {
     Belt(&'a Belt),
     UndergroundBelt(&'a UndergroundBelt),
@@ -228,8 +228,19 @@ pub enum BeltConnectableEnum<'a> {
     LoaderLike(&'a LoaderLike),
 }
 
+impl<'a> BeltConnectableEnum<'a> {
+    pub fn as_dyn(self) -> &'a dyn BeltConnectable {
+        match self {
+            BeltConnectableEnum::Belt(belt) => belt,
+            BeltConnectableEnum::UndergroundBelt(underground) => underground,
+            BeltConnectableEnum::Splitter(splitter) => splitter,
+            BeltConnectableEnum::LoaderLike(loader) => loader,
+        }
+    }
+}
+
 impl dyn Entity {
-    pub fn as_transport_belt_connectable(&self) -> Option<BeltConnectableEnum<'_>> {
+    pub fn as_belt_connectable<'a>(&'a self) -> Option<BeltConnectableEnum<'a>> {
         let self_any = self as &dyn Any;
         #[expect(clippy::manual_map)]
         if let Some(belt) = self_any.downcast_ref::<Belt>() {
@@ -243,6 +254,9 @@ impl dyn Entity {
         } else {
             None
         }
+    }
+    pub fn as_belt_connectable_dyn(&self) -> Option<&dyn BeltConnectable> {
+        self.as_belt_connectable().map(|belt| belt.as_dyn())
     }
 }
 

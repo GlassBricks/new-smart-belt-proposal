@@ -1,12 +1,12 @@
+use crate::RelativeDirection::*;
 use crate::belts::LoaderLike;
 use crate::belts::Splitter;
 use crate::belts::UndergroundBelt;
 use crate::belts::{Belt, BeltConnectableEnum};
 use crate::note;
-use crate::RelativeDirection::*;
 
-use super::drag_logic::DragState;
 use super::LineDrag;
+use super::drag_logic::DragState;
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum TileType {
@@ -34,7 +34,7 @@ impl<'a> LineDrag<'a> {
             .world_view()
             .get_entity_at_position(self.next_position());
         match entity {
-            Some(entity) => match entity.as_transport_belt_connectable() {
+            Some(entity) => match entity.as_belt_connectable() {
                 Some(BeltConnectableEnum::Belt(belt)) => self.classify_belt(belt),
                 Some(BeltConnectableEnum::UndergroundBelt(ug)) => self.classify_underground(ug),
                 Some(BeltConnectableEnum::Splitter(splitter)) => self.classify_splitter(splitter),
@@ -48,30 +48,31 @@ impl<'a> LineDrag<'a> {
     fn classify_belt(&self, belt: &Belt) -> TileType {
         match self.world_view().relative_direction(belt.direction) {
             Left | Right => {
-                todo!()
-                // if self.belt_was_connected_forward(self.last_position) {
-                //     TileType::Impassable
-                // } else {
-                //     TileType::Obstacle
-                // }
+                if self.belt_was_connected_forward(self.last_position) {
+                    todo!()
+                } else {
+                    TileType::Obstacle
+                }
             }
             Forward => {
-                // if self.world_view().belt_was_curved(belt) {
-                //     TileType::Obstacle
-                // } else
-                match self.last_state {
-                    DragState::BeltPlaced | DragState::OutputUgPlaced { .. } => TileType::Usable,
-                    DragState::TraversingObstacle { .. } => self.check_enter_belt_segment(belt),
+                if self.world_view().belt_was_curved(belt) {
+                    TileType::Obstacle
+                } else {
+                    match self.last_state {
+                        DragState::BeltPlaced | DragState::OutputUgPlaced { .. } => {
+                            TileType::Usable
+                        }
+                        DragState::TraversingObstacle { .. } => self.check_enter_belt_segment(belt),
+                    }
                 }
             }
             Backward => self.check_enter_belt_segment(belt),
         }
     }
 
-    // fn belt_was_connected_forward(&self, _position: i32) -> bool {
-    // todo: handle cases when a belt only used to be curved
-    // true
-    // }
+    fn belt_was_connected_forward(&self, _position: i32) -> bool {
+        false
+    }
 
     fn check_enter_belt_segment(&self, _belt: &Belt) -> TileType {
         if self.should_ug_over_belt_segment_backwards_belt() {

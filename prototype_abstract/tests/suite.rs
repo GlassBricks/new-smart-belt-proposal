@@ -1,4 +1,4 @@
-use protoype_abstract::test::{DragTestCase, check_test_case};
+use protoype_abstract::test_case::{DragTestCase, check_test_case};
 
 fn check_test_case_from_str(content: &str) {
     let test_case: DragTestCase =

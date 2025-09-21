@@ -1,6 +1,6 @@
-use crate::{Direction, Position, Ray, World};
-use crate::belts::BeltTier;
 use super::{DragState, DragWorldView, Error, StepResult};
+use crate::belts::BeltTier;
+use crate::{Direction, Position, Ray, World};
 
 /**
  * Handles line dragging; includes mutable methods
@@ -63,7 +63,7 @@ impl<'a> LineDrag<'a> {
         let dist = self.ray.ray_position(new_position);
         while self.last_position < dist {
             self.step_forward();
-            dbg!(self.last_position, &self.last_state);
+            // dbg!(self.last_position, &self.last_state);
         }
     }
 }

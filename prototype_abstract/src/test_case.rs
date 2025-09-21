@@ -1,41 +1,101 @@
-use crate::belts::{BELT_TIERS, Belt, LoaderLike, Splitter, UndergroundBelt};
+use std::cmp::max;
 
-use crate::belts::BeltTier;
-use crate::smart_belt::action;
-use crate::{Colliding, Direction, Entity, Position, World, pos};
+use crate::belts::{BELT_TIERS, Belt, BeltTier, LoaderLike, Splitter, UndergroundBelt};
+use crate::{
+    Colliding, Direction, Entity, Position, World, pos,
+    smart_belt::{LineDrag, action, action::Error},
+};
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Deserializer};
 
 #[derive(Debug, Clone)]
 pub struct DragTestCase {
-    pub name: Option<String>,
+    pub name: String,
     pub before: World,
     pub after: World,
     pub drag_row: i32,
-    pub belt_tier: BeltTier,
+    pub tier: BeltTier,
     pub expected_error: Option<(Position, action::Error)>,
+    pub skip: bool,
 }
 
-fn deserialize_belt_tier(tier_int: i32) -> Result<BeltTier, String> {
-    BELT_TIERS.get(tier_int as usize).copied().ok_or_else(|| {
-        format!(
-            "Invalid belt tier: {}. Must be <= {}",
-            tier_int,
-            BELT_TIERS.len()
-        )
-    })
+pub fn check_test_case(test: &DragTestCase) -> anyhow::Result<()> {
+    if test.skip {
+        eprintln!("Skipping: {}", test.name);
+        return Ok(());
+    }
+
+    let max_x = max(test.before.max_x(), test.after.max_x());
+    let (result, errors) = run_test_case(&test.before, test.tier, test.drag_row, max_x);
+
+    let expected = &test.after;
+
+    if result != *expected {
+        bail!(
+            r#"Expected:
+
+{}
+
+Got:
+
+{}
+
+"#,
+            print_world(expected),
+            print_world(&result)
+        );
+    }
+    let expected_errors = test
+        .expected_error
+        .clone()
+        .map(|e| vec![e])
+        .unwrap_or_default();
+
+    if errors != expected_errors {
+        bail!(
+            r#"Expected errors:
+{:#?}
+Got errors:
+{:#?}
+"#,
+            expected_errors,
+            errors
+        );
+    }
+
+    Ok(())
+}
+
+fn run_test_case(
+    world: &World,
+    tier: BeltTier,
+    y_level: i32,
+    max_x: i32,
+) -> (World, Vec<(Position, Error)>) {
+    let mut world = world.clone();
+    let start_pos = pos(0, y_level);
+    let end_pos = pos(max_x, y_level);
+    let mut drag = LineDrag::start(&mut world, tier, start_pos, Direction::East);
+    drag.interpolate_to(end_pos);
+    let errors = drag.get_errors();
+    (world, errors)
+}
+
+impl World {
+    fn max_x(&self) -> i32 {
+        self.entities.keys().map(|pos| pos.x).max().unwrap_or(0)
+    }
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
 struct TestCaseSerde {
     name: Option<String>,
     before: String,
     after: String,
     #[serde(default)]
-    drag_row: i32,
-    #[serde(default)]
-    belt_tier: i32,
+    skip: bool,
     expected_error: Option<action::Error>,
 }
 
@@ -58,8 +118,6 @@ impl<'de> Deserialize<'de> for DragTestCase {
             return Err(Error::custom("Before markers should be empty"));
         }
 
-        let belt_tier = deserialize_belt_tier(serde_case.belt_tier).map_err(Error::custom)?;
-
         let expected_error = if let Some(expected_error) = serde_case.expected_error {
             if after_markers.len() != 1 {
                 return Err(Error::custom(
@@ -72,13 +130,29 @@ impl<'de> Deserialize<'de> for DragTestCase {
             None
         };
 
+        let (pos, ent) = after
+            .entities
+            .iter()
+            .find(|(p, _)| p.x == 0)
+            .expect("No first position found");
+
+        let drag_row = pos.y;
+        let tier = *ent
+            .as_belt_connectable_dyn()
+            .expect("First entity in drag row must be a belt")
+            .tier();
+
+        let skip = serde_case.skip;
+        let name = serde_case.name.unwrap_or("Unnamed".to_string());
+
         Ok(DragTestCase {
-            name: serde_case.name,
+            name,
             before,
             after,
-            drag_row: serde_case.drag_row,
-            belt_tier,
+            tier,
+            drag_row,
             expected_error,
+            skip,
         })
     }
 }
@@ -93,7 +167,7 @@ Other cases:
 - (empty string) -> None
 - X -> OtherColliding
 */
-pub fn parse_word(input: &str) -> Result<Option<Box<dyn Entity>>> {
+fn parse_word(input: &str) -> Result<Option<Box<dyn Entity>>> {
     use crate::entity::*;
 
     let mut chars = input.chars().peekable();
@@ -117,7 +191,7 @@ pub fn parse_word(input: &str) -> Result<Option<Box<dyn Entity>>> {
     let tier = *tier_int
         .checked_sub(1)
         .and_then(|i| BELT_TIERS.get(i))
-        .context("Invalid belt tier")?;
+        .context("")?;
 
     let direction = match chars.next() {
         Some('l') => Direction::West,
@@ -137,7 +211,7 @@ pub fn parse_word(input: &str) -> Result<Option<Box<dyn Entity>>> {
 
 pub type WorldParse = (World, Vec<Position>);
 
-pub fn parse_world(input: &str) -> Result<WorldParse> {
+fn parse_world(input: &str) -> Result<WorldParse> {
     let mut world = World::new();
     let mut markers = Vec::new();
     for (y, line) in input.lines().enumerate() {
@@ -156,7 +230,7 @@ pub fn parse_world(input: &str) -> Result<WorldParse> {
     }
     Ok((world, markers))
 }
-pub fn print_entity(entity: &dyn Entity) -> String {
+fn print_entity(entity: &dyn Entity) -> String {
     use crate::belts::BELT_TIERS;
 
     if let Some(Belt { direction, tier }) = (entity as &dyn std::any::Any).downcast_ref::<Belt>() {
@@ -221,7 +295,7 @@ pub fn print_entity(entity: &dyn Entity) -> String {
     }
 }
 
-pub fn print_world(world: &World) -> String {
+fn print_world(world: &World) -> String {
     let bounds = world.bounds();
 
     if bounds.is_none_or(|bounds| bounds.is_empty()) {
@@ -367,29 +441,18 @@ mod tests {
     }
 
     #[test]
-    fn test_deserialize_belt_tier() {
-        assert_eq!(deserialize_belt_tier(0).unwrap(), BELT_TIERS[0]);
-        assert_eq!(deserialize_belt_tier(1).unwrap(), BELT_TIERS[1]);
-        assert_eq!(deserialize_belt_tier(2).unwrap(), BELT_TIERS[2]);
-        assert!(deserialize_belt_tier(10).is_err()); // Invalid
-        assert!(deserialize_belt_tier(-1).is_err()); // Invalid
-    }
-
-    #[test]
     fn test_test_case_deserialization() {
         use serde_yaml;
 
         let yaml = r#"
 before: "r\t2u"
-after: "r\t2u\tX"
-drag_row: 0
-belt_tier: 2
+after: "2r\tu\tX"
 "#;
 
         let test_case: DragTestCase = serde_yaml::from_str(yaml).expect("Failed to deserialize");
 
         assert_eq!(test_case.drag_row, 0);
-        assert_eq!(test_case.belt_tier, BELT_TIERS[2]);
+        assert_eq!(test_case.tier, BELT_TIERS[1]);
 
         // Check that entities were parsed correctly
         assert!(test_case.before.get(pos(0, 0)).is_some());
@@ -402,7 +465,7 @@ belt_tier: 2
         if let Some(entity) = test_case.before.get(pos(0, 0)) {
             if let Some(belt) = (entity as &dyn std::any::Any).downcast_ref::<Belt>() {
                 assert_eq!(belt.direction, Direction::East);
-                assert_eq!(belt.tier, BELT_TIERS[0]); // Default tier 1 (yellow)
+                assert_eq!(belt.tier, BELT_TIERS[0]);
             } else {
                 panic!("Expected Belt entity at (0,0)");
             }
@@ -413,7 +476,7 @@ belt_tier: 2
         if let Some(entity) = test_case.before.get(pos(1, 0)) {
             if let Some(belt) = (entity as &dyn std::any::Any).downcast_ref::<Belt>() {
                 assert_eq!(belt.direction, Direction::North);
-                assert_eq!(belt.tier, BELT_TIERS[1]); // Tier 2 (red)
+                assert_eq!(belt.tier, BELT_TIERS[1]);
             } else {
                 panic!("Expected Belt entity at (1,0)");
             }
@@ -445,7 +508,7 @@ after: "r"
 
         let test_case: DragTestCase = serde_yaml::from_str(yaml).expect("Failed to deserialize");
         assert_eq!(test_case.drag_row, 0); // Default drag_row
-        assert_eq!(test_case.belt_tier, BELT_TIERS[0]); // Default belt_tier (yellow)
+        assert_eq!(test_case.tier, BELT_TIERS[0]); // Default belt_tier (yellow)
     }
     #[test]
     fn test_parse_world_with_marker() {

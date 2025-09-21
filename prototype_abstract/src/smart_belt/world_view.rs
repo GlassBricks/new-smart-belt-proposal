@@ -1,5 +1,5 @@
 use crate::geometry::RelativeDirection;
-use crate::{Direction, Entity, Ray, World};
+use crate::{Belt, Direction, Entity, Ray, World, note};
 
 /**
 World view for LineDragLogic.
@@ -32,14 +32,15 @@ impl<'a> DragWorldView<'a> {
         self.world.get(self.ray.get_position(index))
     }
 
-    // pub fn belt_was_curved(&self, _belt: &Belt /* todo: more param */) -> bool {
-    //     note!("No backwards dragging");
-    //     false
-    // }
+    pub fn belt_was_curved(&self, belt: &Belt) -> bool {
+        note!("No backwards dragging");
+        self.belt_is_curved(belt)
+    }
 
-    // pub fn belt_is_curved(&self, _belt: &Belt) -> bool {
-    //     todo!()
-    // }
+    pub fn belt_is_curved(&self, _belt: &Belt) -> bool {
+        note!("todo: curved belt. One test is failing because of this");
+        false
+    }
 
     // pub fn belt_directly_connects_into_next(&self, _position: i32) -> bool {
     //     todo!()
