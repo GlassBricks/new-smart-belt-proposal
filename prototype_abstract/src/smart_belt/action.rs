@@ -1,7 +1,7 @@
 use serde::Deserialize;
 
-use crate::{Belt, BeltTier, Direction, Entity, Position, UndergroundBelt, World};
-
+use crate::{Direction, Position, World};
+use crate::belts::{Belt, BeltTier, UndergroundBelt};
 use super::LineDrag;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -77,7 +77,7 @@ impl<'a> LineDrag<'a> {
 }
 impl World {
     pub(super) fn place_belt(&mut self, position: Position, direction: Direction, tier: BeltTier) {
-        self.set(position, Entity::Belt(Belt::new(direction, tier)));
+        self.set(position, Belt::new(direction, tier));
     }
 
     pub(super) fn place_underground_belt(
@@ -87,9 +87,6 @@ impl World {
         is_input: bool,
         tier: BeltTier,
     ) {
-        self.set(
-            position,
-            Entity::UndergroundBelt(UndergroundBelt::new(direction, is_input, tier)),
-        );
+        self.set(position, UndergroundBelt::new(direction, is_input, tier));
     }
 }

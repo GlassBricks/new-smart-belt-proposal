@@ -1,6 +1,8 @@
-use crate::entity::BELT_TIERS;
+use crate::belts::{BELT_TIERS, Belt, LoaderLike, Splitter, UndergroundBelt};
+
+use crate::belts::BeltTier;
 use crate::smart_belt::action;
-use crate::{BeltTier, Direction, Entity, Position, World, pos};
+use crate::{Colliding, Direction, Entity, Position, World, pos};
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Deserializer};
 
@@ -56,8 +58,7 @@ impl<'de> Deserialize<'de> for DragTestCase {
             return Err(Error::custom("Before markers should be empty"));
         }
 
-        let belt_tier =
-            deserialize_belt_tier(serde_case.belt_tier).map_err(serde::de::Error::custom)?;
+        let belt_tier = deserialize_belt_tier(serde_case.belt_tier).map_err(Error::custom)?;
 
         let expected_error = if let Some(expected_error) = serde_case.expected_error {
             if after_markers.len() != 1 {
@@ -92,13 +93,13 @@ Other cases:
 - (empty string) -> None
 - X -> OtherColliding
 */
-pub fn parse_word(input: &str) -> Result<Option<Entity>> {
+pub fn parse_word(input: &str) -> Result<Option<Box<dyn Entity>>> {
     use crate::entity::*;
 
     let mut chars = input.chars().peekable();
 
     match chars.peek() {
-        Some('X') => return Ok(Some(Entity::OtherColliding)),
+        Some('X') => return Ok(Some(Colliding::new())),
         None | Some('_') => return Ok(None),
         _ => (),
     }
@@ -126,18 +127,10 @@ pub fn parse_word(input: &str) -> Result<Option<Entity>> {
         c => bail!("Invalid direction: {:?}", c),
     };
     Ok(Some(match chars.next() {
-        Some('b') | None => Entity::Belt(Belt { direction, tier }),
-        Some('i') => Entity::UndergroundBelt(UndergroundBelt {
-            direction,
-            tier,
-            is_input: true,
-        }),
-        Some('o') => Entity::UndergroundBelt(UndergroundBelt {
-            direction,
-            tier,
-            is_input: false,
-        }),
-        Some('s') => Entity::Splitter(Splitter { direction, tier }),
+        Some('b') | None => Belt::new(direction, tier),
+        Some('i') => UndergroundBelt::new(direction, true, tier),
+        Some('o') => UndergroundBelt::new(direction, false, tier),
+        Some('s') => Splitter::new(direction, tier),
         _ => bail!("Invalid entity type"),
     }))
 }
@@ -163,59 +156,68 @@ pub fn parse_world(input: &str) -> Result<WorldParse> {
     }
     Ok((world, markers))
 }
-pub fn print_entity(entity: &Entity) -> String {
-    use crate::entity::*;
+pub fn print_entity(entity: &dyn Entity) -> String {
+    use crate::belts::BELT_TIERS;
 
-    match entity {
-        Entity::Belt(Belt { direction, tier }) => {
-            let tier_num = BELT_TIERS.iter().position(|&t| t == *tier).unwrap_or(0) + 1;
-            let dir_char = match direction {
-                Direction::East => 'r',
-                Direction::West => 'l',
-                Direction::North => 'u',
-                Direction::South => 'd',
-            };
-            if tier_num == 1 {
-                format!("{}", dir_char)
-            } else {
-                format!("{}{}", tier_num, dir_char)
-            }
+    if let Some(Belt { direction, tier }) = (entity as &dyn std::any::Any).downcast_ref::<Belt>() {
+        let tier_num = BELT_TIERS.iter().position(|&t| t == *tier).unwrap_or(0) + 1;
+        let dir_char = match direction {
+            Direction::East => 'r',
+            Direction::West => 'l',
+            Direction::North => 'u',
+            Direction::South => 'd',
+        };
+        if tier_num == 1 {
+            format!("{}", dir_char)
+        } else {
+            format!("{}{}", tier_num, dir_char)
         }
-        Entity::UndergroundBelt(UndergroundBelt {
-            direction,
-            tier,
-            is_input,
-        }) => {
-            let tier_num = BELT_TIERS.iter().position(|&t| t == *tier).unwrap_or(0) + 1;
-            let dir_char = match direction {
-                Direction::East => 'r',
-                Direction::West => 'l',
-                Direction::North => 'u',
-                Direction::South => 'd',
-            };
-            let type_char = if *is_input { 'i' } else { 'o' };
-            if tier_num == 1 {
-                format!("{}{}", dir_char, type_char)
-            } else {
-                format!("{}{}{}", tier_num, dir_char, type_char)
-            }
+    } else if let Some(UndergroundBelt {
+        direction,
+        tier,
+        is_input,
+    }) = (entity as &dyn std::any::Any).downcast_ref::<UndergroundBelt>()
+    {
+        let tier_num = BELT_TIERS.iter().position(|&t| t == *tier).unwrap_or(0) + 1;
+        let dir_char = match direction {
+            Direction::East => 'r',
+            Direction::West => 'l',
+            Direction::North => 'u',
+            Direction::South => 'd',
+        };
+        let type_char = if *is_input { 'i' } else { 'o' };
+        if tier_num == 1 {
+            format!("{}{}", dir_char, type_char)
+        } else {
+            format!("{}{}{}", tier_num, dir_char, type_char)
         }
-        Entity::Splitter(Splitter { direction, tier }) => {
-            let tier_num = BELT_TIERS.iter().position(|&t| t == *tier).unwrap_or(0) + 1;
-            let dir_char = match direction {
-                Direction::East => 'r',
-                Direction::West => 'l',
-                Direction::North => 'u',
-                Direction::South => 'd',
-            };
-            if tier_num == 1 {
-                format!("{}s", dir_char)
-            } else {
-                format!("{}{}s", tier_num, dir_char)
-            }
+    } else if let Some(Splitter { direction, tier }) =
+        (entity as &dyn std::any::Any).downcast_ref::<Splitter>()
+    {
+        let tier_num = BELT_TIERS.iter().position(|&t| t == *tier).unwrap_or(0) + 1;
+        let dir_char = match direction {
+            Direction::East => 'r',
+            Direction::West => 'l',
+            Direction::North => 'u',
+            Direction::South => 'd',
+        };
+        if tier_num == 1 {
+            format!("{}s", dir_char)
+        } else {
+            format!("{}{}s", tier_num, dir_char)
         }
-        Entity::LoaderLike(_) => "l".to_string(), // not yet done
-        Entity::OtherColliding => "X".to_string(),
+    } else if (entity as &dyn std::any::Any)
+        .downcast_ref::<LoaderLike>()
+        .is_some()
+    {
+        "l".to_string() // not yet done
+    } else if (entity as &dyn std::any::Any)
+        .downcast_ref::<Colliding>()
+        .is_some()
+    {
+        "X".to_string()
+    } else {
+        "?".to_string()
     }
 }
 
@@ -260,67 +262,98 @@ mod tests {
     #[test]
     fn test_parse() {
         assert!(parse_word("").unwrap().is_none());
-        assert!(matches!(
-            parse_word("X").unwrap(),
-            Some(Entity::OtherColliding)
-        ));
+        let result = parse_word("X").unwrap().unwrap();
+        assert!(
+            (result.as_ref() as &dyn std::any::Any)
+                .downcast_ref::<Colliding>()
+                .is_some()
+        );
 
         // Test direction only - defaults to tier 1 and belt type
-        match parse_word("r").unwrap() {
-            Some(Entity::Belt(belt)) => {
+        if let Some(entity) = parse_word("r").unwrap() {
+            if let Some(belt) = (entity.as_ref() as &dyn std::any::Any).downcast_ref::<Belt>() {
                 assert_eq!(belt.direction, Direction::East);
                 assert_eq!(belt.tier, BELT_TIERS[0]); // Default to yellow
+            } else {
+                panic!("Expected Some(Belt) with defaults");
             }
-            _ => panic!("Expected Some(Belt) with defaults"),
+        } else {
+            panic!("Expected Some(Belt) with defaults");
         }
 
-        match parse_word("1r").unwrap() {
-            Some(Entity::Belt(belt)) => {
+        if let Some(entity) = parse_word("1r").unwrap() {
+            if let Some(belt) = (entity.as_ref() as &dyn std::any::Any).downcast_ref::<Belt>() {
                 assert_eq!(belt.direction, Direction::East);
                 assert_eq!(belt.tier, BELT_TIERS[0]); // Yellow
+            } else {
+                panic!("Expected Some(Belt)");
             }
-            _ => panic!("Expected Some(Belt)"),
+        } else {
+            panic!("Expected Some(Belt)");
         }
 
-        match parse_word("2u").unwrap() {
-            Some(Entity::Belt(belt)) => {
+        if let Some(entity) = parse_word("2u").unwrap() {
+            if let Some(belt) = (entity.as_ref() as &dyn std::any::Any).downcast_ref::<Belt>() {
                 assert_eq!(belt.direction, Direction::North);
                 assert_eq!(belt.tier, BELT_TIERS[1]); // Red
+            } else {
+                panic!("Expected Some(Belt) with default type");
             }
-            _ => panic!("Expected Some(Belt) with default type"),
+        } else {
+            panic!("Expected Some(Belt) with default type");
         }
 
-        match parse_word("rs").unwrap() {
-            Some(Entity::Splitter(splitter)) => {
+        if let Some(entity) = parse_word("rs").unwrap() {
+            if let Some(splitter) =
+                (entity.as_ref() as &dyn std::any::Any).downcast_ref::<Splitter>()
+            {
                 assert_eq!(splitter.direction, Direction::East);
                 assert_eq!(splitter.tier, BELT_TIERS[0]); // Default to yellow
+            } else {
+                panic!("Expected Some(Splitter) with default tier");
             }
-            _ => panic!("Expected Some(Splitter) with default tier"),
+        } else {
+            panic!("Expected Some(Splitter) with default tier");
         }
 
-        match parse_word("1li").unwrap() {
-            Some(Entity::UndergroundBelt(ub)) => {
+        if let Some(entity) = parse_word("1li").unwrap() {
+            if let Some(ub) =
+                (entity.as_ref() as &dyn std::any::Any).downcast_ref::<UndergroundBelt>()
+            {
                 assert_eq!(ub.direction, Direction::West);
                 assert_eq!(ub.tier, BELT_TIERS[0]);
                 assert!(ub.is_input);
+            } else {
+                panic!("Expected Some(UndergroundBelt) input");
             }
-            _ => panic!("Expected Some(UndergroundBelt) input"),
+        } else {
+            panic!("Expected Some(UndergroundBelt) input");
         }
-        match parse_word("2ro").unwrap() {
-            Some(Entity::UndergroundBelt(ub)) => {
+        if let Some(entity) = parse_word("2ro").unwrap() {
+            if let Some(ub) =
+                (entity.as_ref() as &dyn std::any::Any).downcast_ref::<UndergroundBelt>()
+            {
                 assert_eq!(ub.direction, Direction::East);
                 assert_eq!(ub.tier, BELT_TIERS[1]);
                 assert!(!ub.is_input);
+            } else {
+                panic!("Expected Some(UndergroundBelt) output");
             }
-            _ => panic!("Expected Some(UndergroundBelt) output"),
+        } else {
+            panic!("Expected Some(UndergroundBelt) output");
         }
 
-        match parse_word("3us").unwrap() {
-            Some(Entity::Splitter(splitter)) => {
+        if let Some(entity) = parse_word("3us").unwrap() {
+            if let Some(splitter) =
+                (entity.as_ref() as &dyn std::any::Any).downcast_ref::<Splitter>()
+            {
                 assert_eq!(splitter.direction, Direction::North);
                 assert_eq!(splitter.tier, BELT_TIERS[2]);
+            } else {
+                panic!("Expected Some(Splitter)");
             }
-            _ => panic!("Expected Some(Splitter)"),
+        } else {
+            panic!("Expected Some(Splitter)");
         }
     }
 
@@ -366,24 +399,39 @@ belt_tier: 2
         assert!(test_case.after.get(pos(2, 0)).is_some());
 
         // Check specific entity types and properties
-        if let Some(Entity::Belt(belt)) = test_case.before.get(pos(0, 0)) {
-            assert_eq!(belt.direction, Direction::East);
-            assert_eq!(belt.tier, BELT_TIERS[0]); // Default tier 1 (yellow)
+        if let Some(entity) = test_case.before.get(pos(0, 0)) {
+            if let Some(belt) = (entity as &dyn std::any::Any).downcast_ref::<Belt>() {
+                assert_eq!(belt.direction, Direction::East);
+                assert_eq!(belt.tier, BELT_TIERS[0]); // Default tier 1 (yellow)
+            } else {
+                panic!("Expected Belt entity at (0,0)");
+            }
         } else {
             panic!("Expected Belt entity at (0,0)");
         }
 
-        if let Some(Entity::Belt(belt)) = test_case.before.get(pos(1, 0)) {
-            assert_eq!(belt.direction, Direction::North);
-            assert_eq!(belt.tier, BELT_TIERS[1]); // Tier 2 (red)
+        if let Some(entity) = test_case.before.get(pos(1, 0)) {
+            if let Some(belt) = (entity as &dyn std::any::Any).downcast_ref::<Belt>() {
+                assert_eq!(belt.direction, Direction::North);
+                assert_eq!(belt.tier, BELT_TIERS[1]); // Tier 2 (red)
+            } else {
+                panic!("Expected Belt entity at (1,0)");
+            }
         } else {
             panic!("Expected Belt entity at (1,0)");
         }
 
-        if let Some(Entity::OtherColliding) = test_case.after.get(pos(2, 0)) {
-            // Correct - X should parse to OtherColliding
+        if let Some(entity) = test_case.after.get(pos(2, 0)) {
+            if (entity as &dyn std::any::Any)
+                .downcast_ref::<Colliding>()
+                .is_some()
+            {
+                // Correct - X should parse to Colliding
+            } else {
+                panic!("Expected Colliding entity at (2,0)");
+            }
         } else {
-            panic!("Expected OtherColliding entity at (2,0)");
+            panic!("Expected Colliding entity at (2,0)");
         }
     }
     #[test]
@@ -409,56 +457,63 @@ after: "r"
         assert_eq!(markers[0], pos(1, 0));
 
         // Check that entities were parsed correctly
-        assert!(matches!(
-            world.get(pos(0, 0)),
-            Some(Entity::Belt(Belt {
-                direction: Direction::East,
-                ..
-            }))
-        ));
-        assert!(matches!(
-            world.get(pos(1, 0)),
-            Some(Entity::Belt(Belt {
-                direction: Direction::North,
-                ..
-            }))
-        ));
-        assert!(matches!(
-            world.get(pos(0, 1)),
-            Some(Entity::Splitter(Splitter {
-                direction: Direction::West,
-                ..
-            }))
-        ));
-        assert!(matches!(world.get(pos(2, 1)), Some(Entity::OtherColliding)));
+        if let Some(entity) = world.get(pos(0, 0)) {
+            assert!(matches!(
+                (entity as &dyn std::any::Any).downcast_ref(),
+                Some(Belt {
+                    direction: Direction::East,
+                    ..
+                })
+            ));
+        } else {
+            panic!("Expected entity at (0, 0)");
+        }
+
+        if let Some(entity) = world.get(pos(1, 0)) {
+            assert!(matches!(
+                (entity as &dyn std::any::Any).downcast_ref(),
+                Some(Belt {
+                    direction: Direction::North,
+                    ..
+                })
+            ));
+        } else {
+            panic!("Expected entity at (1, 0)");
+        }
+
+        if let Some(entity) = world.get(pos(0, 1)) {
+            assert!(matches!(
+                (entity as &dyn std::any::Any).downcast_ref(),
+                Some(Splitter {
+                    direction: Direction::West,
+                    ..
+                })
+            ));
+        } else {
+            panic!("Expected entity at (0, 1)");
+        }
+
+        if let Some(entity) = world.get(pos(2, 1)) {
+            assert!(
+                (entity as &dyn std::any::Any)
+                    .downcast_ref::<Colliding>()
+                    .is_some()
+            );
+        } else {
+            panic!("Expected entity at (2, 1)");
+        }
     }
 
     #[test]
     fn test_print_world() {
         let mut world = World::new();
-        world.set(
-            pos(0, 0),
-            Entity::Belt(Belt {
-                direction: Direction::East,
-                tier: BELT_TIERS[0],
-            }),
-        );
+        world.set(pos(0, 0), Belt::new(Direction::East, BELT_TIERS[0]));
         world.set(
             pos(1, 0),
-            Entity::UndergroundBelt(UndergroundBelt {
-                direction: Direction::North,
-                tier: BELT_TIERS[1],
-                is_input: true,
-            }),
+            UndergroundBelt::new(Direction::North, true, BELT_TIERS[1]),
         );
-        world.set(
-            pos(0, 1),
-            Entity::Splitter(Splitter {
-                direction: Direction::West,
-                tier: BELT_TIERS[0],
-            }),
-        );
-        world.set(pos(2, 1), Entity::OtherColliding);
+        world.set(pos(0, 1), Splitter::new(Direction::West, BELT_TIERS[0]));
+        world.set(pos(2, 1), Colliding::new());
 
         let output = print_world(&world);
         let expected = r#"

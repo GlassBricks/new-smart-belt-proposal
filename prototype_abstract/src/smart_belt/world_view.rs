@@ -28,7 +28,7 @@ impl<'a> DragWorldView<'a> {
     }
 
     // World interaction methods - stubbed for implementation
-    pub fn get_entity_at_position(&self, index: i32) -> Option<&'a Entity> {
+    pub fn get_entity_at_position(&self, index: i32) -> Option<&'a dyn Entity> {
         self.world.get(self.ray.get_position(index))
     }
 

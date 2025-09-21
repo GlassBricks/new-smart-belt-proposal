@@ -1,13 +1,12 @@
-use crate::Belt;
-use crate::Entity;
-use crate::LoaderLike;
-use crate::RelativeDirection::*;
-use crate::Splitter;
-use crate::UndergroundBelt;
+use crate::belts::LoaderLike;
+use crate::belts::Splitter;
+use crate::belts::UndergroundBelt;
+use crate::belts::{Belt, BeltConnectableEnum};
 use crate::note;
+use crate::RelativeDirection::*;
 
-use super::LineDrag;
 use super::drag_logic::DragState;
+use super::LineDrag;
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum TileType {
@@ -35,11 +34,13 @@ impl<'a> LineDrag<'a> {
             .world_view()
             .get_entity_at_position(self.next_position());
         match entity {
-            Some(Entity::Belt(belt)) => self.classify_belt(belt),
-            Some(Entity::UndergroundBelt(ug)) => self.classify_underground(ug),
-            Some(Entity::Splitter(splitter)) => self.classify_splitter(splitter),
-            Some(Entity::LoaderLike(loader)) => self.classify_loader(loader),
-            Some(Entity::OtherColliding) => TileType::Obstacle,
+            Some(entity) => match entity.as_transport_belt_connectable() {
+                Some(BeltConnectableEnum::Belt(belt)) => self.classify_belt(belt),
+                Some(BeltConnectableEnum::UndergroundBelt(ug)) => self.classify_underground(ug),
+                Some(BeltConnectableEnum::Splitter(splitter)) => self.classify_splitter(splitter),
+                Some(BeltConnectableEnum::LoaderLike(loader)) => self.classify_loader(loader),
+                None => TileType::Obstacle,
+            },
             None => self.classify_empty_tile(),
         }
     }

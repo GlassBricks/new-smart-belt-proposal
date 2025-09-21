@@ -4,9 +4,10 @@ use std::cmp::max;
 use anyhow::bail;
 pub use test_case::*;
 
+use crate::belts::BeltTier;
 use crate::{
-    BeltTier, Direction, Position, World, pos,
-    smart_belt::{LineDrag, action::Error},
+    pos, smart_belt::{action::Error, LineDrag}, Direction, Position,
+    World,
 };
 
 pub fn run_test_case(

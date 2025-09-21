@@ -1,5 +1,5 @@
-use crate::{BeltTier, Direction, Position, Ray, World};
-
+use crate::{Direction, Position, Ray, World};
+use crate::belts::BeltTier;
 use super::{DragState, DragWorldView, Error, StepResult};
 
 /**
