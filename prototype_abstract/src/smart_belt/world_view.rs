@@ -28,18 +28,19 @@ impl<'a> DragWorldView<'a> {
     }
 
     // World interaction methods - stubbed for implementation
-    pub fn get_entity_at_position(&self, index: i32) -> Option<&'a dyn Entity> {
-        self.world.get(self.ray.get_position(index))
+    pub fn get_entity_at_position(&self, position: i32) -> Option<&'a dyn Entity> {
+        self.world.get(self.ray.get_position(position))
     }
 
-    pub fn belt_was_curved(&self, belt: &Belt) -> bool {
-        note!("No backwards dragging");
-        self.belt_is_curved(belt)
+    pub fn belt_was_curved(&self, position: i32, belt: &Belt) -> bool {
+        note!("previously-curved-belt");
+        self.belt_is_curved(position, belt)
     }
 
-    pub fn belt_is_curved(&self, _belt: &Belt) -> bool {
-        note!("todo: curved belt. One test is failing because of this");
-        false
+    pub fn belt_is_curved(&self, position: i32, belt: &Belt) -> bool {
+        note!("backwards dragging");
+        self.world
+            .belt_is_curved(self.ray.get_position(position), belt.direction)
     }
 
     // pub fn belt_directly_connects_into_next(&self, _position: i32) -> bool {

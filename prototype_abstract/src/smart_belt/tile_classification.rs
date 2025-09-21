@@ -35,7 +35,9 @@ impl<'a> LineDrag<'a> {
             .get_entity_at_position(self.next_position());
         match entity {
             Some(entity) => match entity.as_belt_connectable() {
-                Some(BeltConnectableEnum::Belt(belt)) => self.classify_belt(belt),
+                Some(BeltConnectableEnum::Belt(belt)) => {
+                    self.classify_belt(self.next_position(), belt)
+                }
                 Some(BeltConnectableEnum::UndergroundBelt(ug)) => self.classify_underground(ug),
                 Some(BeltConnectableEnum::Splitter(splitter)) => self.classify_splitter(splitter),
                 Some(BeltConnectableEnum::LoaderLike(loader)) => self.classify_loader(loader),
@@ -45,17 +47,17 @@ impl<'a> LineDrag<'a> {
         }
     }
 
-    fn classify_belt(&self, belt: &Belt) -> TileType {
+    fn classify_belt(&self, position: i32, belt: &Belt) -> TileType {
         match self.world_view().relative_direction(belt.direction) {
             Left | Right => {
-                if self.belt_was_connected_forward(self.last_position) {
+                if self.belt_was_connected_forward(position) {
                     todo!()
                 } else {
                     TileType::Obstacle
                 }
             }
             Forward => {
-                if self.world_view().belt_was_curved(belt) {
+                if self.world_view().belt_was_curved(position, belt) {
                     TileType::Obstacle
                 } else {
                     match self.last_state {
@@ -66,7 +68,13 @@ impl<'a> LineDrag<'a> {
                     }
                 }
             }
-            Backward => self.check_enter_belt_segment(belt),
+            Backward => {
+                if self.world_view().belt_is_curved(position, belt) {
+                    TileType::Obstacle
+                } else {
+                    self.check_enter_belt_segment(belt)
+                }
+            }
         }
     }
 

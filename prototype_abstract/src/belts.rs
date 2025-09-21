@@ -240,7 +240,7 @@ impl<'a> BeltConnectableEnum<'a> {
 }
 
 impl dyn Entity {
-    pub fn as_belt_connectable<'a>(&'a self) -> Option<BeltConnectableEnum<'a>> {
+    pub fn as_belt_connectable(&self) -> Option<BeltConnectableEnum<'_>> {
         let self_any = self as &dyn Any;
         #[expect(clippy::manual_map)]
         if let Some(belt) = self_any.downcast_ref::<Belt>() {

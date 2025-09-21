@@ -7,10 +7,17 @@
   after: r ri u d ro r r
 
 - name: Forward curved belt is obstacle
-  skip: true
   before: |
     _ _ d
     _ _ l
   after: |
     _ _  d _
     r ri l ro r
+
+- name: 2 curved belts is obstacle
+  before: |
+    _ _ _ d
+    _ _ u l
+  after: |
+    _ _ _  d _
+    r ri u l ro r

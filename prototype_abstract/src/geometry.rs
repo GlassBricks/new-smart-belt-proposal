@@ -10,7 +10,8 @@ pub fn pos(x: i32, y: i32) -> Position {
 pub fn vec2(x: i32, y: i32) -> Vec2 {
     Vector2D::new(x, y)
 }
-
+/// South is +y
+/// East is +x
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Direction {
     North,
@@ -28,21 +29,39 @@ pub enum RelativeDirection {
 }
 
 impl Direction {
-    pub fn to_vector(&self) -> Vec2 {
+    pub fn to_vector(self) -> Vec2 {
         match self {
-            Direction::North => vec2(0, 1),
+            Direction::North => vec2(0, -1),
             Direction::East => vec2(1, 0),
-            Direction::South => vec2(0, -1),
+            Direction::South => vec2(0, 1),
             Direction::West => vec2(-1, 0),
         }
     }
 
-    pub fn opposite(&self) -> Direction {
+    pub fn opposite(self) -> Direction {
         match self {
             Direction::North => Direction::South,
             Direction::East => Direction::West,
             Direction::South => Direction::North,
             Direction::West => Direction::East,
+        }
+    }
+
+    pub fn rotate_cw(self) -> Direction {
+        match self {
+            Direction::North => Direction::East,
+            Direction::East => Direction::South,
+            Direction::South => Direction::West,
+            Direction::West => Direction::North,
+        }
+    }
+
+    pub fn rotate_ccw(self) -> Direction {
+        match self {
+            Direction::North => Direction::West,
+            Direction::East => Direction::North,
+            Direction::South => Direction::East,
+            Direction::West => Direction::South,
         }
     }
 
@@ -237,16 +256,16 @@ mod tests {
     #[test]
     fn test_ray_distance() {
         let ray_north = Ray::new(pos(0, 0), Direction::North);
-        assert_eq!(ray_north.ray_position(pos(0, 5)), 5);
-        assert_eq!(ray_north.ray_position(pos(0, -5)), -5);
+        assert_eq!(ray_north.ray_position(pos(0, -5)), 5);
+        assert_eq!(ray_north.ray_position(pos(0, 5)), -5);
 
         let ray_east = Ray::new(pos(0, 0), Direction::East);
         assert_eq!(ray_east.ray_position(pos(5, 0)), 5);
         assert_eq!(ray_east.ray_position(pos(-5, 0)), -5);
 
         let ray_south = Ray::new(pos(0, 0), Direction::South);
-        assert_eq!(ray_south.ray_position(pos(0, 5)), -5);
-        assert_eq!(ray_south.ray_position(pos(0, -5)), 5);
+        assert_eq!(ray_south.ray_position(pos(0, 5)), 5);
+        assert_eq!(ray_south.ray_position(pos(0, -5)), -5);
 
         let ray_west = Ray::new(pos(0, 0), Direction::West);
         assert_eq!(ray_west.ray_position(pos(5, 0)), -5);
@@ -256,13 +275,13 @@ mod tests {
     #[test]
     fn test_position_at() {
         let ray_north = Ray::new(pos(1, 1), Direction::North);
-        assert_eq!(ray_north.get_position(5), pos(1, 6));
+        assert_eq!(ray_north.get_position(5), pos(1, -4));
 
         let ray_east = Ray::new(pos(1, 1), Direction::East);
         assert_eq!(ray_east.get_position(5), pos(6, 1));
 
         let ray_south = Ray::new(pos(1, 1), Direction::South);
-        assert_eq!(ray_south.get_position(5), pos(1, -4));
+        assert_eq!(ray_south.get_position(5), pos(1, 6));
 
         let ray_west = Ray::new(pos(1, 1), Direction::West);
         assert_eq!(ray_west.get_position(5), pos(-4, 1));
@@ -271,13 +290,13 @@ mod tests {
     #[test]
     fn test_snap() {
         let ray_north = Ray::new(pos(1, 1), Direction::North);
-        assert_eq!(ray_north.snap(pos(5, 6)), pos(1, 6));
+        assert_eq!(ray_north.snap(pos(5, -4)), pos(1, -4));
 
         let ray_east = Ray::new(pos(1, 1), Direction::East);
         assert_eq!(ray_east.snap(pos(6, 5)), pos(6, 1));
 
         let ray_south = Ray::new(pos(1, 1), Direction::South);
-        assert_eq!(ray_south.snap(pos(5, -4)), pos(1, -4));
+        assert_eq!(ray_south.snap(pos(5, 6)), pos(1, 6));
 
         let ray_west = Ray::new(pos(1, 1), Direction::West);
         assert_eq!(ray_west.snap(pos(-4, 5)), pos(-4, 1));
