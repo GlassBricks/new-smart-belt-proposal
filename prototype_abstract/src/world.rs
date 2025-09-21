@@ -1,10 +1,19 @@
-use std::collections::HashMap;
+use std::{any::Any, collections::HashMap};
 
-use crate::{BoundingBox, Direction, Entity, Position, PositionIteratorExt as _};
+use euclid::vec2;
+
+use crate::{Belt, BeltConnectable, BoundingBox, Direction, Entity, Position};
 
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct World {
     pub entities: HashMap<Position, Box<dyn Entity>>,
+}
+
+#[derive(Debug)]
+pub struct BeltOutputOverride {
+    pub position: Position,
+    pub direction: Direction,
+    pub has_output: bool,
 }
 
 impl World {
@@ -26,16 +35,36 @@ impl World {
         self.entities.remove(&position);
     }
 
-    pub fn bounds(&self) -> Option<BoundingBox> {
-        self.entities.keys().copied().bounds()
+    pub fn bounds(&self) -> BoundingBox {
+        let basic_bb = BoundingBox::from_points(self.entities.keys());
+        BoundingBox::new(basic_bb.min, basic_bb.max + vec2(1, 1))
+    }
+    pub fn belt_input_direction(&self, position: Position, belt_direction: Direction) -> Direction {
+        self.belt_input_direction_with_override(position, belt_direction, None)
     }
 
-    pub fn belt_input_direction(&self, position: Position, belt_direction: Direction) -> Direction {
+    pub fn belt_input_direction_with_override(
+        &self,
+        position: Position,
+        belt_direction: Direction,
+        override_direction: Option<&BeltOutputOverride>,
+    ) -> Direction {
         let has_input_in = |direction: Direction| {
-            let pos = position - direction.to_vector();
-            let ent = self.get(pos);
-            let ent_dyn = ent.and_then(|e| e.as_belt_connectable_dyn());
-            ent_dyn
+            let query_pos = position - direction.to_vector();
+
+            if let Some(BeltOutputOverride {
+                position: ov_position,
+                direction: output_direction,
+                has_output: override_has_output,
+            }) = override_direction
+                && *ov_position == query_pos
+                && *output_direction == direction
+            {
+                return *override_has_output;
+            }
+
+            self.get(query_pos)
+                .and_then(|e| e.as_belt_connectable_dyn())
                 .and_then(|b| b.output_direction())
                 .is_some_and(|f| f == direction)
         };
@@ -53,8 +82,24 @@ impl World {
         }
     }
 
-    pub fn belt_is_curved(&self, position: Position, belt_direction: Direction) -> bool {
-        self.belt_input_direction(position, belt_direction) != belt_direction
+    pub fn effective_input_direction(
+        &self,
+        position: Position,
+        connectable: &dyn BeltConnectable,
+        output_override: Option<&BeltOutputOverride>,
+    ) -> Option<Direction> {
+        if let Some(belt) = (connectable as &dyn Any).downcast_ref::<Belt>() {
+            Some(self.belt_input_direction_with_override(position, belt.direction, output_override))
+        } else {
+            connectable.primary_input_direction()
+        }
+    }
+
+    pub fn effective_output_direction(
+        &self,
+        connectable: &dyn BeltConnectable,
+    ) -> Option<Direction> {
+        connectable.output_direction()
     }
 }
 
@@ -193,6 +238,62 @@ mod tests {
         assert_eq!(
             input_direction, East,
             "Should ignore belts that don't output toward position"
+        );
+    }
+
+    #[test]
+    fn test_belt_input_direction_with_override_true() {
+        let mut world = World::new();
+        let position = pos(1, 1);
+        let belt_direction = East;
+
+        // Place a belt that normally wouldn't output to our position
+        world.set(pos(1, 0), Belt::new(North, YELLOW_BELT));
+
+        // Override to make it appear as if it outputs south
+        let override_direction = BeltOutputOverride {
+            position: pos(1, 0),
+            direction: South,
+            has_output: true,
+        };
+
+        let input_direction = world.belt_input_direction_with_override(
+            position,
+            belt_direction,
+            Some(&override_direction),
+        );
+
+        assert_eq!(
+            input_direction, South,
+            "Should use override to treat belt as outputting south"
+        );
+    }
+
+    #[test]
+    fn test_belt_input_direction_with_override_false() {
+        let mut world = World::new();
+        let position = pos(1, 1);
+        let belt_direction = East;
+
+        // Place a belt that normally would output to our position
+        world.set(pos(1, 0), Belt::new(South, YELLOW_BELT));
+
+        // Override to make it appear as if it doesn't output
+        let override_direction = BeltOutputOverride {
+            position: pos(1, 0),
+            direction: South,
+            has_output: false,
+        };
+
+        let input_direction = world.belt_input_direction_with_override(
+            position,
+            belt_direction,
+            Some(&override_direction),
+        );
+
+        assert_eq!(
+            input_direction, East,
+            "Should use override to ignore belt that would normally provide input"
         );
     }
 }

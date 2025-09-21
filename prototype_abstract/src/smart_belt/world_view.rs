@@ -1,5 +1,5 @@
 use crate::geometry::RelativeDirection;
-use crate::{Belt, Direction, Entity, Ray, World, note};
+use crate::{Belt, BeltConnectable, BeltOutputOverride, Direction, Entity, Ray, World};
 
 /**
 World view for LineDragLogic.
@@ -16,9 +16,7 @@ impl<'a> DragWorldView<'a> {
     pub fn new(world: &'a World, ray: Ray) -> Self {
         Self { world, ray }
     }
-}
 
-impl<'a> DragWorldView<'a> {
     pub fn relative_direction(&self, direction: Direction) -> RelativeDirection {
         self.drag_direction().direction_to(direction)
     }
@@ -32,15 +30,77 @@ impl<'a> DragWorldView<'a> {
         self.world.get(self.ray.get_position(position))
     }
 
-    pub fn belt_was_curved(&self, position: i32, belt: &Belt) -> bool {
-        note!("previously-curved-belt");
-        self.belt_is_curved(position, belt)
+    pub fn belt_is_output(&self, belt: &dyn BeltConnectable) -> bool {
+        belt.output_direction() == Some(self.drag_direction())
     }
 
-    pub fn belt_is_curved(&self, position: i32, belt: &Belt) -> bool {
-        note!("backwards dragging");
-        self.world
-            .belt_is_curved(self.ray.get_position(position), belt.direction)
+    pub fn belt_was_curved(
+        &self,
+        position: i32,
+        belt: &Belt,
+        position_override: Option<(i32, bool)>,
+    ) -> bool {
+        let position = self.ray.get_position(position);
+        self.world.belt_input_direction_with_override(
+            position,
+            belt.direction,
+            self.translate_override(position_override).as_ref(),
+        ) != belt.direction
+    }
+
+    pub fn belt_directly_connects_to_previous(
+        &self,
+        position: i32,
+        output_override: Option<(i32, bool)>,
+    ) -> bool {
+        let (last_pos, cur_pos) = (
+            self.ray.get_position(position - 1),
+            self.ray.get_position(position),
+        );
+
+        let Some(last_entity) = self
+            .world
+            .get(last_pos)
+            .and_then(|f| f.as_belt_connectable_dyn())
+        else {
+            return false;
+        };
+
+        let Some(cur_entity) = self
+            .world
+            .get(cur_pos)
+            .and_then(|f| f.as_belt_connectable_dyn())
+        else {
+            return false;
+        };
+        let output_override = self.translate_override(output_override);
+
+        let connects_forward = self.world.effective_output_direction(last_entity)
+            == Some(self.drag_direction())
+            && self
+                .world
+                .effective_input_direction(cur_pos, cur_entity, output_override.as_ref())
+                == Some(self.drag_direction());
+        if connects_forward {
+            return true;
+        }
+        let connects_backward =
+            self.world
+                .effective_input_direction(last_pos, last_entity, output_override.as_ref())
+                == Some(self.drag_direction().opposite())
+                && self.world.effective_output_direction(cur_entity)
+                    == Some(self.drag_direction().opposite());
+        if connects_backward {
+            return true;
+        }
+        false
+    }
+    fn translate_override(&self, ov: Option<(i32, bool)>) -> Option<BeltOutputOverride> {
+        ov.map(|(index, was_output)| BeltOutputOverride {
+            position: self.ray.get_position(index),
+            direction: self.drag_direction(),
+            has_output: was_output,
+        })
     }
 
     // pub fn belt_directly_connects_into_next(&self, _position: i32) -> bool {

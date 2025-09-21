@@ -1,4 +1,7 @@
-use euclid::default::{Box2D, Point2D, Vector2D};
+use euclid::{
+    default::{Box2D, Point2D, Vector2D},
+    vec2,
+};
 
 pub type Position = Point2D<i32>;
 pub type Vec2 = Vector2D<i32>;
@@ -7,9 +10,6 @@ pub fn pos(x: i32, y: i32) -> Position {
     Position::new(x, y)
 }
 
-pub fn vec2(x: i32, y: i32) -> Vec2 {
-    Vector2D::new(x, y)
-}
 /// South is +y
 /// East is +x
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -18,6 +18,12 @@ pub enum Direction {
     East,
     South,
     West,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Axis {
+    X,
+    Y,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -62,6 +68,13 @@ impl Direction {
             Direction::East => Direction::North,
             Direction::South => Direction::East,
             Direction::West => Direction::South,
+        }
+    }
+
+    pub fn axis(self) -> Axis {
+        match self {
+            Direction::North | Direction::South => Axis::Y,
+            Direction::East | Direction::West => Axis::X,
         }
     }
 

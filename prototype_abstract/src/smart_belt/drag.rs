@@ -30,12 +30,13 @@ impl<'a> LineDrag<'a> {
             world,
             ray: Ray::new(start_pos, direction),
             tier,
-            last_state: DragState::BeltPlaced,
+            last_state: DragState::BeltPlaced { was_output: true },
             last_position: 0,
             errors: Vec::new(),
         }
     }
 
+    #[inline]
     pub(super) fn world_view(&self) -> DragWorldView<'_> {
         DragWorldView::new(self.world, self.ray)
     }
@@ -63,7 +64,6 @@ impl<'a> LineDrag<'a> {
         let dist = self.ray.ray_position(new_position);
         while self.last_position < dist {
             self.step_forward();
-            // dbg!(self.last_position, &self.last_state);
         }
     }
 }

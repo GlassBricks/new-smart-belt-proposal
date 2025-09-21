@@ -21,7 +21,7 @@ pub struct DragTestCase {
 
 pub fn check_test_case(test: &DragTestCase) -> anyhow::Result<()> {
     if test.skip {
-        eprintln!("Skipping: {}", test.name);
+        eprintln!("SKIPPING! {}", test.name);
         return Ok(());
     }
 
@@ -298,14 +298,16 @@ fn print_entity(entity: &dyn Entity) -> String {
 fn print_world(world: &World) -> String {
     let bounds = world.bounds();
 
-    if bounds.is_none_or(|bounds| bounds.is_empty()) {
+    if bounds.is_empty() {
         return "<Empty>".to_string();
     }
-    let bounds = bounds.unwrap();
 
     let mut result = String::new();
-    for y in bounds.min.y..=bounds.max.y {
-        for x in bounds.min.x..=bounds.max.x {
+    for y in bounds.min.y..bounds.max.y {
+        if y > bounds.min.y {
+            result.push('\n');
+        }
+        for x in bounds.min.x..bounds.max.x {
             if x > bounds.min.x {
                 result.push(' ');
             }
@@ -319,9 +321,6 @@ fn print_world(world: &World) -> String {
         // Trim trailing whitespace from the line
         while result.ends_with(' ') {
             result.pop();
-        }
-        if y < bounds.max.y {
-            result.push('\n');
         }
     }
 

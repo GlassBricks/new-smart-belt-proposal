@@ -1,4 +1,4 @@
-use crate::{Direction, Entity, RelativeDirection};
+use crate::{Direction, Entity};
 use std::any::Any;
 use std::ops::Deref;
 
@@ -51,10 +51,6 @@ pub trait BeltConnectable: Entity {
     /// Does not include underground side-loading
     fn accepts_sideways_input(&self) -> bool {
         false
-    }
-
-    fn belt_output(&self) -> Option<Direction> {
-        self.has_output().then_some(self.direction())
     }
 }
 
@@ -194,29 +190,18 @@ impl BeltConnectable for Splitter {
 impl Entity for Splitter {}
 
 impl dyn BeltConnectable {
-    // the entity's relative placement should be entering_direction.opposite()
-    pub fn accepts_input_going(&self, entering_direction: Direction) -> bool {
-        match entering_direction.direction_to(self.direction()) {
-            RelativeDirection::Forward => self.has_backwards_input(),
-            RelativeDirection::Left | RelativeDirection::Right => self.accepts_sideways_input(),
-            RelativeDirection::Backward => false,
-        }
-    }
-
     pub fn output_direction(&self) -> Option<Direction> {
         self.has_output().then_some(self.direction())
     }
 
-    pub fn connects_to_from_directional(
-        &self,
-        approach_direction: Direction,
-        backwards: bool,
-    ) -> bool {
-        if !backwards {
-            self.accepts_input_going(approach_direction)
-        } else {
-            self.output_direction() == Some(approach_direction.opposite())
-        }
+    pub fn has_output_going(&self, exiting_direction: Direction) -> bool {
+        self.output_direction() == Some(exiting_direction)
+    }
+
+    /// Does not take into account belt curvature.
+    pub fn primary_input_direction(&self) -> Option<Direction> {
+        self.has_backwards_input()
+            .then_some(self.direction().opposite())
     }
 }
 
@@ -262,7 +247,7 @@ impl dyn Entity {
 
 #[cfg(test)]
 mod tests {
-    use crate::belts::{BLUE_BELT, Belt, BeltConnectable, Splitter, UndergroundBelt, YELLOW_BELT};
+    use crate::belts::{Belt, BeltConnectable, UndergroundBelt, YELLOW_BELT};
     use crate::geometry::Direction::*;
 
     #[test]
@@ -282,70 +267,6 @@ mod tests {
         };
 
         assert_eq!(belt.shape_direction(), North);
-    }
-
-    #[test]
-    fn test_belt_accepts_input_going() {
-        let belt = Belt {
-            direction: North,
-            tier: YELLOW_BELT,
-        };
-        let belt_connectable: &dyn BeltConnectable = &belt;
-
-        // accepts all sides except backwards
-        assert!(belt_connectable.accepts_input_going(North));
-        assert!(belt_connectable.accepts_input_going(East));
-        assert!(belt_connectable.accepts_input_going(West));
-
-        assert!(!belt_connectable.accepts_input_going(South));
-    }
-
-    #[test]
-    fn test_underground_belt_input_accepts_input_going() {
-        let underground = UndergroundBelt {
-            direction: East,
-            tier: YELLOW_BELT,
-            is_input: true,
-        };
-        let belt_connectable: &dyn BeltConnectable = &underground;
-
-        // accepts input
-        assert!(belt_connectable.accepts_input_going(East));
-        // no other inputs
-        assert!(!belt_connectable.accepts_input_going(West));
-
-        assert!(!belt_connectable.accepts_input_going(North));
-        assert!(!belt_connectable.accepts_input_going(South));
-    }
-
-    #[test]
-    fn test_underground_belt_output_accepts_input_going() {
-        let underground = UndergroundBelt {
-            direction: East,
-            tier: YELLOW_BELT,
-            is_input: false,
-        };
-        let belt_connectable: &dyn BeltConnectable = &underground;
-
-        // Output underground belt has output but no backwards input
-        assert!(!belt_connectable.accepts_input_going(East));
-        assert!(!belt_connectable.accepts_input_going(West));
-        assert!(!belt_connectable.accepts_input_going(North));
-        assert!(!belt_connectable.accepts_input_going(South));
-    }
-    #[test]
-    fn test_splitter_accepts_input_going() {
-        let splitter = Splitter {
-            direction: East,
-            tier: YELLOW_BELT,
-        };
-        let belt_connectable: &dyn BeltConnectable = &splitter;
-
-        // Accepts input only in one direction
-        assert!(belt_connectable.accepts_input_going(East));
-        assert!(!belt_connectable.accepts_input_going(West));
-        assert!(!belt_connectable.accepts_input_going(North));
-        assert!(!belt_connectable.accepts_input_going(South));
     }
 
     #[test]
@@ -372,44 +293,5 @@ mod tests {
         };
         let belt_connectable: &dyn BeltConnectable = &underground_output;
         assert_eq!(belt_connectable.output_direction(), Some(North));
-    }
-
-    #[test]
-    fn test_belt_connects_to_from_directional() {
-        let belt = Belt {
-            direction: East,
-            tier: YELLOW_BELT,
-        };
-        let belt_connectable: &dyn BeltConnectable = &belt;
-
-        // Test forward connections
-        assert!(belt_connectable.connects_to_from_directional(East, false)); // backwards input
-        assert!(belt_connectable.connects_to_from_directional(North, false)); // sideways
-        assert!(belt_connectable.connects_to_from_directional(South, false)); // sideways
-        assert!(!belt_connectable.connects_to_from_directional(West, false)); // front
-
-        // Test backward connections
-        assert!(!belt_connectable.connects_to_from_directional(East, true));
-        assert!(!belt_connectable.connects_to_from_directional(North, true));
-        assert!(!belt_connectable.connects_to_from_directional(South, true));
-        assert!(belt_connectable.connects_to_from_directional(West, true)); // output direction
-    }
-
-    #[test]
-    fn test_splitter_connects_to_from_directional() {
-        let splitter = Splitter {
-            direction: West,
-            tier: BLUE_BELT,
-        };
-        let belt_connectable: &dyn BeltConnectable = &splitter;
-
-        // Splitter has both input and output, but no sideways input
-        assert!(belt_connectable.connects_to_from_directional(West, false)); // backwards input
-        assert!(!belt_connectable.connects_to_from_directional(North, false)); // no sideways
-        assert!(!belt_connectable.connects_to_from_directional(South, false)); // no sideways
-        assert!(!belt_connectable.connects_to_from_directional(East, false)); // front
-
-        // Backward connection
-        assert!(belt_connectable.connects_to_from_directional(East, true)); // output direction
     }
 }

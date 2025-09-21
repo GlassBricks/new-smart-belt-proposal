@@ -1,12 +1,12 @@
-- name: Perpendicular belt obstacle
+- name: Perpendicular belt
   before: _ _ u
   after: r ri u ro r r
 
-- name: Multiple perpendicular belt obstacles
+- name: Multiple perpendicular belt
   before: _ _ u d
   after: r ri u d ro r r
 
-- name: Forward curved belt is obstacle
+- name: Backwards curved belt
   before: |
     _ _ d
     _ _ l
@@ -14,10 +14,43 @@
     _ _  d _
     r ri l ro r
 
-- name: 2 curved belts is obstacle
+- name: Forwards curved belt
+  before: |
+    _ _ d
+    _ _ r
+  after: |
+    _ _  d _
+    r ri r ro r
+
+- name: Backwards curved belt continuation
+  skip: true # difficulter case
+  before: |
+    _ _ _ l
+    _ _ l l
+  after: |
+    _ _  d _
+    r ri l l ro r
+
+- name: Forwards curved belt continuation
+  before: |
+    _ _ d
+    _ _ r r
+  after: |
+    _ _  d _
+    r ri r r ro r
+
+- name: 2 backwards curved belts
   before: |
     _ _ _ d
     _ _ u l
   after: |
     _ _ _  d _
     r ri u l ro r
+
+- name: 2 forwards curved belts
+  before: |
+    _ _ d
+    _ _ r u
+  after: |
+    _ _  d _ _
+    r ri r u ro r

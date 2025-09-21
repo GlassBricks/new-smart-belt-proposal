@@ -2,30 +2,27 @@ This is a collection of projects, to formalize and prototype an implementation o
 
 Informal spec is in spec_src/spec.md.
 
-## Rust Prototype Implementation
-The main prototype implementation is a rust crate with tests, in prototype_src.
-Rust was chosen for this because the prototype wants to be mostly functional-style.
+## Rust Prototype
+The main prototype implementation is a rust crate, with tests.
+Rust was chosen, to allow the prototype to be mostly but not completely functional.
 
-All the "main" logic that will be transferrable outside the prototype is in `src/prototype_abstract/src/smart_belt/*.rs`
-The rest is an abstraction of Factorio
+All the "main" logic is in `src/prototype_abstract/src/smart_belt/*.rs`.
+This logic will eventually be extracted into a different programming language.
+
+Other modules include a simplified representation of Factorio tiles and entities.
 
 ## Tests
-- Testing is mainly done through the above test suite
-Test cases are in `./test_src/*.yaml`
-Currently parsed/handled by `prototype_abstract/src/test/*.rs`.
+Testing is mainly done through the a test suite, test cases defined in `./test_src/*.yaml`
+Parsed and processed by `prototype_abstract/src/test_case.rs`
+A build script gathers these, and generates normal rust integration tests.
 
-A build script gathers these and creates normal rust integration tests.
-
-The goal is to get enough tests to get 100% code and branch coverage.
+The goal is to get enough tests to get 100% code and branch coverage for `smart_belt/*`
 
 ## Unit Testing
-Some modules have unit tests. Keep these brief; there's no need to test every corner case (only a few "interesting" cases).
+Some other modules have unit tests. Keep these brief; don't test every corner case, only a few interesting cases.
 
 ## Code style
+Strongly prefer functional programming style
 
-Prefer functional programming style:
-- Functional operators
-- Immutability and pure functions
-
-Do not add comments. Only humans should do that.
-Do not add additional examples, readme, or explanations, etc.
+Do NOT add additional comments, or doc comments.
+Do NOT add additional examples, readme, or explanations, etc.

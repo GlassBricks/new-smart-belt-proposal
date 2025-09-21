@@ -11,7 +11,10 @@ use super::drag_logic::DragState;
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum TileType {
     /// A tile we can place or fast-replace belt on.
-    Usable,
+    Usable {
+        /// Whether this tile was previously an output underground belt
+        was_output: bool,
+    },
     /// An obstacle we want to underground over.
     Obstacle,
     // An obstacle that's impossible to underground past. Includes:
@@ -30,64 +33,88 @@ pub(super) enum TileType {
 impl<'a> LineDrag<'a> {
     /// most things are simple to classify. The tricky cases are in existing belt-like-entities.
     pub(super) fn classify_next_tile(&self) -> TileType {
-        let entity = self
+        if let Some(entity) = self
             .world_view()
-            .get_entity_at_position(self.next_position());
-        match entity {
-            Some(entity) => match entity.as_belt_connectable() {
-                Some(BeltConnectableEnum::Belt(belt)) => {
-                    self.classify_belt(self.next_position(), belt)
-                }
+            .get_entity_at_position(self.next_position())
+        {
+            match entity.as_belt_connectable() {
+                Some(BeltConnectableEnum::Belt(belt)) => self.classify_belt(belt),
                 Some(BeltConnectableEnum::UndergroundBelt(ug)) => self.classify_underground(ug),
                 Some(BeltConnectableEnum::Splitter(splitter)) => self.classify_splitter(splitter),
                 Some(BeltConnectableEnum::LoaderLike(loader)) => self.classify_loader(loader),
                 None => TileType::Obstacle,
-            },
-            None => self.classify_empty_tile(),
+            }
+        } else {
+            self.classify_empty_tile()
         }
     }
 
-    fn classify_belt(&self, position: i32, belt: &Belt) -> TileType {
+    fn classify_belt(&self, belt: &Belt) -> TileType {
         match self.world_view().relative_direction(belt.direction) {
+            // perpendicular belt
             Left | Right => {
-                if self.belt_was_connected_forward(position) {
+                if self.belt_was_directly_connected_to_previous(self.next_position()) {
+                    // if we directly run into it, it used to be a curved belt
+                    // This is an impassable obstacle.
                     todo!()
                 } else {
+                    // Normal obstacle
                     TileType::Obstacle
                 }
             }
+            // if the previous tile is an obstacle and directly connects to this belt, it's an obstacle.
+            Forward | Backward if self.next_belt_should_be_obstacle(belt) => TileType::Obstacle,
             Forward => {
-                if self.world_view().belt_was_curved(position, belt) {
-                    TileType::Obstacle
-                } else {
-                    match self.last_state {
-                        DragState::BeltPlaced | DragState::OutputUgPlaced { .. } => {
-                            TileType::Usable
-                        }
-                        DragState::TraversingObstacle { .. } => self.check_enter_belt_segment(belt),
+                let was_output = self.world_view().belt_is_output(belt);
+                match self.last_state {
+                    DragState::BeltPlaced { .. } | DragState::OutputUgPlaced { .. } => {
+                        // if we directly run into a straight belt, use it.
+                        TileType::Usable { was_output }
+                    }
+                    DragState::Traversing { .. } | DragState::TraversingAfterOutput { .. } => {
+                        TileType::Usable { was_output }
                     }
                 }
             }
             Backward => {
-                if self.world_view().belt_is_curved(position, belt) {
+                let was_output = self.world_view().belt_is_output(belt);
+                if self.should_ug_over_belt_segment_backwards_belt() {
                     TileType::Obstacle
                 } else {
-                    self.check_enter_belt_segment(belt)
+                    TileType::Usable { was_output }
                 }
             }
         }
     }
-
-    fn belt_was_connected_forward(&self, _position: i32) -> bool {
-        false
+    fn next_belt_should_be_obstacle(&self, belt: &Belt) -> bool {
+        match self.last_state {
+            DragState::BeltPlaced { was_output }
+            | DragState::OutputUgPlaced {
+                output_ug_was_output: was_output,
+                ..
+            } => self.world_view().belt_was_curved(
+                self.next_position(),
+                belt,
+                Some((self.last_position, was_output)),
+            ),
+            DragState::Traversing {
+                input_pos: override_pos,
+                input_pos_was_output: was_output,
+            }
+            | DragState::TraversingAfterOutput {
+                output_pos: override_pos,
+                output_pos_was_output: was_output,
+                ..
+            } => self.world_view().belt_directly_connects_to_previous(
+                self.next_position(),
+                Some((override_pos, was_output)),
+            ),
+        }
     }
 
-    fn check_enter_belt_segment(&self, _belt: &Belt) -> TileType {
-        if self.should_ug_over_belt_segment_backwards_belt() {
-            TileType::Obstacle
-        } else {
-            TileType::Usable
-        }
+    fn belt_was_directly_connected_to_previous(&self, _position: i32) -> bool {
+        note!("TODO: track");
+        false
     }
 
     fn classify_underground(&self, _ug: &UndergroundBelt) -> TileType {
@@ -98,7 +125,7 @@ impl<'a> LineDrag<'a> {
 
         // match relative_dir {
         //     Left | Right => TileType::Obstacle,
-        //     Forward | Backward if !self.world_view().is_ug_paired(ug) => TileType::Usable,
+        //     Forward | Backward if !self.world_view().is_ug_paired(ug) => TileType::Usable { was_output: todo!() },
         //     Forward => self.try_integrate_underground(ug),
         //     Backward => self.try_skip_underground(ug),
         // }
@@ -156,7 +183,7 @@ impl<'a> LineDrag<'a> {
 
     fn classify_empty_tile(&self) -> TileType {
         if self.world_view().can_place_belt_on_tile(self.last_position) {
-            TileType::Usable
+            TileType::Usable { was_output: false }
         } else if self
             .world_view()
             .is_undergroundable_tile(self.last_position)
