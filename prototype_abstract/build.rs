@@ -38,47 +38,32 @@ fn main() {
         let file_stem = path.file_stem().unwrap().to_str().unwrap();
 
         // Parse YAML to get test cases and generate macro calls
-        match serde_yaml::from_str::<Vec<serde_yaml::Value>>(&content) {
-            Ok(test_cases) => {
-                for (i, test_case) in test_cases.iter().enumerate() {
-                    let test_name =
-                        if let Some(name) = test_case.get("name").and_then(|v| v.as_str()) {
-                            format!("{}_{}", file_stem, name.to_lowercase().replace(" ", "_"))
-                        } else {
-                            format!("{}_test_{}", file_stem, i + 1)
-                        };
+        let test_cases = serde_yaml::from_str::<Vec<serde_yaml::Value>>(&content).unwrap();
+        for (i, test_case) in test_cases.iter().enumerate() {
+            let test_name = if let Some(name) = test_case.get("name").and_then(|v| v.as_str()) {
+                let sanitized_name =
+                    name.to_lowercase()
+                        .chars()
+                        .fold(String::new(), |mut acc, c| {
+                            if c.is_alphanumeric() {
+                                acc.push(c);
+                            } else if !acc.ends_with('_') {
+                                acc.push('_');
+                            }
+                            acc
+                        });
+                format!("{}_{}", file_stem, sanitized_name.trim_end_matches('_'))
+            } else {
+                format!("{}_test_{}", file_stem, i + 1)
+            };
 
-                    let yaml_content = serde_yaml::to_string(&test_case).unwrap();
+            let yaml_content = serde_yaml::to_string(&test_case).unwrap();
 
-                    generated_code.push_str(&format!(
-                        "test_drag!({}, r#\"{}\"#);\n",
-                        test_name,
-                        yaml_content.trim()
-                    ));
-                }
-            }
-            Err(_) => {
-                // Try parsing as single test case
-                match serde_yaml::from_str::<serde_yaml::Value>(&content) {
-                    Ok(test_case) => {
-                        let test_name =
-                            if let Some(name) = test_case.get("name").and_then(|v| v.as_str()) {
-                                format!("{}_{}", file_stem, name.to_lowercase().replace(" ", "_"))
-                            } else {
-                                file_stem.to_string()
-                            };
-
-                        generated_code.push_str(&format!(
-                            "test_drag!({}, r#\"{}\"#);\n",
-                            test_name,
-                            content.trim()
-                        ));
-                    }
-                    Err(e) => {
-                        eprintln!("Warning: Failed to parse {}: {}", path.display(), e);
-                    }
-                }
-            }
+            generated_code.push_str(&format!(
+                "test_drag!({}, r#\"{}\"#);\n",
+                test_name,
+                yaml_content.trim()
+            ));
         }
     }
 

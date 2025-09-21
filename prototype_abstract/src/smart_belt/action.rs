@@ -7,7 +7,14 @@ use super::LineDrag;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum Action {
     PlaceBelt,
-    CreateUnderground(i32, i32),
+    CreateUnderground {
+        input_pos: i32,
+        output_pos: i32,
+    },
+    ExtendUnderground {
+        previous_output_pos: i32,
+        new_output_pos: i32,
+    },
     // ReplaceUnderground { last_output_position: i32 },
     // IntegrateEntity,
     None,
@@ -34,7 +41,10 @@ impl<'a> LineDrag<'a> {
                 self.world
                     .place_belt(position, self.ray.direction, self.tier);
             }
-            Action::CreateUnderground(input_pos, output_pos) => {
+            Action::CreateUnderground {
+                input_pos,
+                output_pos,
+            } => {
                 let (input_pos, output_pos) = (
                     self.ray.get_position(input_pos),
                     self.ray.get_position(output_pos),
@@ -44,6 +54,23 @@ impl<'a> LineDrag<'a> {
                     .place_underground_belt(input_pos, self.ray.direction, true, self.tier);
                 self.world
                     .place_underground_belt(output_pos, self.ray.direction, false, self.tier);
+            }
+            Action::ExtendUnderground {
+                previous_output_pos,
+                new_output_pos,
+            } => {
+                let (previous_output_pos, new_output_pos) = (
+                    self.ray.get_position(previous_output_pos),
+                    self.ray.get_position(new_output_pos),
+                );
+
+                self.world.remove(previous_output_pos);
+                self.world.place_underground_belt(
+                    new_output_pos,
+                    self.ray.direction,
+                    false,
+                    self.tier,
+                );
             }
         }
     }

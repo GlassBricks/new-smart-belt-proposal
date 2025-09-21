@@ -12,12 +12,12 @@ pub enum DragState {
     /// We hovered over an obstacle.
     TraversingObstacle {
         // Last position we may place an underground belt.
-        last_input_position: i32,
+        input_pos: i32,
         // Last position we placed an underground belt, if any.
-        output_position: Option<i32>,
+        output_pos: Option<i32>,
     },
     /// After we have placed our _own_ output underground belt. This output underground may be moved later.
-    OutputUgPlaced { entrance_position: i32 },
+    OutputUgPlaced { input_pos: i32 },
     // We have just encountered an impassable obstacle. However, we don't error until the user tries to _pass_ the obstacle.
     // OverImpassable,
     // We are passing through an underground belt.
@@ -78,29 +78,34 @@ impl<'a> LineDrag<'a> {
                 StepResult(Action::PlaceBelt, None, DragState::BeltPlaced)
             }
             DragState::TraversingObstacle {
-                last_input_position: input_position,
-                output_position,
+                input_pos,
+                output_pos,
             } => {
-                if let Some(ug) = output_position {
-                    todo!("Handle moving output underground, {:?}", ug)
+                let distance = self.next_position() - input_pos;
+                if distance > self.tier.underground_distance.into() {
+                    StepResult(
+                        Action::PlaceBelt,
+                        Some(Error::TooFarToConnect),
+                        DragState::BeltPlaced,
+                    )
+                } else if let Some(previous_output) = output_pos {
+                    StepResult(
+                        Action::ExtendUnderground {
+                            previous_output_pos: previous_output,
+                            new_output_pos: self.next_position(),
+                        },
+                        None,
+                        DragState::OutputUgPlaced { input_pos },
+                    )
                 } else {
-                    let next_position = self.next_position();
-                    let distance = next_position - input_position;
-                    if distance > self.tier.underground_distance.into() {
-                        StepResult(
-                            Action::PlaceBelt,
-                            Some(Error::TooFarToConnect),
-                            DragState::BeltPlaced,
-                        )
-                    } else {
-                        StepResult(
-                            Action::CreateUnderground(input_position, next_position),
-                            None,
-                            DragState::OutputUgPlaced {
-                                entrance_position: input_position,
-                            },
-                        )
-                    }
+                    StepResult(
+                        Action::CreateUnderground {
+                            input_pos,
+                            output_pos: self.next_position(),
+                        },
+                        None,
+                        DragState::OutputUgPlaced { input_pos },
+                    )
                 }
             }
         }
@@ -109,13 +114,16 @@ impl<'a> LineDrag<'a> {
     fn handle_obstacle(&self) -> StepResult {
         let new_state = match self.last_state {
             DragState::BeltPlaced => DragState::TraversingObstacle {
-                last_input_position: self.last_position,
-                output_position: None,
+                input_pos: self.last_position,
+                output_pos: None,
             },
             DragState::TraversingObstacle { .. } => self.last_state,
-            DragState::OutputUgPlaced { .. } => {
-                todo!()
-            }
+            DragState::OutputUgPlaced {
+                input_pos: entrance_position,
+            } => DragState::TraversingObstacle {
+                input_pos: entrance_position,
+                output_pos: Some(self.last_position),
+            },
         };
         StepResult(Action::None, None, new_state)
     }

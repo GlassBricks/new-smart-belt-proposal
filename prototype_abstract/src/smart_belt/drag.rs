@@ -63,6 +63,7 @@ impl<'a> LineDrag<'a> {
         let dist = self.ray.ray_position(new_position);
         while self.last_position < dist {
             self.step_forward();
+            dbg!(self.last_position, &self.last_state);
         }
     }
 }

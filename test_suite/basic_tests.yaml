@@ -14,11 +14,24 @@
   before: _ _ X
   after: r ri X ro r
 
-- name: Longer obstacle
+- name: Simple obstacle 2
   before: _ _ X X
   after: r ri X X ro r
 
-- name: Too long
+- name: Obstacle too long
   before: _ _ X X X X X
   after: r r X X X X X *r r
+  expected_error: too_far_to_connect
+
+- name: Underground extension
+  before: _ _ X X _ X
+  after: r ri X X _ X ro r
+
+- name: No extension
+  before: _ _ X _ _ X
+  after: r ri X ro ri X ro r
+
+- name: Extension, then too long
+  before: _ _ X X _ X X
+  after: r ri X X ro X X *r r
   expected_error: too_far_to_connect

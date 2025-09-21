@@ -22,6 +22,10 @@ impl World {
         self.entities.insert(position, entity);
     }
 
+    pub fn remove(&mut self, position: Position) {
+        self.entities.remove(&position);
+    }
+
     pub fn bounds(&self) -> Option<BoundingBox> {
         self.entities.keys().copied().bounds()
     }
