@@ -304,9 +304,9 @@ fn print_world(world: &World) -> String {
     let bounds = bounds.unwrap();
 
     let mut result = String::new();
-    for y in bounds.min_y()..=bounds.max_y() {
-        for x in bounds.min_x()..=bounds.max_x() {
-            if x > bounds.min_x() {
+    for y in bounds.min.y..=bounds.max.y {
+        for x in bounds.min.x..=bounds.max.x {
+            if x > bounds.min.x {
                 result.push(' ');
             }
             let pos = pos(x, y);
@@ -320,7 +320,7 @@ fn print_world(world: &World) -> String {
         while result.ends_with(' ') {
             result.pop();
         }
-        if y < bounds.max_y() {
+        if y < bounds.max.y {
             result.push('\n');
         }
     }

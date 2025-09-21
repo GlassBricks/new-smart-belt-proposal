@@ -1,22 +1,16 @@
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Position {
-    pub x: i32,
-    pub y: i32,
-}
-impl Position {
-    pub fn new(x: i32, y: i32) -> Position {
-        Position { x, y }
-    }
-}
+use euclid::default::{Box2D, Point2D, Vector2D};
+
+pub type Position = Point2D<i32>;
+pub type Vec2 = Vector2D<i32>;
 
 pub fn pos(x: i32, y: i32) -> Position {
-    Position { x, y }
+    Position::new(x, y)
 }
-impl std::fmt::Debug for Position {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "({}, {})", self.x, self.y)
-    }
+
+pub fn vec2(x: i32, y: i32) -> Vec2 {
+    Vector2D::new(x, y)
 }
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Direction {
     North,
@@ -34,6 +28,15 @@ pub enum RelativeDirection {
 }
 
 impl Direction {
+    pub fn to_vector(&self) -> Vec2 {
+        match self {
+            Direction::North => vec2(0, 1),
+            Direction::East => vec2(1, 0),
+            Direction::South => vec2(0, -1),
+            Direction::West => vec2(-1, 0),
+        }
+    }
+
     pub fn opposite(&self) -> Direction {
         match self {
             Direction::North => Direction::South,
@@ -90,6 +93,14 @@ impl RelativeDirection {
     }
 }
 
+impl Direction {
+    pub fn rotate(self, direction: RelativeDirection) -> Direction {
+        let ordinal = self.to_ordinal();
+        let new_ordinal = (ordinal + direction.to_ordinal()) % 4;
+        Direction::from_ordinal(new_ordinal).unwrap()
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct Ray {
     pub start_position: Position,
@@ -107,62 +118,25 @@ impl Ray {
     pub fn relative_directon(&self, direction: Direction) -> RelativeDirection {
         self.direction.direction_to(direction)
     }
+
     pub fn ray_position(&self, position: Position) -> i32 {
-        // north is +y, east is +x
-        match self.direction {
-            Direction::North => position.y - self.start_position.y,
-            Direction::East => position.x - self.start_position.x,
-            Direction::South => self.start_position.y - position.y,
-            Direction::West => self.start_position.x - position.x,
-        }
+        let offset = position - self.start_position;
+        let dir_vec = self.direction.to_vector();
+        offset.dot(dir_vec)
     }
+    /// Get position at index along ray using euclid vector arithmetic
     pub fn get_position(&self, index: i32) -> Position {
-        let Position { x, y } = self.start_position;
-        match self.direction {
-            Direction::North => Position { x, y: y + index },
-            Direction::East => Position { x: x + index, y },
-            Direction::South => Position { x, y: y - index },
-            Direction::West => Position { x: x - index, y },
-        }
+        self.start_position + self.direction.to_vector() * index
     }
     pub fn snap(&self, position: Position) -> Position {
         self.get_position(self.ray_position(position))
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct BoundingBox {
-    top_left: Position,
-    bottom_right: Position,
-}
+pub type BoundingBox = Box2D<i32>;
 
-impl BoundingBox {
-    pub fn new(top_left: Position, bottom_right: Position) -> Self {
-        Self {
-            top_left,
-            bottom_right,
-        }
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.top_left == self.bottom_right
-    }
-
-    pub fn min_x(&self) -> i32 {
-        self.top_left.x
-    }
-
-    pub fn min_y(&self) -> i32 {
-        self.top_left.y
-    }
-
-    pub fn max_x(&self) -> i32 {
-        self.bottom_right.x
-    }
-
-    pub fn max_y(&self) -> i32 {
-        self.bottom_right.y
-    }
+pub fn bounds_new(top_left: Position, bottom_right: Position) -> BoundingBox {
+    BoundingBox::new(top_left, bottom_right)
 }
 
 pub trait PositionIteratorExt: Iterator<Item = Position> + Sized {
