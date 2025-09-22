@@ -54,3 +54,46 @@
   after: |
     _ _  d _ _
     r ri r u ro r
+
+- name: sideloaded belt is normal obstacle
+  before: |
+    _ _ r u l
+  after: |
+    r r ri u ro r
+
+- name: sideloaded belt is normal obstacle 2
+  before: |
+    _ _ d
+    _ _ d l _
+  after: |
+    _ _  d
+    r ri d ro r
+
+- name: sideloaded belt is not obstacle
+  before: |
+    _ _ d
+    _ r r _ _
+  after: |
+    _ _ d
+    r r r r r
+
+- name: curved belt after obstacle is obstacle
+  before: |
+    _ _ d
+    _ X r
+  after: |
+    _  _ d
+    ri X r ro r
+
+- name: running into a curved belt is error
+  before: |
+    _ r u
+  after: |
+    r r u *r
+  expected_error: curved_belt_in_the_way
+
+- name: hovering over curved belt gives no error
+  before: |
+    _ r u
+  after: |
+    r r u

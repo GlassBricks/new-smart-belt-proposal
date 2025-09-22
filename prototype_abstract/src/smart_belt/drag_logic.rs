@@ -1,6 +1,6 @@
 use super::{Action, LineDrag, action::Error, tile_classification::TileType};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum DragState {
     /// After placing a belt. This belt may become an underground
@@ -33,12 +33,43 @@ pub enum DragState {
         output_pos: i32,
         output_pos_was_output: bool,
     },
-    // We have just encountered an impassable obstacle. However, we don't error until the user tries to _pass_ the obstacle.
-    // OverImpassable,
+    /// We have just encountered an impassable obstacle. However, we don't error until the user tries to _pass_ the obstacle.
+    OverImpassableCurvedBelt,
     // We are passing through an underground belt.
     // PassThrough {
     //     exit_position: i32,
     // },
+}
+
+impl DragState {
+    pub fn last_belt_was_output(&self) -> bool {
+        match self {
+            DragState::BeltPlaced { .. } | DragState::OutputUgPlaced { .. } => true,
+            DragState::Traversing { .. }
+            | DragState::TraversingAfterOutput { .. }
+            | DragState::OverImpassableCurvedBelt => false,
+        }
+    }
+
+    pub fn get_override_tuple(&self, pos_at_state: i32) -> Option<(i32, bool)> {
+        match *self {
+            DragState::BeltPlaced { was_output }
+            | DragState::OutputUgPlaced {
+                output_ug_was_output: was_output,
+                ..
+            } => Some((pos_at_state, was_output)),
+            DragState::Traversing {
+                input_pos: override_pos,
+                input_pos_was_output: was_output,
+            }
+            | DragState::TraversingAfterOutput {
+                input_pos: override_pos,
+                output_pos_was_output: was_output,
+                ..
+            } => Some((override_pos, was_output)),
+            DragState::OverImpassableCurvedBelt => todo!(),
+        }
+    }
 }
 
 pub(super) struct StepResult(pub Action, pub Option<Error>, pub DragState);
@@ -72,28 +103,30 @@ impl<'a> LineDrag<'a> {
         match self.classify_next_tile() {
             TileType::Usable { was_output } => self.place_belt_or_underground(was_output),
             TileType::Obstacle => self.handle_obstacle(),
-            // TileType::IntegratedOutput => Action::IntegrateEntity,
-            // TileType::PassThroughUnderground(_) => Action::IntegrateEntity, // beginning pass_through means seeing input ug
-            // TileType::Obstacle => {
-            // if matches!(prev_state, TileType::IntegratedOutput) {
-            //     Action::EntityInTheWay
-            // } else if self.underground_would_be_too_long(prev_state, position + 1) {
-            //     Action::TooLongToReach
-            // alternative: report too long to reach the moment it becomes too long, not after passing all obstacles
-            // } else {
-            //     Action::None
-            // }
-            // }
+            TileType::ImpassableCurvedBelt => {
+                StepResult(Action::None, None, DragState::OverImpassableCurvedBelt)
+            } // TileType::IntegratedOutput => Action::IntegrateEntity,
+              // TileType::PassThroughUnderground(_) => Action::IntegrateEntity, // beginning pass_through means seeing input ug
+              // TileType::Obstacle => {
+              // if matches!(prev_state, TileType::IntegratedOutput) {
+              //     Action::EntityInTheWay
+              // } else if self.underground_would_be_too_long(prev_state, position + 1) {
+              //     Action::TooLongToReach
+              // alternative: report too long to reach the moment it becomes too long, not after passing all obstacles
+              // } else {
+              //     Action::None
+              // }
+              // }
         }
     }
 
     fn place_belt_or_underground(&self, was_output: bool) -> StepResult {
         match self.last_state {
-            DragState::BeltPlaced { .. } | DragState::OutputUgPlaced { .. } => StepResult(
-                Action::PlaceBelt,
-                None,
-                DragState::BeltPlaced { was_output },
-            ),
+            DragState::BeltPlaced { .. }
+            | DragState::OutputUgPlaced { .. }
+            | DragState::OverImpassableCurvedBelt => {
+                self.normal_result(Action::PlaceBelt, DragState::BeltPlaced { was_output })
+            }
             DragState::Traversing { input_pos, .. }
             | DragState::TraversingAfterOutput { input_pos, .. }
                 if self.next_position() - input_pos > self.tier.underground_distance.into() =>
@@ -104,12 +137,11 @@ impl<'a> LineDrag<'a> {
                     DragState::BeltPlaced { was_output },
                 )
             }
-            DragState::Traversing { input_pos, .. } => StepResult(
+            DragState::Traversing { input_pos, .. } => self.normal_result(
                 Action::CreateUnderground {
                     input_pos,
                     output_pos: self.next_position(),
                 },
-                None,
                 DragState::OutputUgPlaced {
                     input_pos,
                     output_ug_was_output: was_output,
@@ -119,12 +151,11 @@ impl<'a> LineDrag<'a> {
                 input_pos,
                 output_pos,
                 ..
-            } => StepResult(
+            } => self.normal_result(
                 Action::ExtendUnderground {
                     previous_output_pos: output_pos,
                     new_output_pos: self.next_position(),
                 },
-                None,
                 DragState::OutputUgPlaced {
                     input_pos,
                     output_ug_was_output: was_output,
@@ -140,7 +171,7 @@ impl<'a> LineDrag<'a> {
                 input_pos_was_output: was_output,
             },
             DragState::Traversing { .. } | DragState::TraversingAfterOutput { .. } => {
-                self.last_state
+                self.last_state.clone()
             }
             DragState::OutputUgPlaced {
                 input_pos: entrance_position,
@@ -150,7 +181,25 @@ impl<'a> LineDrag<'a> {
                 output_pos: self.last_position,
                 output_pos_was_output: output_ug_was_output,
             },
+            DragState::OverImpassableCurvedBelt => todo!(),
         };
-        StepResult(Action::None, None, new_state)
+        self.normal_result(Action::None, new_state)
+    }
+
+    /// Returns an result with no errors.
+    /// However, if the last state has a deferred error, it will be returned here.
+    fn normal_result(&self, action: Action, new_state: DragState) -> StepResult {
+        StepResult(action, self.deferred_error(), new_state)
+    }
+
+    /// When traversing an impassable obstacle, we give an error only when you pass it.
+    fn deferred_error(&self) -> Option<Error> {
+        match self.last_state {
+            DragState::BeltPlaced { .. }
+            | DragState::Traversing { .. }
+            | DragState::OutputUgPlaced { .. }
+            | DragState::TraversingAfterOutput { .. } => None,
+            DragState::OverImpassableCurvedBelt => Some(Error::CurvedBeltInTheWay),
+        }
     }
 }

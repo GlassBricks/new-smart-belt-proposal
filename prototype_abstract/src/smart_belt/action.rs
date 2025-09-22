@@ -1,8 +1,8 @@
 use serde::Deserialize;
 
-use crate::{Direction, Position, World};
-use crate::belts::{Belt, BeltTier, UndergroundBelt};
 use super::LineDrag;
+use crate::belts::{Belt, BeltTier, UndergroundBelt};
+use crate::{Direction, Position, World};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum Action {
@@ -29,6 +29,7 @@ pub(super) enum Action {
 #[serde(rename_all = "snake_case")]
 pub enum Error {
     TooFarToConnect,
+    CurvedBeltInTheWay,
 }
 
 impl<'a> LineDrag<'a> {

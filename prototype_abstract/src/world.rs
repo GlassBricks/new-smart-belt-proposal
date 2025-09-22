@@ -47,7 +47,7 @@ impl World {
         &self,
         position: Position,
         belt_direction: Direction,
-        override_direction: Option<&BeltOutputOverride>,
+        belt_output_override: Option<&BeltOutputOverride>,
     ) -> Direction {
         let has_input_in = |direction: Direction| {
             let query_pos = position - direction.to_vector();
@@ -56,7 +56,7 @@ impl World {
                 position: ov_position,
                 direction: output_direction,
                 has_output: override_has_output,
-            }) = override_direction
+            }) = belt_output_override
                 && *ov_position == query_pos
                 && *output_direction == direction
             {

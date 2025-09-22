@@ -38,13 +38,13 @@ impl<'a> DragWorldView<'a> {
         &self,
         position: i32,
         belt: &Belt,
-        position_override: Option<(i32, bool)>,
+        lookup_override: Option<(i32, bool)>,
     ) -> bool {
         let position = self.ray.get_position(position);
         self.world.belt_input_direction_with_override(
             position,
             belt.direction,
-            self.translate_override(position_override).as_ref(),
+            self.translate_override(lookup_override).as_ref(),
         ) != belt.direction
     }
 
@@ -84,17 +84,13 @@ impl<'a> DragWorldView<'a> {
         if connects_forward {
             return true;
         }
-        let connects_backward =
-            self.world
-                .effective_input_direction(last_pos, last_entity, output_override.as_ref())
+        self.world
+            .effective_input_direction(last_pos, last_entity, output_override.as_ref())
+            == Some(self.drag_direction().opposite())
+            && self.world.effective_output_direction(cur_entity)
                 == Some(self.drag_direction().opposite())
-                && self.world.effective_output_direction(cur_entity)
-                    == Some(self.drag_direction().opposite());
-        if connects_backward {
-            return true;
-        }
-        false
     }
+
     fn translate_override(&self, ov: Option<(i32, bool)>) -> Option<BeltOutputOverride> {
         ov.map(|(index, was_output)| BeltOutputOverride {
             position: self.ray.get_position(index),

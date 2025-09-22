@@ -54,9 +54,9 @@ Got:
     if errors != expected_errors {
         bail!(
             r#"Expected errors:
-{:#?}
+{:?}
 Got errors:
-{:#?}
+{:?}
 "#,
             expected_errors,
             errors

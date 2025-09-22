@@ -21,7 +21,7 @@ pub(super) enum TileType {
     // - Impassable tiles
     // - Curved belt
     // - An underground belt of the same tier we don't or can't integrate
-    // Impassable,
+    ImpassableCurvedBelt,
     // An integrated splitter. Should not be replaced with underground belt.
     // IntegratedSplitter,
     // An input underground we will "pass-through" (don't do anything until reading the other side)
@@ -53,25 +53,26 @@ impl<'a> LineDrag<'a> {
         match self.world_view().relative_direction(belt.direction) {
             // perpendicular belt
             Left | Right => {
-                if self.belt_was_directly_connected_to_previous(self.next_position()) {
-                    // if we directly run into it, it used to be a curved belt
+                // if we directly run into a curved belt, it's an impassable obstacle.
+                if self.running_into_existing_curved_belt(belt) {
                     // This is an impassable obstacle.
-                    todo!()
+                    TileType::ImpassableCurvedBelt
                 } else {
                     // Normal obstacle
                     TileType::Obstacle
                 }
             }
             // if the previous tile is an obstacle and directly connects to this belt, it's an obstacle.
-            Forward | Backward if self.next_belt_should_be_obstacle(belt) => TileType::Obstacle,
+            Forward | Backward if self.aligned_belt_is_obstacle(belt) => TileType::Obstacle,
             Forward => {
                 let was_output = self.world_view().belt_is_output(belt);
                 match self.last_state {
-                    DragState::BeltPlaced { .. } | DragState::OutputUgPlaced { .. } => {
+                    DragState::BeltPlaced { .. }
+                    | DragState::OutputUgPlaced { .. }
+                    | DragState::Traversing { .. }
+                    | DragState::TraversingAfterOutput { .. }
+                    | DragState::OverImpassableCurvedBelt => {
                         // if we directly run into a straight belt, use it.
-                        TileType::Usable { was_output }
-                    }
-                    DragState::Traversing { .. } | DragState::TraversingAfterOutput { .. } => {
                         TileType::Usable { was_output }
                     }
                 }
@@ -86,34 +87,37 @@ impl<'a> LineDrag<'a> {
             }
         }
     }
-    fn next_belt_should_be_obstacle(&self, belt: &Belt) -> bool {
-        match self.last_state {
-            DragState::BeltPlaced { was_output }
-            | DragState::OutputUgPlaced {
-                output_ug_was_output: was_output,
-                ..
-            } => self.world_view().belt_was_curved(
-                self.next_position(),
-                belt,
-                Some((self.last_position, was_output)),
-            ),
-            DragState::Traversing {
-                input_pos: override_pos,
-                input_pos_was_output: was_output,
-            }
-            | DragState::TraversingAfterOutput {
-                output_pos: override_pos,
-                output_pos_was_output: was_output,
-                ..
-            } => self.world_view().belt_directly_connects_to_previous(
-                self.next_position(),
-                Some((override_pos, was_output)),
-            ),
-        }
+
+    fn running_into_existing_curved_belt(&self, belt: &Belt) -> bool {
+        let pos_override = self.last_state.get_override_tuple(self.last_position);
+        let is_output = self.last_state.last_belt_was_output();
+        let connects_to_previous = self
+            .world_view()
+            .belt_directly_connects_to_previous(self.next_position(), pos_override);
+        let belt_was_curved =
+            self.world_view()
+                .belt_was_curved(self.next_position(), belt, pos_override);
+
+        is_output && connects_to_previous && belt_was_curved
     }
 
-    fn belt_was_directly_connected_to_previous(&self, _position: i32) -> bool {
-        note!("TODO: track");
+    fn aligned_belt_is_obstacle(&self, belt: &Belt) -> bool {
+        let override_tuple = self.last_state.get_override_tuple(self.last_position);
+        if self
+            .world_view()
+            .belt_was_curved(self.next_position(), belt, override_tuple)
+        {
+            // if the belt used to be curved, it's an obstacle.
+            return true;
+        }
+        if !self.last_state.last_belt_was_output()
+            && self
+                .world_view()
+                .belt_directly_connects_to_previous(self.next_position(), override_tuple)
+        {
+            // if we this belt directly connects to the previous one, and we didn't use the previous belt, then it's an obstacle.
+            return true;
+        }
         false
     }
 
