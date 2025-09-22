@@ -22,15 +22,6 @@
     _ _  d _
     r ri r ro r
 
-- name: Backwards curved belt continuation
-  skip: true # difficulter case
-  before: |
-    _ _ _ l
-    _ _ l l
-  after: |
-    _ _  d _
-    r ri l l ro r
-
 - name: Forwards curved belt continuation
   before: |
     _ _ d
@@ -38,6 +29,32 @@
   after: |
     _ _  d _
     r ri r r ro r
+
+- name: Backwards curved belt continuation
+  before: |
+    _ _ _ d
+    _ _ l l
+  after: |
+    _ _  _ d _
+    r ri l l ro r
+
+- name: Forwards curved belt continuation, too long
+  before: |
+    _ _ d
+    _ _ r r r r r
+  after: |
+    _ _  d _
+    r r r r r r r *r
+  expected_error: too_far_to_connect
+
+- name: Backwards curved belt continuation, too long to check
+  skip: true
+  before: |
+    _ _ _ _ _ _ d
+    _ _ l l l l l
+  after: |
+    _ _ _ _ _ _ d
+    r r r r r r l r
 
 - name: 2 backwards curved belts
   before: |

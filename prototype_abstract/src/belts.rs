@@ -224,6 +224,14 @@ impl<'a> BeltConnectableEnum<'a> {
     }
 }
 
+impl Deref for BeltConnectableEnum<'_> {
+    type Target = dyn BeltConnectable;
+
+    fn deref(&self) -> &Self::Target {
+        self.as_dyn()
+    }
+}
+
 impl dyn Entity {
     pub fn as_belt_connectable(&self) -> Option<BeltConnectableEnum<'_>> {
         let self_any = self as &dyn Any;

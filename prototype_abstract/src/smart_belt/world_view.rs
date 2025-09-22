@@ -48,6 +48,10 @@ impl<'a> DragWorldView<'a> {
         ) != belt.direction
     }
 
+    pub fn belt_is_curved(&self, position: i32, belt: &Belt) -> bool {
+        self.belt_was_curved(position, belt, None)
+    }
+
     pub fn belt_directly_connects_to_previous(
         &self,
         position: i32,

@@ -3,7 +3,7 @@ use crate::belts::LoaderLike;
 use crate::belts::Splitter;
 use crate::belts::UndergroundBelt;
 use crate::belts::{Belt, BeltConnectableEnum};
-use crate::note;
+use crate::not_yet_impl;
 
 use super::LineDrag;
 use super::drag_logic::DragState;
@@ -78,47 +78,54 @@ impl<'a> LineDrag<'a> {
                 }
             }
             Backward => {
-                let was_output = self.world_view().belt_is_output(belt);
                 if self.should_ug_over_belt_segment_backwards_belt() {
                     TileType::Obstacle
                 } else {
+                    let was_output = self.world_view().belt_is_output(belt);
                     TileType::Usable { was_output }
                 }
             }
         }
     }
 
+    // If we run into a belt that was already curved, then it's an impassable obstacle.
     fn running_into_existing_curved_belt(&self, belt: &Belt) -> bool {
-        let pos_override = self.last_state.get_override_tuple(self.last_position);
-        let is_output = self.last_state.last_belt_was_output();
-        let connects_to_previous = self
-            .world_view()
-            .belt_directly_connects_to_previous(self.next_position(), pos_override);
-        let belt_was_curved =
-            self.world_view()
-                .belt_was_curved(self.next_position(), belt, pos_override);
-
-        is_output && connects_to_previous && belt_was_curved
+        self.last_state.is_outputting_belt()
+            && self.is_forward_connected_curved_belt(self.next_position(), belt)
     }
 
-    fn aligned_belt_is_obstacle(&self, belt: &Belt) -> bool {
-        let override_tuple = self.last_state.get_override_tuple(self.last_position);
-        if self
-            .world_view()
-            .belt_was_curved(self.next_position(), belt, override_tuple)
-        {
-            // if the belt used to be curved, it's an obstacle.
-            return true;
-        }
-        if !self.last_state.last_belt_was_output()
+    fn is_forward_connected_curved_belt(&self, position: i32, belt: &Belt) -> bool {
+        let pos_override = self.get_output_override();
+        self.world_view()
+            .belt_directly_connects_to_previous(position, pos_override)
             && self
                 .world_view()
-                .belt_directly_connects_to_previous(self.next_position(), override_tuple)
+                .belt_was_curved(position, belt, pos_override)
+    }
+
+    // Common checks if a belt in the same axis should be an obstacle.
+    fn aligned_belt_is_obstacle(&self, belt: &Belt) -> bool {
+        let output_override = self.get_output_override();
+        // If the belt used to be curved, it's an obstacle.
+        if self
+            .world_view()
+            .belt_was_curved(self.next_position(), belt, output_override)
+        {
+            return true;
+        }
+        if !self.last_state.is_outputting_belt()
+            && self
+                .world_view()
+                .belt_directly_connects_to_previous(self.next_position(), output_override)
         {
             // if we this belt directly connects to the previous one, and we didn't use the previous belt, then it's an obstacle.
             return true;
         }
         false
+    }
+
+    fn get_output_override(&self) -> Option<(i32, bool)> {
+        self.last_state.get_output_override(self.last_position)
     }
 
     fn classify_underground(&self, _ug: &UndergroundBelt) -> TileType {
@@ -246,8 +253,66 @@ impl<'a> LineDrag<'a> {
     // })
     // }
 
+    /// Check the belt segment.
+    /// We ug over a backwards belt segment if:
+    /// it consists only of straight backwards belt segments and underground belts, at least
+    /// as far as the current underground might reach.
     fn should_ug_over_belt_segment_backwards_belt(&self) -> bool {
-        note!("Curved belt segment handling");
+        // if we made the decision in the last tile, return that
+        if self.last_state.is_outputting_belt()
+            && self.world_view().belt_directly_connects_to_previous(
+                self.next_position(),
+                self.get_output_override(),
+            )
+        {
+            return false;
+        }
+
+        let Some(max_underground_position) = self.max_underground_position() else {
+            // if we can't underground over it, default to including, it even if we may error.
+            return false;
+        };
+
+        // iterate over belt segment, check for bad entities.
+        // Only check up to _before_ the max underground position, to avoid long-distance
+        // dependencies. If there is a bad entity _past_ the max underground position, we
+        // can't underground over this anyways; so we just pick one error.
+        for position in self.next_position()..max_underground_position {
+            let Some(belt_connectable) = self
+                .world_view()
+                .get_entity_at_position(position)
+                .and_then(|f| f.as_belt_connectable())
+            else {
+                break;
+            };
+            let backwards_dir = self.world_view().drag_direction().opposite();
+            match belt_connectable {
+                BeltConnectableEnum::Belt(belt) => {
+                    if belt.direction != backwards_dir {
+                        not_yet_impl!("Forwards absolute direction, backwards relative direction");
+                        break;
+                    }
+                    if self.world_view().belt_is_curved(position, belt) {
+                        return true;
+                    }
+                }
+                BeltConnectableEnum::UndergroundBelt(_) => todo!(),
+                BeltConnectableEnum::Splitter(_) => todo!(),
+                BeltConnectableEnum::LoaderLike(_) => todo!(),
+            }
+        }
+        // default: integrate this belt segment
         false
+    }
+
+    fn max_underground_position(&self) -> Option<i32> {
+        let input_pos = match self.last_state {
+            DragState::BeltPlaced { .. } => Some(self.last_position),
+            DragState::Traversing { input_pos, .. }
+            | DragState::OutputUgPlaced { input_pos, .. }
+            | DragState::TraversingAfterOutput { input_pos, .. } => Some(input_pos),
+            DragState::OverImpassableCurvedBelt => None,
+        };
+        input_pos.map(|f| f + self.tier.underground_distance as i32)
     }
 }

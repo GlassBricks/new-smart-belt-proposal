@@ -10,9 +10,9 @@ pub use entity::*;
 pub use geometry::*;
 pub use world::*;
 
-macro_rules! note {
+macro_rules! not_yet_impl {
     ($($arg:tt)*) => {
-        eprintln!("Note: {}", format_args!($($arg)*));
+        eprintln!("Not yet implemented: {}", format_args!($($arg)*));
     };
 }
-pub(crate) use note;
+pub(crate) use not_yet_impl;

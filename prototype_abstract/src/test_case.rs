@@ -121,12 +121,15 @@ impl<'de> Deserialize<'de> for DragTestCase {
         let expected_error = if let Some(expected_error) = serde_case.expected_error {
             if after_markers.len() != 1 {
                 return Err(Error::custom(
-                    "Expected exactly one after marker for error location",
+                    "Expected exactly one marker for error location",
                 ));
             }
             let position = after_markers[0];
             Some((position, expected_error))
         } else {
+            if !after_markers.is_empty() {
+                return Err(Error::custom("Marker given, but no error expected"));
+            }
             None
         };
 

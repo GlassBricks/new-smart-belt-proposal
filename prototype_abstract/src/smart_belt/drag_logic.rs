@@ -42,7 +42,7 @@ pub enum DragState {
 }
 
 impl DragState {
-    pub fn last_belt_was_output(&self) -> bool {
+    pub fn is_outputting_belt(&self) -> bool {
         match self {
             DragState::BeltPlaced { .. } | DragState::OutputUgPlaced { .. } => true,
             DragState::Traversing { .. }
@@ -51,7 +51,20 @@ impl DragState {
         }
     }
 
-    pub fn get_override_tuple(&self, pos_at_state: i32) -> Option<(i32, bool)> {
+    pub fn is_traversing_obstacle(&self) -> bool {
+        match self {
+            DragState::Traversing { .. } | DragState::TraversingAfterOutput { .. } => true,
+            DragState::BeltPlaced { .. }
+            | DragState::OutputUgPlaced { .. }
+            | DragState::OverImpassableCurvedBelt => false,
+        }
+    }
+
+    /// In many cases, we want to evaluate the shape of some belts _before_ we placed new belts.
+    /// We do this by keeping track of the "belt outputness" of any tile, before we place a belt.
+    /// This is passed to various functions that evaluate belt curvature, which will evaluate
+    /// that specific tile from what it used to be, instead of from the current entity on the tile.
+    pub fn get_output_override(&self, pos_at_state: i32) -> Option<(i32, bool)> {
         match *self {
             DragState::BeltPlaced { was_output }
             | DragState::OutputUgPlaced {
