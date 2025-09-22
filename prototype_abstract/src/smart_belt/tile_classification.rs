@@ -265,14 +265,14 @@ impl<'a> LineDrag<'a> {
         // dependencies. If there is a bad entity _past_ the max underground position, we
         // can't underground over this anyways; so we just pick one error.
         for position in self.next_position()..max_underground_position {
-            let Some(belt_connectable) = self
-                .world_view()
+            let world_view = self.world_view();
+            let Some(belt_connectable) = world_view
                 .get_entity_at_position(position)
                 .and_then(|f| f.as_belt_connectable())
             else {
                 break;
             };
-            let backwards_dir = self.world_view().drag_direction().opposite();
+            let backwards_dir = world_view.drag_direction().opposite();
             match belt_connectable {
                 BeltConnectableEnum::Belt(belt) => {
                     if belt.direction != backwards_dir {

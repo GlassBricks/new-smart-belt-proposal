@@ -9,8 +9,6 @@ pub struct World {
     pub entities: HashMap<Position, Box<dyn Entity>>,
 }
 
-pub type TileHistory = (Position, Option<Box<dyn BeltConnectable>>);
-
 impl World {
     pub fn new() -> Self {
         World {
@@ -34,32 +32,25 @@ impl World {
         let basic_bb = BoundingBox::from_points(self.entities.keys());
         BoundingBox::new(basic_bb.min, basic_bb.max + vec2(1, 1))
     }
-    pub fn belt_input_direction(&self, position: Position, belt_direction: Direction) -> Direction {
-        self.belt_input_direction_with_override(position, belt_direction, None)
-    }
+}
 
-    pub fn belt_input_direction_with_override(
-        &self,
-        position: Position,
-        belt_direction: Direction,
-        tile_history: Option<&TileHistory>,
-    ) -> Direction {
+impl WorldReader for World {
+    fn get(&self, position: Position) -> Option<&dyn Entity> {
+        self.get(position)
+    }
+}
+
+pub trait WorldReader {
+    fn get(&self, position: Position) -> Option<&dyn Entity>;
+
+    fn belt_input_direction(&self, position: Position, belt_direction: Direction) -> Direction {
         let has_input_in = |direction: Direction| {
             let query_pos = position - direction.to_vector();
 
-            let belt_entity: Option<&dyn BeltConnectable> = if let Some((history_position, entity)) =
-                tile_history
-                && *history_position == query_pos
-            {
-                entity.as_deref()
-            } else {
-                self.get(query_pos)
-                    .and_then(|e| e.as_belt_connectable_dyn())
-            };
-
-            belt_entity
+            self.get(query_pos)
+                .and_then(|e| e.as_belt_connectable_dyn())
                 .and_then(|b| b.output_direction())
-                .is_some_and(|f| f == direction)
+                == Some(direction)
         };
 
         if has_input_in(belt_direction) {
@@ -75,24 +66,49 @@ impl World {
         }
     }
 
-    pub fn effective_input_direction(
+    fn effective_input_direction(
         &self,
         position: Position,
         connectable: &dyn BeltConnectable,
-        tile_history: Option<&TileHistory>,
     ) -> Option<Direction> {
         if let Some(belt) = (connectable as &dyn Any).downcast_ref::<Belt>() {
-            Some(self.belt_input_direction_with_override(position, belt.direction, tile_history))
+            Some(self.belt_input_direction(position, belt.direction))
         } else {
             connectable.primary_input_direction()
         }
     }
 
-    pub fn effective_output_direction(
-        &self,
-        connectable: &dyn BeltConnectable,
-    ) -> Option<Direction> {
+    fn effective_output_direction(&self, connectable: &dyn BeltConnectable) -> Option<Direction> {
         connectable.output_direction()
+    }
+}
+
+pub type TileHistory = (Position, Option<Box<dyn BeltConnectable>>);
+
+#[derive(Debug)]
+pub struct TileHistoryView<'a> {
+    world: &'a World,
+    tile_history: Option<&'a TileHistory>,
+}
+
+impl<'a> TileHistoryView<'a> {
+    pub fn new(world: &'a World, tile_history: Option<&'a TileHistory>) -> Self {
+        Self {
+            world,
+            tile_history,
+        }
+    }
+}
+
+impl<'a> WorldReader for TileHistoryView<'a> {
+    fn get(&self, position: Position) -> Option<&dyn Entity> {
+        if let Some((history_position, entity_opt)) = self.tile_history
+            && *history_position == position
+        {
+            entity_opt.as_ref().map(|e| e.as_ref() as &dyn Entity)
+        } else {
+            self.world.get(position)
+        }
     }
 }
 
@@ -232,5 +248,30 @@ mod tests {
             input_direction, East,
             "Should ignore belts that don't output toward position"
         );
+    }
+
+    #[test]
+    fn test_tile_history_view_override() {
+        let world = World::new();
+        let position = pos(1, 1);
+        let override_belt = Belt::new(North, YELLOW_BELT);
+        let tile_history: TileHistory = (position, Some(override_belt));
+        let view = TileHistoryView::new(&world, Some(&tile_history));
+
+        let entity = view.get(position);
+        assert!(entity.is_some());
+        assert!(entity.unwrap().as_belt_connectable().is_some());
+    }
+
+    #[test]
+    fn test_tile_history_view_fallback() {
+        let mut world = World::new();
+        world.set(pos(1, 1), Belt::new(East, YELLOW_BELT));
+
+        let view = TileHistoryView::new(&world, None);
+
+        let entity = view.get(pos(1, 1));
+        assert!(entity.is_some());
+        assert!(entity.unwrap().as_belt_connectable().is_some());
     }
 }
