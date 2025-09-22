@@ -53,6 +53,7 @@ pub trait BeltConnectable: Entity {
         false
     }
 }
+dyn_clone::clone_trait_object!(BeltConnectable);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Belt {

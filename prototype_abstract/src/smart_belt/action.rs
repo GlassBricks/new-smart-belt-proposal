@@ -1,3 +1,4 @@
+use dyn_clone::clone_box;
 use serde::Deserialize;
 
 use super::LineDrag;
@@ -33,41 +34,64 @@ pub enum Error {
 }
 
 impl<'a> LineDrag<'a> {
+    fn record_tile_history(&mut self, position: i32) {
+        let world_position = self.ray.get_position(position);
+        let entity = self
+            .world
+            .get(world_position)
+            .and_then(|e| e.as_belt_connectable_dyn())
+            .map(clone_box);
+        self.tile_history = Some((world_position, entity));
+    }
+
     pub(super) fn apply_action(&mut self, action: Action) {
-        let ray_position = self.next_position();
-        let position = self.ray.get_position(ray_position);
+        let position = self.next_position();
+        let world_pos = self.ray.get_position(position);
         match action {
             Action::None => {}
             Action::PlaceBelt => {
+                self.record_tile_history(position);
                 self.world
-                    .place_belt(position, self.ray.direction, self.tier);
+                    .place_belt(world_pos, self.ray.direction, self.tier);
             }
             Action::CreateUnderground {
                 input_pos,
                 output_pos,
             } => {
-                let (input_pos, output_pos) = (
+                let (input_world_pos, output_world_pos) = (
                     self.ray.get_position(input_pos),
                     self.ray.get_position(output_pos),
                 );
 
-                self.world
-                    .place_underground_belt(input_pos, self.ray.direction, true, self.tier);
-                self.world
-                    .place_underground_belt(output_pos, self.ray.direction, false, self.tier);
+                self.record_tile_history(output_pos);
+
+                self.world.place_underground_belt(
+                    input_world_pos,
+                    self.ray.direction,
+                    true,
+                    self.tier,
+                );
+                self.world.place_underground_belt(
+                    output_world_pos,
+                    self.ray.direction,
+                    false,
+                    self.tier,
+                );
             }
             Action::ExtendUnderground {
                 previous_output_pos,
                 new_output_pos,
             } => {
-                let (previous_output_pos, new_output_pos) = (
+                let (previous_output_world_pos, new_output_world_pos) = (
                     self.ray.get_position(previous_output_pos),
                     self.ray.get_position(new_output_pos),
                 );
 
-                self.world.remove(previous_output_pos);
+                self.world.remove(previous_output_world_pos);
+
+                self.record_tile_history(new_output_pos);
                 self.world.place_underground_belt(
-                    new_output_pos,
+                    new_output_world_pos,
                     self.ray.direction,
                     false,
                     self.tier,

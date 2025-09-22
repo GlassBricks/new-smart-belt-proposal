@@ -11,10 +11,7 @@ use super::drag_logic::DragState;
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum TileType {
     /// A tile we can place or fast-replace belt on.
-    Usable {
-        /// Whether this tile was previously an output underground belt
-        was_output: bool,
-    },
+    Usable,
     /// An obstacle we want to underground over.
     Obstacle,
     // An obstacle that's impossible to underground past. Includes:
@@ -65,15 +62,14 @@ impl<'a> LineDrag<'a> {
             // if the previous tile is an obstacle and directly connects to this belt, it's an obstacle.
             Forward | Backward if self.aligned_belt_is_obstacle(belt) => TileType::Obstacle,
             Forward => {
-                let was_output = self.world_view().belt_is_output(belt);
                 match self.last_state {
-                    DragState::BeltPlaced { .. }
+                    DragState::BeltPlaced
                     | DragState::OutputUgPlaced { .. }
                     | DragState::Traversing { .. }
                     | DragState::TraversingAfterOutput { .. }
                     | DragState::OverImpassableCurvedBelt => {
                         // if we directly run into a straight belt, use it.
-                        TileType::Usable { was_output }
+                        TileType::Usable
                     }
                 }
             }
@@ -81,8 +77,7 @@ impl<'a> LineDrag<'a> {
                 if self.should_ug_over_belt_segment_backwards_belt() {
                     TileType::Obstacle
                 } else {
-                    let was_output = self.world_view().belt_is_output(belt);
-                    TileType::Usable { was_output }
+                    TileType::Usable
                 }
             }
         }
@@ -91,41 +86,34 @@ impl<'a> LineDrag<'a> {
     // If we run into a belt that was already curved, then it's an impassable obstacle.
     fn running_into_existing_curved_belt(&self, belt: &Belt) -> bool {
         self.last_state.is_outputting_belt()
-            && self.is_forward_connected_curved_belt(self.next_position(), belt)
+            && self.was_forward_connected_curved_belt(self.next_position(), belt)
     }
 
-    fn is_forward_connected_curved_belt(&self, position: i32, belt: &Belt) -> bool {
-        let pos_override = self.get_output_override();
+    fn was_forward_connected_curved_belt(&self, position: i32, belt: &Belt) -> bool {
         self.world_view()
-            .belt_directly_connects_to_previous(position, pos_override)
-            && self
-                .world_view()
-                .belt_was_curved(position, belt, pos_override)
+            .belt_was_directly_connected_to_previous(position)
+            && self.world_view().belt_was_curved(position, belt)
     }
 
     // Common checks if a belt in the same axis should be an obstacle.
     fn aligned_belt_is_obstacle(&self, belt: &Belt) -> bool {
-        let output_override = self.get_output_override();
         // If the belt used to be curved, it's an obstacle.
         if self
             .world_view()
-            .belt_was_curved(self.next_position(), belt, output_override)
+            .belt_was_curved(self.next_position(), belt)
         {
             return true;
         }
+        // If the last tile was an obstacle, and it's a belt that directly
+        // connects to this belt, then this belt is an obstacle.
         if !self.last_state.is_outputting_belt()
             && self
                 .world_view()
-                .belt_directly_connects_to_previous(self.next_position(), output_override)
+                .belt_was_directly_connected_to_previous(self.next_position())
         {
-            // if we this belt directly connects to the previous one, and we didn't use the previous belt, then it's an obstacle.
             return true;
         }
         false
-    }
-
-    fn get_output_override(&self) -> Option<(i32, bool)> {
-        self.last_state.get_output_override(self.last_position)
     }
 
     fn classify_underground(&self, _ug: &UndergroundBelt) -> TileType {
@@ -194,7 +182,7 @@ impl<'a> LineDrag<'a> {
 
     fn classify_empty_tile(&self) -> TileType {
         if self.world_view().can_place_belt_on_tile(self.last_position) {
-            TileType::Usable { was_output: false }
+            TileType::Usable
         } else if self
             .world_view()
             .is_undergroundable_tile(self.last_position)
@@ -260,10 +248,9 @@ impl<'a> LineDrag<'a> {
     fn should_ug_over_belt_segment_backwards_belt(&self) -> bool {
         // if we made the decision in the last tile, return that
         if self.last_state.is_outputting_belt()
-            && self.world_view().belt_directly_connects_to_previous(
-                self.next_position(),
-                self.get_output_override(),
-            )
+            && self
+                .world_view()
+                .belt_was_directly_connected_to_previous(self.next_position())
         {
             return false;
         }
@@ -307,7 +294,7 @@ impl<'a> LineDrag<'a> {
 
     fn max_underground_position(&self) -> Option<i32> {
         let input_pos = match self.last_state {
-            DragState::BeltPlaced { .. } => Some(self.last_position),
+            DragState::BeltPlaced => Some(self.last_position),
             DragState::Traversing { input_pos, .. }
             | DragState::OutputUgPlaced { input_pos, .. }
             | DragState::TraversingAfterOutput { input_pos, .. } => Some(input_pos),

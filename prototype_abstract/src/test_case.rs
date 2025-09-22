@@ -26,13 +26,20 @@ pub fn check_test_case(test: &DragTestCase) -> anyhow::Result<()> {
     }
 
     let max_x = max(test.before.max_x(), test.after.max_x());
-    let (result, errors) = run_test_case(&test.before, test.tier, test.drag_row, max_x);
+    let (result, actual_errors) = run_test_case(&test.before, test.tier, test.drag_row, max_x);
 
-    let expected = &test.after;
+    let expected_world = &test.after;
 
-    if result != *expected {
-        bail!(
-            r#"Expected:
+    let expected_errors = test
+        .expected_error
+        .clone()
+        .map(|e| vec![e])
+        .unwrap_or_default();
+
+    if result != *expected_world || actual_errors != expected_errors {
+        eprintln!(
+            r#"
+Expected:
 
 {}
 
@@ -41,26 +48,31 @@ Got:
 {}
 
 "#,
-            print_world(expected),
-            print_world(&result)
+            print_world(
+                expected_world,
+                &expected_errors
+                    .iter()
+                    .map(|f| f.0)
+                    .collect::<Vec<Position>>()
+            ),
+            print_world(
+                &result,
+                &actual_errors.iter().map(|f| f.0).collect::<Vec<Position>>()
+            )
         );
-    }
-    let expected_errors = test
-        .expected_error
-        .clone()
-        .map(|e| vec![e])
-        .unwrap_or_default();
-
-    if errors != expected_errors {
-        bail!(
-            r#"Expected errors:
+        if actual_errors != expected_errors {
+            eprintln!(
+                r#"
+Expected errors:
 {:?}
 Got errors:
 {:?}
 "#,
-            expected_errors,
-            errors
-        );
+                expected_errors, actual_errors
+            );
+        }
+
+        bail!("Test Failed");
     }
 
     Ok(())
@@ -298,7 +310,7 @@ fn print_entity(entity: &dyn Entity) -> String {
     }
 }
 
-fn print_world(world: &World) -> String {
+fn print_world(world: &World, markers: &[Position]) -> String {
     let bounds = world.bounds();
 
     if bounds.is_empty() {
@@ -316,7 +328,11 @@ fn print_world(world: &World) -> String {
             }
             let pos = pos(x, y);
             if let Some(entity) = world.get(pos) {
-                result.push_str(&format!("{:<4}", print_entity(entity)));
+                let mut entity_str = print_entity(entity);
+                if markers.contains(&pos) {
+                    entity_str.insert(0, '*');
+                }
+                result.push_str(&format!("{:<4}", entity_str));
             } else {
                 result.push_str("_   ");
             }
@@ -580,7 +596,7 @@ after: "r"
         world.set(pos(0, 1), Splitter::new(Direction::West, BELT_TIERS[0]));
         world.set(pos(2, 1), Colliding::new());
 
-        let output = print_world(&world);
+        let output = print_world(&world, &[]);
         let expected = r#"
 r    2ui  _
 ls   _    X"#

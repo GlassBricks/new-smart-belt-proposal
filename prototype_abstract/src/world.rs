@@ -9,12 +9,7 @@ pub struct World {
     pub entities: HashMap<Position, Box<dyn Entity>>,
 }
 
-#[derive(Debug)]
-pub struct BeltOutputOverride {
-    pub position: Position,
-    pub direction: Direction,
-    pub has_output: bool,
-}
+pub type TileHistory = (Position, Option<Box<dyn BeltConnectable>>);
 
 impl World {
     pub fn new() -> Self {
@@ -47,24 +42,22 @@ impl World {
         &self,
         position: Position,
         belt_direction: Direction,
-        belt_output_override: Option<&BeltOutputOverride>,
+        tile_history: Option<&TileHistory>,
     ) -> Direction {
         let has_input_in = |direction: Direction| {
             let query_pos = position - direction.to_vector();
 
-            if let Some(BeltOutputOverride {
-                position: ov_position,
-                direction: output_direction,
-                has_output: override_has_output,
-            }) = belt_output_override
-                && *ov_position == query_pos
-                && *output_direction == direction
+            let belt_entity: Option<&dyn BeltConnectable> = if let Some((history_position, entity)) =
+                tile_history
+                && *history_position == query_pos
             {
-                return *override_has_output;
-            }
+                entity.as_deref()
+            } else {
+                self.get(query_pos)
+                    .and_then(|e| e.as_belt_connectable_dyn())
+            };
 
-            self.get(query_pos)
-                .and_then(|e| e.as_belt_connectable_dyn())
+            belt_entity
                 .and_then(|b| b.output_direction())
                 .is_some_and(|f| f == direction)
         };
@@ -86,10 +79,10 @@ impl World {
         &self,
         position: Position,
         connectable: &dyn BeltConnectable,
-        output_override: Option<&BeltOutputOverride>,
+        tile_history: Option<&TileHistory>,
     ) -> Option<Direction> {
         if let Some(belt) = (connectable as &dyn Any).downcast_ref::<Belt>() {
-            Some(self.belt_input_direction_with_override(position, belt.direction, output_override))
+            Some(self.belt_input_direction_with_override(position, belt.direction, tile_history))
         } else {
             connectable.primary_input_direction()
         }
@@ -238,62 +231,6 @@ mod tests {
         assert_eq!(
             input_direction, East,
             "Should ignore belts that don't output toward position"
-        );
-    }
-
-    #[test]
-    fn test_belt_input_direction_with_override_true() {
-        let mut world = World::new();
-        let position = pos(1, 1);
-        let belt_direction = East;
-
-        // Place a belt that normally wouldn't output to our position
-        world.set(pos(1, 0), Belt::new(North, YELLOW_BELT));
-
-        // Override to make it appear as if it outputs south
-        let override_direction = BeltOutputOverride {
-            position: pos(1, 0),
-            direction: South,
-            has_output: true,
-        };
-
-        let input_direction = world.belt_input_direction_with_override(
-            position,
-            belt_direction,
-            Some(&override_direction),
-        );
-
-        assert_eq!(
-            input_direction, South,
-            "Should use override to treat belt as outputting south"
-        );
-    }
-
-    #[test]
-    fn test_belt_input_direction_with_override_false() {
-        let mut world = World::new();
-        let position = pos(1, 1);
-        let belt_direction = East;
-
-        // Place a belt that normally would output to our position
-        world.set(pos(1, 0), Belt::new(South, YELLOW_BELT));
-
-        // Override to make it appear as if it doesn't output
-        let override_direction = BeltOutputOverride {
-            position: pos(1, 0),
-            direction: South,
-            has_output: false,
-        };
-
-        let input_direction = world.belt_input_direction_with_override(
-            position,
-            belt_direction,
-            Some(&override_direction),
-        );
-
-        assert_eq!(
-            input_direction, East,
-            "Should use override to ignore belt that would normally provide input"
         );
     }
 }

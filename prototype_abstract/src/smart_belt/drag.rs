@@ -1,6 +1,6 @@
 use super::{DragState, DragWorldView, Error, StepResult};
 use crate::belts::BeltTier;
-use crate::{Direction, Position, Ray, World};
+use crate::{Direction, Position, Ray, TileHistory, World};
 
 /**
  * Handles line dragging; includes mutable methods
@@ -12,6 +12,11 @@ pub struct LineDrag<'a> {
     pub(super) tier: BeltTier,
     pub(super) last_state: DragState,
     pub(super) last_position: i32,
+    // Some tiles we just placed may change other belt's curvature; however we
+    // want the logic to be independent of what we've placed. As such, we track
+    // the history of tiles we've replaced. It suffices only to keep track of
+    // one tile (the last placed output belt).
+    pub(super) tile_history: Option<TileHistory>,
     // for testing
     pub(super) errors: Vec<(Position, Error)>,
 }
@@ -30,15 +35,16 @@ impl<'a> LineDrag<'a> {
             world,
             ray: Ray::new(start_pos, direction),
             tier,
-            last_state: DragState::BeltPlaced { was_output: true },
+            last_state: DragState::BeltPlaced,
             last_position: 0,
+            tile_history: None,
             errors: Vec::new(),
         }
     }
 
     #[inline]
     pub(super) fn world_view(&self) -> DragWorldView<'_> {
-        DragWorldView::new(self.world, self.ray)
+        DragWorldView::new(self.world, self.ray, self.tile_history.as_ref())
     }
 
     pub(super) fn next_position(&self) -> i32 {
