@@ -9,8 +9,8 @@ use super::{
 pub enum DragState {
     /// After placing a belt. This belt may become an underground
     BeltPlaced,
-    // We haven't placed a belt yet, and are looking for the next tile we can.
-    // ErrorRecovery,
+    /// We haven't placed a belt yet, and are looking for the next tile we can.
+    ErrorRecovery,
     // Passing a splitter or output underground belt. This means we can't create an underground here.
     // IntegratedOutput,
     /// We hovered over an obstacle.
@@ -40,7 +40,8 @@ impl DragState {
             DragState::BeltPlaced | DragState::OutputUgPlaced { .. } => true,
             DragState::Traversing { .. }
             | DragState::TraversingAfterOutput { .. }
-            | DragState::OverImpassableCurvedBelt => false,
+            | DragState::OverImpassableCurvedBelt
+            | DragState::ErrorRecovery => false,
         }
     }
 
@@ -49,7 +50,8 @@ impl DragState {
             DragState::Traversing { .. } | DragState::TraversingAfterOutput { .. } => true,
             DragState::BeltPlaced
             | DragState::OutputUgPlaced { .. }
-            | DragState::OverImpassableCurvedBelt => false,
+            | DragState::OverImpassableCurvedBelt
+            | DragState::ErrorRecovery => false,
         }
     }
 }
@@ -112,7 +114,8 @@ impl<'a> LineDrag<'a> {
         match self.last_state {
             DragState::BeltPlaced
             | DragState::OutputUgPlaced { .. }
-            | DragState::OverImpassableCurvedBelt => {
+            | DragState::OverImpassableCurvedBelt
+            | DragState::ErrorRecovery => {
                 self.normal_result(Action::PlaceBelt, DragState::BeltPlaced)
             }
             DragState::Traversing { input_pos, .. }
@@ -154,13 +157,14 @@ impl<'a> LineDrag<'a> {
             DragState::Traversing { .. } | DragState::TraversingAfterOutput { .. } => {
                 self.last_state.clone()
             }
+            DragState::ErrorRecovery => DragState::ErrorRecovery,
             DragState::OutputUgPlaced {
                 input_pos: entrance_position,
             } => DragState::TraversingAfterOutput {
                 input_pos: entrance_position,
                 output_pos: self.last_position,
             },
-            DragState::OverImpassableCurvedBelt => todo!(),
+            DragState::OverImpassableCurvedBelt => DragState::BeltPlaced,
         };
         self.normal_result(Action::None, new_state)
     }
@@ -173,12 +177,7 @@ impl<'a> LineDrag<'a> {
 
     /// When traversing an impassable obstacle, we give an error only when you pass it.
     fn deferred_error(&self) -> Option<Error> {
-        match self.last_state {
-            DragState::BeltPlaced
-            | DragState::Traversing { .. }
-            | DragState::OutputUgPlaced { .. }
-            | DragState::TraversingAfterOutput { .. } => None,
-            DragState::OverImpassableCurvedBelt => Some(Error::CurvedBeltInTheWay),
-        }
+        (matches!(self.last_state, DragState::OverImpassableCurvedBelt))
+            .then_some(Error::CurvedBeltInTheWay)
     }
 }

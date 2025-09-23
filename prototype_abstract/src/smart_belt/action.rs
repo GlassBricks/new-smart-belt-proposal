@@ -30,6 +30,7 @@ pub(super) enum Action {
 pub enum Error {
     TooFarToConnect,
     CurvedBeltInTheWay,
+    EntityInTheWay,
 }
 
 impl<'a> LineDrag<'a> {

@@ -82,9 +82,9 @@ impl<'a> DragWorldView<'a> {
                 == Some(self.drag_direction().opposite())
     }
 
-    pub fn can_place_belt_on_tile(&self, _index: i32) -> bool {
-        // todo
-        true
+    pub fn can_place_belt_on_tile(&self, index: i32) -> bool {
+        let position = self.ray.get_position(index);
+        self.world_reader.can_place_belt_on_tile(position)
     }
 
     pub fn is_undergroundable_tile(&self, _index: i32) -> bool {

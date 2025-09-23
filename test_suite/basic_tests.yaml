@@ -35,3 +35,13 @@
   before: _ _ X X _ X X
   after: r ri X X ro X X *r r
   expected_error: too_far_to_connect
+
+- name: Blocked at start
+  before: X
+  after: "*X r r"
+  expected_error: entity_in_the_way
+
+- name: More blocked at start
+  before: X X X X
+  after: "*X X X X r"
+  expected_error: entity_in_the_way

@@ -2,7 +2,7 @@ use dyn_clone::clone_box;
 
 use super::{DragState, DragWorldView, Error, StepResult};
 use crate::belts::BeltTier;
-use crate::{Direction, Position, Ray, TileHistory, World, not_yet_impl};
+use crate::{Direction, Position, Ray, TileHistory, World, WorldReader};
 
 /**
  * Handles line dragging; includes mutable methods
@@ -30,18 +30,24 @@ impl<'a> LineDrag<'a> {
         start_pos: Position,
         direction: Direction,
     ) -> LineDrag<'a> {
-        let tile_history = Self::get_tile_history(start_pos, world);
-        not_yet_impl!("Obstacle on first click");
-        world.place_belt(start_pos, direction, tier);
+        let mut errors = Vec::new();
+        let (last_state, tile_history) = if world.can_place_belt_on_tile(start_pos) {
+            let tile_history = Self::get_tile_history(start_pos, world);
+            world.place_belt(start_pos, direction, tier);
+            (DragState::BeltPlaced, Some(tile_history))
+        } else {
+            errors.push((start_pos, Error::EntityInTheWay));
+            (DragState::ErrorRecovery, None)
+        };
 
         LineDrag {
             world,
             ray: Ray::new(start_pos, direction),
             tier,
-            last_state: DragState::BeltPlaced,
+            last_state,
             last_position: 0,
-            tile_history: Some(tile_history),
-            errors: Vec::new(),
+            tile_history,
+            errors,
         }
     }
 
@@ -70,9 +76,7 @@ impl<'a> LineDrag<'a> {
         let world_position = self.ray.get_position(position);
         self.tile_history = Some(Self::get_tile_history(world_position, self.world));
     }
-}
 
-impl LineDrag<'_> {
     fn step_forward(&mut self) {
         let StepResult(action, error, next_state) = self.process_next_tile_forwards();
         self.apply_action(action);

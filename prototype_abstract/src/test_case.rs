@@ -6,6 +6,7 @@ use crate::{
     smart_belt::{LineDrag, action, action::Error},
 };
 use anyhow::{Context, Result, bail};
+use itertools::Itertools;
 use serde::{Deserialize, Deserializer};
 
 #[derive(Debug, Clone)]
@@ -145,18 +146,23 @@ impl<'de> Deserialize<'de> for DragTestCase {
             None
         };
 
-        let (pos, ent) = after
+        let pos = after
             .entities
-            .iter()
-            .find(|(p, _)| p.x == 0)
+            .keys()
+            .find(|p| p.x == 0)
             .expect("No first position found");
 
-        let drag_row = pos.y;
-        let tier = *ent
-            .as_belt_connectable_dyn()
-            .expect("First entity in drag row must be a belt")
-            .tier();
+        let first_ent = after
+            .entities
+            .iter()
+            .filter(|(p, _)| p.y == pos.y)
+            .sorted_by_key(|(p, _)| p.x)
+            .find_map(|(_, ent)| ent.as_belt_connectable_dyn())
+            .expect("No belt found in drag row");
 
+        let tier = *first_ent.tier();
+
+        let drag_row = pos.y;
         let skip = serde_case.skip;
         let name = serde_case.name.unwrap_or("Unnamed".to_string());
 

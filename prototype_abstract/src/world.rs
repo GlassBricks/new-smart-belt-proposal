@@ -2,7 +2,9 @@ use std::{any::Any, collections::HashMap};
 
 use euclid::vec2;
 
-use crate::{Belt, BeltConnectable, BoundingBox, Direction, Entity, Position, UndergroundBelt};
+use crate::{
+    Belt, BeltConnectable, BoundingBox, Colliding, Direction, Entity, Position, UndergroundBelt,
+};
 
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct World {
@@ -99,6 +101,14 @@ pub trait WorldReader {
 
     fn effective_output_direction(&self, connectable: &dyn BeltConnectable) -> Option<Direction> {
         connectable.output_direction()
+    }
+
+    fn can_place_belt_on_tile(&self, position: Position) -> bool {
+        if let Some(entity) = self.get(position) {
+            (entity as &dyn Any).downcast_ref::<Colliding>().is_none()
+        } else {
+            true
+        }
     }
 }
 

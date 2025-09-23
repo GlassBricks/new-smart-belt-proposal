@@ -82,18 +82,8 @@ impl<'a> TileClassifier<'a> {
             Left | Right => TileType::Obstacle,
             // if the previous tile is an obstacle and directly connects to this belt, it's an obstacle.
             Forward | Backward if self.aligned_belt_is_obstacle() => TileType::Obstacle,
-            Forward => {
-                match self.last_state {
-                    DragState::BeltPlaced
-                    | DragState::OutputUgPlaced { .. }
-                    | DragState::Traversing { .. }
-                    | DragState::TraversingAfterOutput { .. }
-                    | DragState::OverImpassableCurvedBelt => {
-                        // Forwards straight belt is always usable!
-                        TileType::Usable
-                    }
-                }
-            }
+            // Forwards straight belt is always usable!
+            Forward => TileType::Usable,
             Backward => {
                 if self.should_ug_over_backwards_segment() {
                     TileType::Obstacle
@@ -206,9 +196,12 @@ impl<'a> TileClassifier<'a> {
     }
 
     fn classify_empty_tile(&self) -> TileType {
-        if self.world_view.can_place_belt_on_tile(self.last_position) {
+        if self.world_view.can_place_belt_on_tile(self.next_position()) {
             TileType::Usable
-        } else if self.world_view.is_undergroundable_tile(self.last_position) {
+        } else if self
+            .world_view
+            .is_undergroundable_tile(self.next_position())
+        {
             todo!()
         } else {
             todo!()
@@ -320,7 +313,7 @@ impl<'a> TileClassifier<'a> {
             DragState::Traversing { input_pos, .. }
             | DragState::OutputUgPlaced { input_pos, .. }
             | DragState::TraversingAfterOutput { input_pos, .. } => Some(*input_pos),
-            DragState::OverImpassableCurvedBelt => None,
+            DragState::OverImpassableCurvedBelt | DragState::ErrorRecovery => None,
         };
         input_pos.map(|f| f + self.tier.underground_distance as i32)
     }
