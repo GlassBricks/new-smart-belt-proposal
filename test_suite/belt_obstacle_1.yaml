@@ -48,13 +48,13 @@
   expected_error: too_far_to_connect
 
 - name: Backwards curved belt continuation, too long to check
-  skip: true
   before: |
     _ _ _ _ _ d
     _ l l l l l
   after: |
     _ _ _ _ _ d
-    r r r r r l r
+    r r r r r l *r
+  expected_error: curved_belt_in_the_way
 
 - name: 2 backwards curved belts
   before: |

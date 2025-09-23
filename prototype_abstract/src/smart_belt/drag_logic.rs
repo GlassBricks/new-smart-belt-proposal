@@ -35,7 +35,7 @@ pub enum DragState {
 }
 
 impl DragState {
-    pub fn is_outputting_belt(&self) -> bool {
+    pub(crate) fn is_outputting_belt(&self) -> bool {
         match self {
             DragState::BeltPlaced | DragState::OutputUgPlaced { .. } => true,
             DragState::Traversing { .. }
@@ -44,7 +44,7 @@ impl DragState {
         }
     }
 
-    pub fn is_traversing_obstacle(&self) -> bool {
+    pub(crate) fn is_traversing_obstacle(&self) -> bool {
         match self {
             DragState::Traversing { .. } | DragState::TraversingAfterOutput { .. } => true,
             DragState::BeltPlaced

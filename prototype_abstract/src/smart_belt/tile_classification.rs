@@ -47,20 +47,22 @@ impl<'a> LineDrag<'a> {
     }
 
     fn classify_belt(&self, belt: &Belt) -> TileType {
+        if self
+            .world_view()
+            .belt_was_curved(self.next_position(), belt)
+        {
+            self.classify_curved_belt()
+        } else {
+            self.classify_straight_belt(belt)
+        }
+    }
+
+    fn classify_straight_belt(&self, belt: &Belt) -> TileType {
         match self.world_view().relative_direction(belt.direction) {
             // perpendicular belt
-            Left | Right => {
-                // if we directly run into a curved belt, it's an impassable obstacle.
-                if self.running_into_existing_curved_belt(belt) {
-                    // This is an impassable obstacle.
-                    TileType::ImpassableCurvedBelt
-                } else {
-                    // Normal obstacle
-                    TileType::Obstacle
-                }
-            }
+            Left | Right => TileType::Obstacle,
             // if the previous tile is an obstacle and directly connects to this belt, it's an obstacle.
-            Forward | Backward if self.aligned_belt_is_obstacle(belt) => TileType::Obstacle,
+            Forward | Backward if self.aligned_belt_is_obstacle() => TileType::Obstacle,
             Forward => {
                 match self.last_state {
                     DragState::BeltPlaced
@@ -68,13 +70,13 @@ impl<'a> LineDrag<'a> {
                     | DragState::Traversing { .. }
                     | DragState::TraversingAfterOutput { .. }
                     | DragState::OverImpassableCurvedBelt => {
-                        // if we directly run into a straight belt, use it.
+                        // Forwards straight belt is always usable!
                         TileType::Usable
                     }
                 }
             }
             Backward => {
-                if self.should_ug_over_belt_segment_backwards_belt() {
+                if self.should_ug_over_backwards_segment() {
                     TileType::Obstacle
                 } else {
                     TileType::Usable
@@ -83,37 +85,29 @@ impl<'a> LineDrag<'a> {
         }
     }
 
-    // If we run into a belt that was already curved, then it's an impassable obstacle.
-    fn running_into_existing_curved_belt(&self, belt: &Belt) -> bool {
-        self.last_state.is_outputting_belt()
-            && self.was_forward_connected_curved_belt(self.next_position(), belt)
-    }
-
-    fn was_forward_connected_curved_belt(&self, position: i32, belt: &Belt) -> bool {
-        self.world_view()
-            .belt_was_directly_connected_to_previous(position)
-            && self.world_view().belt_was_curved(position, belt)
-    }
-
-    // Common checks if a belt in the same axis should be an obstacle.
-    fn aligned_belt_is_obstacle(&self, belt: &Belt) -> bool {
-        // If the belt used to be curved, it's an obstacle.
-        if self
-            .world_view()
-            .belt_was_curved(self.next_position(), belt)
-        {
-            return true;
-        }
-        // If the last tile was an obstacle, and it's a belt that directly
-        // connects to this belt, then this belt is an obstacle.
-        if !self.last_state.is_outputting_belt()
+    fn classify_curved_belt(&self) -> TileType {
+        // If we are trying to integrate a curved belt...
+        if self.last_state.is_outputting_belt()
             && self
                 .world_view()
                 .belt_was_directly_connected_to_previous(self.next_position())
         {
-            return true;
+            // it's impassable (smart belt is not allowed to rotate belt)
+            TileType::ImpassableCurvedBelt
+        } else {
+            // Any other curved belt is a normal obstacle
+            TileType::Obstacle
         }
-        false
+    }
+
+    fn aligned_belt_is_obstacle(&self) -> bool {
+        // If the last tile was an obstacle
+        self.last_state.is_traversing_obstacle()
+        // and this tile directly connects to it
+            && self
+                .world_view()
+                .belt_was_directly_connected_to_previous(self.next_position())
+        // then this belt is also an obstacle.
     }
 
     fn classify_underground(&self, _ug: &UndergroundBelt) -> TileType {
@@ -245,7 +239,7 @@ impl<'a> LineDrag<'a> {
     /// We ug over a backwards belt segment if:
     /// it consists only of straight backwards belt segments and underground belts, at least
     /// as far as the current underground might reach.
-    fn should_ug_over_belt_segment_backwards_belt(&self) -> bool {
+    fn should_ug_over_backwards_segment(&self) -> bool {
         // if we made the decision in the last tile, return that
         if self.last_state.is_outputting_belt()
             && self
