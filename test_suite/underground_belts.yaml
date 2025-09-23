@@ -9,3 +9,21 @@
 - name: Unpaired underground after obstacle is replaced
   before: _ _ X X ro
   after: r ri X X ro r
+
+- name: Passing through existing underground
+  before: _ _ ri X u r X ro _
+  after: r r ri X u r X ro r
+
+- name: Obstacle after underground is error
+  before: _ _ ri ro X X
+  after: r r ri ro *X X
+  expected_error: entity_in_the_way
+
+- name: Curved belt after underground
+  before: _ _ ri ro u r
+  after: r r ri ro u *r
+  expected_error: curved_belt_in_the_way
+
+- name: Can flip belt after underground
+  before: _ _ ri ro l r
+  after: r r ri ro r r

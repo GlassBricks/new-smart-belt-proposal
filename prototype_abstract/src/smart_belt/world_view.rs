@@ -1,6 +1,7 @@
 use crate::geometry::RelativeDirection;
 use crate::{
-    Belt, Direction, Entity, Ray, TileHistory, TileHistoryView, UndergroundBelt, World, WorldReader,
+    Belt, BeltTier, Direction, Entity, Ray, TileHistory, TileHistoryView, UndergroundBelt, World,
+    WorldReader,
 };
 
 /**
@@ -104,6 +105,10 @@ impl<'a> DragWorldView<'a> {
                 let other_ray_pos = self.ray.ray_position(other_pos);
                 (other_ray_pos, other)
             })
+    }
+
+    pub(crate) fn can_upgrade_underground(&self, _ug: &UndergroundBelt, _tier: BeltTier) -> bool {
+        todo!()
     }
 
     // pub fn can_upgrade_underground(&self, _ug: &UndergroundBelt, _new_tier: &BeltTier) -> bool {

@@ -2,7 +2,7 @@ use serde::Deserialize;
 
 use super::LineDrag;
 use crate::belts::{Belt, BeltTier, UndergroundBelt};
-use crate::{Direction, Position, World};
+use crate::{Direction, Position, World, not_yet_impl};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum Action {
@@ -15,8 +15,7 @@ pub(super) enum Action {
         previous_output_pos: i32,
         new_output_pos: i32,
     },
-    // ReplaceUnderground { last_output_position: i32 },
-    // IntegrateEntity,
+    IntegrateUndergroundPair,
     None,
     // errors
     // EntityInTheWay,
@@ -86,6 +85,9 @@ impl<'a> LineDrag<'a> {
                     false,
                     self.tier,
                 );
+            }
+            Action::IntegrateUndergroundPair => {
+                not_yet_impl!("Flipping and upgrading underground");
             }
         }
     }

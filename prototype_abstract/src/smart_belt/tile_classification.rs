@@ -1,13 +1,13 @@
 use crate::RelativeDirection::*;
+use crate::belts::BeltTier;
 use crate::belts::LoaderLike;
 use crate::belts::Splitter;
 use crate::belts::UndergroundBelt;
 use crate::belts::{Belt, BeltConnectableEnum};
 use crate::not_yet_impl;
 
-use super::drag_logic::DragState;
-use super::world_view::DragWorldView;
-use crate::belts::BeltTier;
+use super::DragWorldView;
+use super::NormalState;
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum TileType {
@@ -15,10 +15,9 @@ pub(super) enum TileType {
     Usable,
     /// An obstacle we want to underground over.
     Obstacle,
-    // An obstacle that's impossible to underground past. Includes:
-    // - Impassable tiles
-    // - Curved belt
-    // - An underground belt of the same tier we don't or can't integrate
+    /// An existing paired underground belt we will pass-through.
+    PassThroughUnderground { output_pos: i32 },
+    /// A curved belt we directly ran into, which is an impassable obstacle.
     ImpassableCurvedBelt,
     // An integrated splitter. Should not be replaced with underground belt.
     // IntegratedSplitter,
@@ -29,16 +28,16 @@ pub(super) enum TileType {
 
 pub(super) struct TileClassifier<'a> {
     world_view: DragWorldView<'a>,
-    tier: &'a BeltTier,
-    last_state: &'a DragState,
+    tier: BeltTier,
+    last_state: &'a NormalState,
     last_position: i32,
 }
 
 impl<'a> TileClassifier<'a> {
     pub(super) fn new(
         world_view: DragWorldView<'a>,
-        tier: &'a BeltTier,
-        last_state: &'a DragState,
+        tier: BeltTier,
+        last_state: &'a NormalState,
         last_position: i32,
     ) -> Self {
         Self {
@@ -127,17 +126,12 @@ impl<'a> TileClassifier<'a> {
         match relative_dir {
             Left | Right => TileType::Obstacle,
             Forward | Backward => {
-                if self
-                    .world_view
-                    .get_ug_pair(self.next_position(), ug)
-                    .is_some()
-                {
-                    todo!()
-                    // if relative_dir == Forward {
-                    //     self.try_integrate_underground(ug, pair_pos)
-                    // } else {
-                    //     todo!()
-                    // }
+                if let Some((pair_pos, _)) = self.world_view.get_ug_pair(self.next_position(), ug) {
+                    if relative_dir == Forward {
+                        self.try_integrate_underground(ug, pair_pos)
+                    } else {
+                        todo!()
+                    }
                 } else {
                     TileType::Usable
                 }
@@ -145,15 +139,15 @@ impl<'a> TileClassifier<'a> {
         }
     }
 
-    // fn try_integrate_underground(&self, ug: &UndergroundBelt) -> TileType {
-    //     if self.tier != ug.tier && self.world_view.can_upgrade_underground(ug, &self.tier) {
-    //         todo!()
-    //         // TileType::UnupgradableUnderground
-    //     } else {
-    //         todo!()
-    //         // TileType::PassThroughUnderground(self.tier)
-    //     }
-    // }
+    fn try_integrate_underground(&self, ug: &UndergroundBelt, pair_pos: i32) -> TileType {
+        if self.tier != ug.tier && self.world_view.can_upgrade_underground(ug, self.tier) {
+            todo!()
+        } else {
+            TileType::PassThroughUnderground {
+                output_pos: pair_pos,
+            }
+        }
+    }
 
     // fn try_skip_underground(&self, ug: &UndergroundBelt) -> TileType {
     //     if self.tier == ug.tier {
@@ -309,11 +303,13 @@ impl<'a> TileClassifier<'a> {
 
     fn max_underground_position(&self) -> Option<i32> {
         let input_pos = match self.last_state {
-            DragState::BeltPlaced => Some(self.last_position),
-            DragState::Traversing { input_pos, .. }
-            | DragState::OutputUgPlaced { input_pos, .. }
-            | DragState::TraversingAfterOutput { input_pos, .. } => Some(*input_pos),
-            DragState::OverImpassableCurvedBelt | DragState::ErrorRecovery => None,
+            NormalState::BeltPlaced => Some(self.last_position),
+            NormalState::Traversing { input_pos, .. }
+            | NormalState::OutputUgPlaced { input_pos, .. }
+            | NormalState::TraversingAfterOutput { input_pos, .. } => Some(*input_pos),
+            NormalState::OverImpassableCurvedBelt
+            | NormalState::ErrorRecovery
+            | NormalState::IntegratedOutputUnderground => None,
         };
         input_pos.map(|f| f + self.tier.underground_distance as i32)
     }

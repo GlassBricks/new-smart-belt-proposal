@@ -1,7 +1,8 @@
 use dyn_clone::clone_box;
 
-use super::{DragState, DragWorldView, Error, StepResult};
+use super::{DragState, DragStep, DragWorldView, Error, NormalState};
 use crate::belts::BeltTier;
+use crate::smart_belt::Action;
 use crate::{Direction, Position, Ray, TileHistory, World, WorldReader};
 
 /**
@@ -34,17 +35,17 @@ impl<'a> LineDrag<'a> {
         let (last_state, tile_history) = if world.can_place_belt_on_tile(start_pos) {
             let tile_history = Self::get_tile_history(start_pos, world);
             world.place_belt(start_pos, direction, tier);
-            (DragState::BeltPlaced, Some(tile_history))
+            (NormalState::BeltPlaced, Some(tile_history))
         } else {
             errors.push((start_pos, Error::EntityInTheWay));
-            (DragState::ErrorRecovery, None)
+            (NormalState::ErrorRecovery, None)
         };
 
         LineDrag {
             world,
             ray: Ray::new(start_pos, direction),
             tier,
-            last_state,
+            last_state: last_state.into(),
             last_position: 0,
             tile_history,
             errors,
@@ -77,8 +78,31 @@ impl<'a> LineDrag<'a> {
         self.tile_history = Some(Self::get_tile_history(world_position, self.world));
     }
 
-    fn step_forward(&mut self) {
-        let StepResult(action, error, next_state) = self.process_next_tile_forwards();
+    fn step_forward(&mut self) -> DragStep {
+        match &self.last_state {
+            DragState::Normal(state) => self.normal_step(state),
+            &DragState::PassThrough { output_pos } => {
+                let next_state = if self.next_position() == output_pos {
+                    NormalState::IntegratedOutputUnderground.into()
+                } else {
+                    self.last_state.clone()
+                };
+                DragStep(Action::None, None, next_state)
+            }
+        }
+    }
+
+    /// the only mutable functions are here!
+    pub fn interpolate_to(&mut self, new_position: Position) {
+        let dist = self.ray.ray_position(new_position);
+        while self.last_position < dist {
+            let step = self.step_forward();
+            self.apply_step(step);
+        }
+    }
+
+    fn apply_step(&mut self, step: DragStep) {
+        let DragStep(action, error, next_state) = step;
         self.apply_action(action);
         if let Some(error) = error {
             self.errors
@@ -86,12 +110,5 @@ impl<'a> LineDrag<'a> {
         }
         self.last_position += 1;
         self.last_state = next_state;
-    }
-
-    pub fn interpolate_to(&mut self, new_position: Position) {
-        let dist = self.ray.ray_position(new_position);
-        while self.last_position < dist {
-            self.step_forward();
-        }
     }
 }
