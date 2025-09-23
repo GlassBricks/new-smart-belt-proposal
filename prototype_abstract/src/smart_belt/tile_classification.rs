@@ -130,7 +130,7 @@ impl<'a> TileClassifier<'a> {
                     if relative_dir == Forward {
                         self.try_integrate_underground(ug, pair_pos)
                     } else {
-                        todo!()
+                        self.try_skip_underground(ug)
                     }
                 } else {
                     TileType::Usable
@@ -149,15 +149,13 @@ impl<'a> TileClassifier<'a> {
         }
     }
 
-    // fn try_skip_underground(&self, ug: &UndergroundBelt) -> TileType {
-    //     if self.tier == ug.tier {
-    //         todo!()
-    //         // TileType::Impassable
-    //     } else {
-    //         todo!()
-    //         // TileType::Obstacle
-    //     }
-    // }
+    fn try_skip_underground(&self, ug: &UndergroundBelt) -> TileType {
+        if self.tier == ug.tier {
+            todo!()
+        } else {
+            TileType::Obstacle
+        }
+    }
 
     fn classify_splitter(&self, _splitter: &Splitter) -> TileType {
         todo!()

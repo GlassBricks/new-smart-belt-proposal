@@ -14,7 +14,7 @@ pub struct DragTestCase {
     pub name: String,
     pub before: World,
     pub after: World,
-    pub drag_row: i32,
+    pub start_pos: Position,
     pub tier: BeltTier,
     pub expected_error: Option<(Position, action::Error)>,
     pub skip: bool,
@@ -27,7 +27,7 @@ pub fn check_test_case(test: &DragTestCase) -> anyhow::Result<()> {
     }
 
     let max_x = max(test.before.max_x(), test.after.max_x());
-    let (result, actual_errors) = run_test_case(&test.before, test.tier, test.drag_row, max_x);
+    let (result, actual_errors) = run_test_case(&test.before, test.tier, test.start_pos, max_x);
 
     let expected_world = &test.after;
 
@@ -82,12 +82,11 @@ Got errors:
 fn run_test_case(
     world: &World,
     tier: BeltTier,
-    y_level: i32,
+    start_pos: Position,
     max_x: i32,
 ) -> (World, Vec<(Position, Error)>) {
     let mut world = world.clone();
-    let start_pos = pos(0, y_level);
-    let end_pos = pos(max_x, y_level);
+    let end_pos = pos(max_x, start_pos.y);
     let mut drag = LineDrag::start_drag(&mut world, tier, start_pos, Direction::East);
     drag.interpolate_to(end_pos);
     let errors = drag.get_errors();
@@ -127,10 +126,6 @@ impl<'de> Deserialize<'de> for DragTestCase {
         let (after, after_markers) = parse_world(&serde_case.after)
             .map_err(|e| Error::custom(format!("Failed to parse 'after' entities: {}", e)))?;
 
-        if !before_markers.is_empty() {
-            return Err(Error::custom("Before markers should be empty"));
-        }
-
         let expected_error = if let Some(expected_error) = serde_case.expected_error {
             if after_markers.len() != 1 {
                 return Err(Error::custom(
@@ -146,23 +141,30 @@ impl<'de> Deserialize<'de> for DragTestCase {
             None
         };
 
-        let pos = after
-            .entities
-            .keys()
-            .find(|p| p.x == 0)
-            .expect("No first position found");
+        let start_pos = if !before_markers.is_empty() {
+            if before_markers.len() > 1 {
+                return Err(Error::custom(
+                    "Expected exactly one marker for drag start position",
+                ));
+            }
+            before_markers[0]
+        } else {
+            *after
+                .entities
+                .keys()
+                .find(|p| p.x == 0)
+                .expect("No first position found")
+        };
 
         let first_ent = after
             .entities
             .iter()
-            .filter(|(p, _)| p.y == pos.y)
+            .filter(|(p, _)| p.y == start_pos.y && p.x >= start_pos.x)
             .sorted_by_key(|(p, _)| p.x)
             .find_map(|(_, ent)| ent.as_belt_connectable_dyn())
             .expect("No belt found in drag row");
-
         let tier = *first_ent.tier();
 
-        let drag_row = pos.y;
         let skip = serde_case.skip;
         let name = serde_case.name.unwrap_or("Unnamed".to_string());
 
@@ -171,7 +173,7 @@ impl<'de> Deserialize<'de> for DragTestCase {
             before,
             after,
             tier,
-            drag_row,
+            start_pos,
             expected_error,
             skip,
         })
@@ -475,7 +477,7 @@ after: "2r\tu\tX"
 
         let test_case: DragTestCase = serde_yaml::from_str(yaml).expect("Failed to deserialize");
 
-        assert_eq!(test_case.drag_row, 0);
+        assert_eq!(test_case.start_pos, pos(0, 0));
         assert_eq!(test_case.tier, BELT_TIERS[1]);
 
         // Check that entities were parsed correctly
@@ -531,7 +533,7 @@ after: "r"
 "#;
 
         let test_case: DragTestCase = serde_yaml::from_str(yaml).expect("Failed to deserialize");
-        assert_eq!(test_case.drag_row, 0); // Default drag_row
+        assert_eq!(test_case.start_pos, pos(0, 0)); // Default drag_row
         assert_eq!(test_case.tier, BELT_TIERS[0]); // Default belt_tier (yellow)
     }
     #[test]
