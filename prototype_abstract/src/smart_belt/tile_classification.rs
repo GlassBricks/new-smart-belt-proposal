@@ -5,8 +5,9 @@ use crate::belts::UndergroundBelt;
 use crate::belts::{Belt, BeltConnectableEnum};
 use crate::not_yet_impl;
 
-use super::LineDrag;
 use super::drag_logic::DragState;
+use super::world_view::DragWorldView;
+use crate::belts::BeltTier;
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum TileType {
@@ -26,13 +27,35 @@ pub(super) enum TileType {
     // UnupgradableUnderground,
 }
 
-impl<'a> LineDrag<'a> {
+pub(super) struct TileClassifier<'a> {
+    world_view: DragWorldView<'a>,
+    tier: &'a BeltTier,
+    last_state: &'a DragState,
+    last_position: i32,
+}
+
+impl<'a> TileClassifier<'a> {
+    pub(super) fn new(
+        world_view: DragWorldView<'a>,
+        tier: &'a BeltTier,
+        last_state: &'a DragState,
+        last_position: i32,
+    ) -> Self {
+        Self {
+            world_view,
+            tier,
+            last_state,
+            last_position,
+        }
+    }
+
+    fn next_position(&self) -> i32 {
+        self.last_position + 1
+    }
+
     /// most things are simple to classify. The tricky cases are in existing belt-like-entities.
     pub(super) fn classify_next_tile(&self) -> TileType {
-        if let Some(entity) = self
-            .world_view()
-            .get_entity_at_position(self.next_position())
-        {
+        if let Some(entity) = self.world_view.get_entity_at_position(self.next_position()) {
             match entity.as_belt_connectable() {
                 Some(BeltConnectableEnum::Belt(belt)) => self.classify_belt(belt),
                 Some(BeltConnectableEnum::UndergroundBelt(ug)) => self.classify_underground(ug),
@@ -46,10 +69,7 @@ impl<'a> LineDrag<'a> {
     }
 
     fn classify_belt(&self, belt: &Belt) -> TileType {
-        if self
-            .world_view()
-            .belt_was_curved(self.next_position(), belt)
-        {
+        if self.world_view.belt_was_curved(self.next_position(), belt) {
             self.classify_curved_belt()
         } else {
             self.classify_straight_belt(belt)
@@ -57,7 +77,7 @@ impl<'a> LineDrag<'a> {
     }
 
     fn classify_straight_belt(&self, belt: &Belt) -> TileType {
-        match self.world_view().relative_direction(belt.direction) {
+        match self.world_view.relative_direction(belt.direction) {
             // perpendicular belt
             Left | Right => TileType::Obstacle,
             // if the previous tile is an obstacle and directly connects to this belt, it's an obstacle.
@@ -88,7 +108,7 @@ impl<'a> LineDrag<'a> {
         // If we are trying to integrate a curved belt...
         if self.last_state.is_outputting_belt()
             && self
-                .world_view()
+                .world_view
                 .belt_was_directly_connected_to_previous(self.next_position())
         {
             // it's impassable (smart belt is not allowed to rotate belt)
@@ -104,21 +124,21 @@ impl<'a> LineDrag<'a> {
         self.last_state.is_traversing_obstacle()
         // and this tile directly connects to it
             && self
-                .world_view()
+                .world_view
                 .belt_was_directly_connected_to_previous(self.next_position())
         // then this belt is also an obstacle.
     }
 
     fn classify_underground(&self, ug: &UndergroundBelt) -> TileType {
         let relative_dir = self
-            .world_view()
+            .world_view
             .relative_direction(ug.shape_direction().opposite());
 
         match relative_dir {
             Left | Right => TileType::Obstacle,
             Forward | Backward => {
                 if self
-                    .world_view()
+                    .world_view
                     .get_ug_pair(self.next_position(), ug)
                     .is_some()
                 {
@@ -136,7 +156,7 @@ impl<'a> LineDrag<'a> {
     }
 
     // fn try_integrate_underground(&self, ug: &UndergroundBelt) -> TileType {
-    //     if self.tier != ug.tier && self.world_view().can_upgrade_underground(ug, &self.tier) {
+    //     if self.tier != ug.tier && self.world_view.can_upgrade_underground(ug, &self.tier) {
     //         todo!()
     //         // TileType::UnupgradableUnderground
     //     } else {
@@ -157,7 +177,7 @@ impl<'a> LineDrag<'a> {
 
     fn classify_splitter(&self, _splitter: &Splitter) -> TileType {
         todo!()
-        // if self.world_view().relative_direction(splitter.direction) == Forward
+        // if self.world_view.relative_direction(splitter.direction) == Forward
         //     && self.should_ug_over_belt_segment_after_splitter()
         //     && todo!()
         // {
@@ -182,16 +202,13 @@ impl<'a> LineDrag<'a> {
     fn belt_connects_into_loader(&self, _loader: &LoaderLike) -> bool {
         todo!()
         // todo: handle backwards dragging
-        // loader.is_input && loader.direction == self.world_view().drag_direction()
+        // loader.is_input && loader.direction == self.world_view.drag_direction()
     }
 
     fn classify_empty_tile(&self) -> TileType {
-        if self.world_view().can_place_belt_on_tile(self.last_position) {
+        if self.world_view.can_place_belt_on_tile(self.last_position) {
             TileType::Usable
-        } else if self
-            .world_view()
-            .is_undergroundable_tile(self.last_position)
-        {
+        } else if self.world_view.is_undergroundable_tile(self.last_position) {
             todo!()
         } else {
             todo!()
@@ -254,7 +271,7 @@ impl<'a> LineDrag<'a> {
         // if we made the decision in the last tile, return that
         if self.last_state.is_outputting_belt()
             && self
-                .world_view()
+                .world_view
                 .belt_was_directly_connected_to_previous(self.next_position())
         {
             return false;
@@ -270,21 +287,21 @@ impl<'a> LineDrag<'a> {
         // dependencies. If there is a bad entity _past_ the max underground position, we
         // can't underground over this anyways; so we just pick one error.
         for position in self.next_position()..max_underground_position {
-            let world_view = self.world_view();
-            let Some(belt_connectable) = world_view
+            let Some(belt_connectable) = self
+                .world_view
                 .get_entity_at_position(position)
                 .and_then(|f| f.as_belt_connectable())
             else {
                 break;
             };
-            let backwards_dir = world_view.drag_direction().opposite();
+            let backwards_dir = self.world_view.drag_direction().opposite();
             match belt_connectable {
                 BeltConnectableEnum::Belt(belt) => {
                     if belt.direction != backwards_dir {
                         not_yet_impl!("Forwards absolute direction, backwards relative direction");
                         break;
                     }
-                    if self.world_view().belt_is_curved(position, belt) {
+                    if self.world_view.belt_is_curved(position, belt) {
                         return true;
                     }
                 }
@@ -302,7 +319,7 @@ impl<'a> LineDrag<'a> {
             DragState::BeltPlaced => Some(self.last_position),
             DragState::Traversing { input_pos, .. }
             | DragState::OutputUgPlaced { input_pos, .. }
-            | DragState::TraversingAfterOutput { input_pos, .. } => Some(input_pos),
+            | DragState::TraversingAfterOutput { input_pos, .. } => Some(*input_pos),
             DragState::OverImpassableCurvedBelt => None,
         };
         input_pos.map(|f| f + self.tier.underground_distance as i32)

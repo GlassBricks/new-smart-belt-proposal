@@ -1,4 +1,8 @@
-use super::{Action, LineDrag, action::Error, tile_classification::TileType};
+use super::{
+    Action, LineDrag,
+    action::Error,
+    tile_classification::{TileClassifier, TileType},
+};
 
 #[derive(Debug, Clone)]
 #[non_exhaustive]
@@ -78,7 +82,13 @@ impl<'a> LineDrag<'a> {
     // }
 
     fn process_normal_state(&self) -> StepResult {
-        match self.classify_next_tile() {
+        let classifier = TileClassifier::new(
+            self.world_view(),
+            &self.tier,
+            &self.last_state,
+            self.last_position,
+        );
+        match classifier.classify_next_tile() {
             TileType::Usable => self.place_belt_or_underground(),
             TileType::Obstacle => self.handle_obstacle(),
             TileType::ImpassableCurvedBelt => {
