@@ -140,7 +140,7 @@ impl<'a> TileClassifier<'a> {
     }
 
     fn try_integrate_underground(&self, ug: &UndergroundBelt, pair_pos: i32) -> TileType {
-        if self.tier != ug.tier && self.world_view.can_upgrade_underground(ug, self.tier) {
+        if self.tier != ug.tier && !self.world_view.can_upgrade_underground(ug, self.tier) {
             todo!()
         } else {
             TileType::PassThroughUnderground {

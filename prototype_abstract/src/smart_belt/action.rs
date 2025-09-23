@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use serde::Deserialize;
 
 use super::LineDrag;
@@ -87,14 +89,27 @@ impl<'a> LineDrag<'a> {
                 );
             }
             Action::IntegrateUndergroundPair => {
-                not_yet_impl!("Flipping and upgrading underground");
+                let ug = self
+                    .world
+                    .get(world_pos)
+                    .and_then(|e| (e as &dyn Any).downcast_ref::<UndergroundBelt>())
+                    .expect("Expected UndergroundBelt at position");
+                assert!(ug.shape_direction() == self.ray.direction.opposite());
+                not_yet_impl!("Backwards drag");
+                let (is_input, tier) = (ug.is_input, ug.tier);
+                if !is_input {
+                    self.world.flip_ug(world_pos);
+                }
+                if tier != self.tier {
+                    self.world.upgrade_ug_checked(world_pos, self.tier);
+                }
             }
         }
     }
 }
 impl World {
     pub(super) fn place_belt(&mut self, position: Position, direction: Direction, tier: BeltTier) {
-        self.set(position, Belt::new(direction, tier));
+        self.set_exactly(position, Belt::new(direction, tier));
     }
 
     pub(super) fn place_underground_belt(
@@ -104,6 +119,6 @@ impl World {
         is_input: bool,
         tier: BeltTier,
     ) {
-        self.set(position, UndergroundBelt::new(direction, is_input, tier));
+        self.set_exactly(position, UndergroundBelt::new(direction, is_input, tier));
     }
 }

@@ -101,6 +101,11 @@ impl UndergroundBelt {
             is_input,
         })
     }
+
+    pub fn flip_self(&mut self) {
+        self.is_input = !self.is_input;
+        self.direction = self.direction.opposite();
+    }
 }
 
 impl BeltConnectable for UndergroundBelt {

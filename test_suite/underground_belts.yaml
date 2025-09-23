@@ -14,6 +14,14 @@
   before: _ _ ri X u r X ro _
   after: r r ri X u r X ro r
 
+- name: Flipping existing underground
+  before: _ _ lo li r r
+  after: r r ri ro r r
+
+- name: Upgrading existing underground
+  before: _ _ 2lo 2li r r
+  after: r r ri ro r r
+
 - name: Obstacle after underground is error
   before: _ _ ri ro X X
   after: r r ri ro *X X
@@ -29,7 +37,6 @@
   after: r r ri ro r r
 
 - name: Can integrate belt after underground
-  skip: true
   before: _ _ ri ro ro r
   after: r r ri ro r r
 

@@ -1,7 +1,7 @@
 use crate::geometry::RelativeDirection;
 use crate::{
     Belt, BeltTier, Direction, Entity, Ray, TileHistory, TileHistoryView, UndergroundBelt, World,
-    WorldReader,
+    WorldReader, not_yet_impl,
 };
 
 /**
@@ -108,7 +108,8 @@ impl<'a> DragWorldView<'a> {
     }
 
     pub(crate) fn can_upgrade_underground(&self, _ug: &UndergroundBelt, _tier: BeltTier) -> bool {
-        todo!()
+        not_yet_impl!("can_upgrade_underground");
+        true
     }
 
     // pub fn can_upgrade_underground(&self, _ug: &UndergroundBelt, _new_tier: &BeltTier) -> bool {
