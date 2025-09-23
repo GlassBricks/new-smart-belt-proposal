@@ -1,6 +1,8 @@
+use dyn_clone::clone_box;
+
 use super::{DragState, DragWorldView, Error, StepResult};
 use crate::belts::BeltTier;
-use crate::{Direction, Position, Ray, TileHistory, World};
+use crate::{Direction, Position, Ray, TileHistory, World, not_yet_impl};
 
 /**
  * Handles line dragging; includes mutable methods
@@ -22,13 +24,14 @@ pub struct LineDrag<'a> {
 }
 
 impl<'a> LineDrag<'a> {
-    pub fn start(
+    pub fn start_drag(
         world: &'a mut World,
         tier: BeltTier,
         start_pos: Position,
         direction: Direction,
     ) -> LineDrag<'a> {
-        // todo: actual fast replace logic?
+        let tile_history = Self::get_tile_history(start_pos, world);
+        not_yet_impl!("Obstacle on first click");
         world.place_belt(start_pos, direction, tier);
 
         LineDrag {
@@ -37,7 +40,7 @@ impl<'a> LineDrag<'a> {
             tier,
             last_state: DragState::BeltPlaced,
             last_position: 0,
-            tile_history: None,
+            tile_history: Some(tile_history),
             errors: Vec::new(),
         }
     }
@@ -55,6 +58,21 @@ impl<'a> LineDrag<'a> {
         self.errors
     }
 
+    pub(crate) fn get_tile_history(position: Position, world: &World) -> TileHistory {
+        let entity = world
+            .get(position)
+            .and_then(|e| e.as_belt_connectable_dyn())
+            .map(clone_box);
+        (position, entity)
+    }
+
+    pub(crate) fn record_tile_history(&mut self, position: i32) {
+        let world_position = self.ray.get_position(position);
+        self.tile_history = Some(Self::get_tile_history(world_position, self.world));
+    }
+}
+
+impl LineDrag<'_> {
     fn step_forward(&mut self) {
         let StepResult(action, error, next_state) = self.process_next_tile_forwards();
         self.apply_action(action);

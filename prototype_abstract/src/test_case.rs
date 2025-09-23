@@ -87,7 +87,7 @@ fn run_test_case(
     let mut world = world.clone();
     let start_pos = pos(0, y_level);
     let end_pos = pos(max_x, y_level);
-    let mut drag = LineDrag::start(&mut world, tier, start_pos, Direction::East);
+    let mut drag = LineDrag::start_drag(&mut world, tier, start_pos, Direction::East);
     drag.interpolate_to(end_pos);
     let errors = drag.get_errors();
     (world, errors)

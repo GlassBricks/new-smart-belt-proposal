@@ -114,3 +114,17 @@
     _ r u
   after: |
     r r u
+
+- name: curvy
+  before: |
+    _ _ _ u _ _ u
+    _ _ r u _ r u
+    _ _ u _ _ u _
+  after: |
+    _  _   _ u _ _ u
+    2r 2ri r u _ r u 2ro
+    _  _   u _ _ u _
+
+- name: first belt shouldn't change effective curvature
+  before: _ u l
+  after: ri u l ro

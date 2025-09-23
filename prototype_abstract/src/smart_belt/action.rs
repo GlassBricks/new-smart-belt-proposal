@@ -1,4 +1,3 @@
-use dyn_clone::clone_box;
 use serde::Deserialize;
 
 use super::LineDrag;
@@ -34,16 +33,6 @@ pub enum Error {
 }
 
 impl<'a> LineDrag<'a> {
-    fn record_tile_history(&mut self, position: i32) {
-        let world_position = self.ray.get_position(position);
-        let entity = self
-            .world
-            .get(world_position)
-            .and_then(|e| e.as_belt_connectable_dyn())
-            .map(clone_box);
-        self.tile_history = Some((world_position, entity));
-    }
-
     pub(super) fn apply_action(&mut self, action: Action) {
         let position = self.next_position();
         let world_pos = self.ray.get_position(position);
