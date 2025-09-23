@@ -92,6 +92,20 @@ impl<'a> DragWorldView<'a> {
         true
     }
 
+    pub(crate) fn get_ug_pair(
+        &self,
+        index: i32,
+        ug: &UndergroundBelt,
+    ) -> Option<(i32, &UndergroundBelt)> {
+        let world_position = self.ray.get_position(index);
+        self.world_reader
+            .get_ug_pair(world_position, ug)
+            .map(|(other_pos, other)| {
+                let other_ray_pos = self.ray.ray_position(other_pos);
+                (other_ray_pos, other)
+            })
+    }
+
     // pub fn can_upgrade_underground(&self, _ug: &UndergroundBelt, _new_tier: &BeltTier) -> bool {
     //     todo!()
     // }

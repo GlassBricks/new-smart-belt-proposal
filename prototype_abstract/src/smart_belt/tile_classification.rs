@@ -21,8 +21,7 @@ pub(super) enum TileType {
     ImpassableCurvedBelt,
     // An integrated splitter. Should not be replaced with underground belt.
     // IntegratedSplitter,
-    // An input underground we will "pass-through" (don't do anything until reading the other side)
-    // PassThroughUnderground(BeltTier),
+    // An input underground we will "pass-through"
     // An input underground belt that we can't use (as upgrading would break stuff).
     // UnupgradableUnderground,
 }
@@ -110,18 +109,30 @@ impl<'a> LineDrag<'a> {
         // then this belt is also an obstacle.
     }
 
-    fn classify_underground(&self, _ug: &UndergroundBelt) -> TileType {
-        todo!()
-        // let relative_dir = self
-        //     .world_view()
-        //     .relative_direction(ug.shape_direction().opposite());
+    fn classify_underground(&self, ug: &UndergroundBelt) -> TileType {
+        let relative_dir = self
+            .world_view()
+            .relative_direction(ug.shape_direction().opposite());
 
-        // match relative_dir {
-        //     Left | Right => TileType::Obstacle,
-        //     Forward | Backward if !self.world_view().is_ug_paired(ug) => TileType::Usable { was_output: todo!() },
-        //     Forward => self.try_integrate_underground(ug),
-        //     Backward => self.try_skip_underground(ug),
-        // }
+        match relative_dir {
+            Left | Right => TileType::Obstacle,
+            Forward | Backward => {
+                if self
+                    .world_view()
+                    .get_ug_pair(self.next_position(), ug)
+                    .is_some()
+                {
+                    todo!()
+                    // if relative_dir == Forward {
+                    //     self.try_integrate_underground(ug, pair_pos)
+                    // } else {
+                    //     todo!()
+                    // }
+                } else {
+                    TileType::Usable
+                }
+            }
+        }
     }
 
     // fn try_integrate_underground(&self, ug: &UndergroundBelt) -> TileType {

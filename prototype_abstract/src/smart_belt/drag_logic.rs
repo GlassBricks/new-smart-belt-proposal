@@ -28,10 +28,6 @@ pub enum DragState {
     },
     /// We have just encountered an impassable obstacle. However, we don't error until the user tries to _pass_ the obstacle.
     OverImpassableCurvedBelt,
-    // We are passing through an underground belt.
-    // PassThrough {
-    //     exit_position: i32,
-    // },
 }
 
 impl DragState {

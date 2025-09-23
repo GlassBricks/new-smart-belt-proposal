@@ -1,0 +1,11 @@
+- name: Underground belt obstacle
+  before: _ ui di uo do
+  after: ri ui di uo do ro
+
+- name: Unpaired underground is replaced
+  before: _ ro ri 2li 2lo
+  after: r r r r r r r
+
+- name: Unpaired underground after obstacle is replaced
+  before: _ _ X X ro
+  after: r ri X X ro r
