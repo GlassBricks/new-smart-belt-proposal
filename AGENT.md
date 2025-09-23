@@ -6,20 +6,20 @@ Informal spec is in spec_src/spec.md.
 The main prototype implementation is a rust crate, with tests.
 Rust was chosen, to allow the prototype to be mostly but not completely functional.
 
-All the "main" logic is in `src/prototype_abstract/src/smart_belt/*.rs`.
-This logic will eventually be extracted into a different programming language.
+Cargo.toml is in `prototype_abstract/`; `cd` first for cargo commands.
 
-Other modules include a simplified representation of Factorio tiles and entities.
+## Main logic
 
-## Tests
-Testing is mainly done through the a test suite, test cases defined in `./test_src/*.yaml`
-Parsed and processed by `prototype_abstract/src/test_case.rs`
-A build script gathers these, and generates normal rust integration tests.
+- All the "main" logic is in `prototype_abstract/src/smart_belt/*.rs`.
+- This logic will eventually be extracted into a different programming language.
 
-The goal is to get enough tests to get 100% code and branch coverage for `smart_belt/*`
+- Testing is mainly done through the a test suite, test cases defined in `./test_suite/*.yaml`, parsed and processed by `prototype_abstract/src/test_case.rs`. A build script gathers these, and generates normal rust integration tests.
+- The goal is to get enough tests to get 100% code and branch coverage for `smart_belt/*`
 
-## Unit Testing
-Some other modules have unit tests. Keep these brief; don't test every corner case, only a few interesting cases.
+## Other modules
+
+- Other things in `src/prototype_abstract/src/` contain a simplified abstraction of Factorio.
+- For unit tests for these,. Keep these brief; don't test every corner case, only a few interesting cases.
 
 ## Code style
 Strongly prefer functional programming style

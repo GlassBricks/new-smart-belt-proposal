@@ -1,5 +1,7 @@
 use crate::geometry::RelativeDirection;
-use crate::{Belt, Direction, Entity, Ray, TileHistory, TileHistoryView, World, WorldReader};
+use crate::{
+    Belt, Direction, Entity, Ray, TileHistory, TileHistoryView, UndergroundBelt, World, WorldReader,
+};
 
 /**
 World view for LineDragLogic.
@@ -92,13 +94,5 @@ impl<'a> DragWorldView<'a> {
 
     // pub fn can_upgrade_underground(&self, _ug: &UndergroundBelt, _new_tier: &BeltTier) -> bool {
     //     todo!()
-    // }
-
-    // pub fn get_ug_pair(&self, _ug: &UndergroundBelt) -> Option<UndergroundBelt> {
-    //     todo!()
-    // }
-
-    // pub fn is_ug_paired(&self, ug: &UndergroundBelt) -> bool {
-    //     self.get_ug_pair(ug).is_some()
     // }
 }

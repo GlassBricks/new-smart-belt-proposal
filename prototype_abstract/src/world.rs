@@ -2,7 +2,7 @@ use std::{any::Any, collections::HashMap};
 
 use euclid::vec2;
 
-use crate::{Belt, BeltConnectable, BoundingBox, Direction, Entity, Position};
+use crate::{Belt, BeltConnectable, BoundingBox, Direction, Entity, Position, UndergroundBelt};
 
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct World {
@@ -42,6 +42,25 @@ impl WorldReader for World {
 
 pub trait WorldReader {
     fn get(&self, position: Position) -> Option<&dyn Entity>;
+
+    fn get_ug_pair(
+        &self,
+        position: Position,
+        underground: &UndergroundBelt,
+    ) -> Option<(Position, &UndergroundBelt)> {
+        let query_direction = underground.shape_direction().opposite();
+        for i in 1..=underground.tier.underground_distance {
+            let query_pos = position + query_direction.to_vector() * i as i32;
+            if let Some(entity) = self.get(query_pos)
+                && let Some(other_ug) = (entity as &dyn Any).downcast_ref::<UndergroundBelt>()
+                && other_ug.tier == underground.tier
+                && other_ug.shape_direction() == query_direction
+            {
+                return Some((query_pos, other_ug));
+            }
+        }
+        None
+    }
 
     fn belt_input_direction(&self, position: Position, belt_direction: Direction) -> Direction {
         let has_input_in = |direction: Direction| {
@@ -115,139 +134,67 @@ impl<'a> WorldReader for TileHistoryView<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::belts::{Belt, YELLOW_BELT};
+    use crate::belts::{BLUE_BELT, Belt, BeltTier, RED_BELT, UndergroundBelt, YELLOW_BELT};
     use crate::{Direction::*, pos};
 
     #[test]
     fn test_belt_input_direction_no_relative_belt() {
-        let world = World::new();
-        let position = pos(1, 1);
-        let belt_direction = East;
-
-        let input_direction = world.belt_input_direction(position, belt_direction);
-
-        assert_eq!(
-            input_direction, East,
-            "Should return belt direction when no inputs"
-        );
+        WorldTestBuilder::new().assert_belt_input_direction(pos(1, 1), East, East);
     }
 
     #[test]
     fn test_belt_input_direction_input_left() {
-        let mut world = World::new();
-        let position = pos(1, 1);
-        let belt_direction = East;
-
-        world.set(pos(1, 0), Belt::new(South, YELLOW_BELT));
-
-        let input_direction = world.belt_input_direction(position, belt_direction);
-
-        assert_eq!(
-            input_direction, South,
-            "Should return direction from left input"
-        );
+        WorldTestBuilder::new()
+            .belt_at(pos(1, 0), South, YELLOW_BELT)
+            .assert_belt_input_direction(pos(1, 1), East, South);
     }
 
     #[test]
     fn test_belt_input_direction_input_right() {
-        let mut world = World::new();
-        let position = pos(1, 1);
-        let belt_direction = East;
-
-        world.set(pos(1, 2), Belt::new(North, YELLOW_BELT));
-
-        let input_direction = world.belt_input_direction(position, belt_direction);
-
-        assert_eq!(
-            input_direction, North,
-            "Should return direction from right input"
-        );
+        WorldTestBuilder::new()
+            .belt_at(pos(1, 2), North, YELLOW_BELT)
+            .assert_belt_input_direction(pos(1, 1), East, North);
     }
 
     #[test]
     fn test_belt_input_direction_input_left_and_backwards() {
-        let mut world = World::new();
-        let position = pos(1, 1);
-        let belt_direction = East;
-
-        world.set(pos(1, 0), Belt::new(South, YELLOW_BELT)); // left input
-        world.set(pos(0, 1), Belt::new(East, YELLOW_BELT)); // backwards input
-
-        let input_direction = world.belt_input_direction(position, belt_direction);
-
-        assert_eq!(
-            input_direction, East,
-            "Should prioritize backwards input over left"
-        );
+        WorldTestBuilder::new()
+            .belt_at(pos(1, 0), South, YELLOW_BELT) // left input
+            .belt_at(pos(0, 1), East, YELLOW_BELT) // backwards input
+            .assert_belt_input_direction(pos(1, 1), East, East);
     }
 
     #[test]
     fn test_belt_input_direction_input_left_and_right() {
-        let mut world = World::new();
-        let position = pos(1, 1);
-        let belt_direction = East;
-
-        // Place belts to both left (north) and right (south)
-        world.set(pos(1, 0), Belt::new(South, YELLOW_BELT)); // left input
-        world.set(pos(1, 2), Belt::new(North, YELLOW_BELT)); // right input
-
-        let input_direction = world.belt_input_direction(position, belt_direction);
-
-        assert_eq!(
-            input_direction, East,
-            "Should return belt direction when both left and right inputs"
-        );
+        WorldTestBuilder::new()
+            .belt_at(pos(1, 0), South, YELLOW_BELT) // left input
+            .belt_at(pos(1, 2), North, YELLOW_BELT) // right input
+            .assert_belt_input_direction(pos(1, 1), East, East);
     }
 
     #[test]
     fn test_belt_input_direction_different_orientations() {
-        let mut world = World::new();
-
         // Test with North-facing belt
-        let position = pos(1, 1);
-        world.set(pos(2, 1), Belt::new(West, YELLOW_BELT)); // right of north-facing belt
-
-        let input_direction = world.belt_input_direction(position, North);
-        assert_eq!(
-            input_direction, West,
-            "Should work with north-facing belt and right input"
-        );
+        WorldTestBuilder::new()
+            .belt_at(pos(2, 1), West, YELLOW_BELT) // right of north-facing belt
+            .assert_belt_input_direction(pos(1, 1), North, West);
 
         // Test with South-facing belt
-        world.remove(pos(2, 1));
-        world.set(pos(0, 1), Belt::new(East, YELLOW_BELT)); // right of south-facing belt
-
-        let input_direction = world.belt_input_direction(position, South);
-        assert_eq!(
-            input_direction, East,
-            "Should work with south-facing belt and right input"
-        );
+        WorldTestBuilder::new()
+            .belt_at(pos(0, 1), East, YELLOW_BELT) // right of south-facing belt
+            .assert_belt_input_direction(pos(1, 1), South, East);
 
         // Test with West-facing belt
-        world.remove(pos(0, 1));
-        world.set(pos(1, 2), Belt::new(North, YELLOW_BELT)); // right of west-facing belt
-
-        let input_direction = world.belt_input_direction(position, West);
-        assert_eq!(
-            input_direction, North,
-            "Should work with west-facing belt and right input"
-        );
+        WorldTestBuilder::new()
+            .belt_at(pos(1, 2), North, YELLOW_BELT) // right of west-facing belt
+            .assert_belt_input_direction(pos(1, 1), West, North);
     }
 
     #[test]
     fn test_belt_input_direction_non_matching_outputs() {
-        let mut world = World::new();
-        let position = pos(1, 1);
-        let belt_direction = East;
-
-        world.set(pos(1, 0), Belt::new(North, YELLOW_BELT)); // outputs north, not south
-
-        let input_direction = world.belt_input_direction(position, belt_direction);
-
-        assert_eq!(
-            input_direction, East,
-            "Should ignore belts that don't output toward position"
-        );
+        WorldTestBuilder::new()
+            .belt_at(pos(1, 0), North, YELLOW_BELT) // outputs north, not south
+            .assert_belt_input_direction(pos(1, 1), East, East);
     }
 
     #[test]
@@ -265,13 +212,380 @@ mod tests {
 
     #[test]
     fn test_tile_history_view_fallback() {
-        let mut world = World::new();
-        world.set(pos(1, 1), Belt::new(East, YELLOW_BELT));
+        WorldTestBuilder::new()
+            .belt_at(pos(1, 1), East, YELLOW_BELT)
+            .assert_with_world(|world| {
+                let view = TileHistoryView::new(world, None);
+                let entity = view.get(pos(1, 1));
+                assert!(entity.is_some());
+                assert!(entity.unwrap().as_belt_connectable().is_some());
+            });
+    }
 
-        let view = TileHistoryView::new(&world, None);
+    /// Generalized entity testing framework for Factorio smart belt prototype
+    ///
+    /// This builder pattern provides a concise, fluent API for setting up entity placement
+    /// tests and making assertions about world state. It dramatically reduces boilerplate
+    /// code while making tests more readable and maintainable.
+    ///
+    /// # Features
+    /// - **Entity Placement**: Place belts, underground belts, and other entities
+    /// - **Assertions**: Assert on world state, entity properties, and relationships
+    /// - **Chaining**: Fluent API allows method chaining for readable test descriptions
+    /// - **Type Safety**: Compile-time checks ensure correct entity types and parameters
+    /// - **Error Messages**: Descriptive error messages with position and context information
+    ///
+    /// # Example Usage
+    /// ```ignore
+    /// // Before (verbose): 13+ lines of boilerplate
+    /// let mut world = World::new();
+    /// let input_ug = UndergroundBelt::new(East, true, YELLOW_BELT);
+    /// let output_ug = UndergroundBelt::new(East, false, YELLOW_BELT);
+    /// world.set(pos(1, 1), input_ug.clone());
+    /// world.set(pos(3, 1), output_ug);
+    /// let result = world.get_paired_underground(pos(1, 1), &input_ug);
+    /// assert!(result.is_some());
+    /// let (found_pos, _) = result.unwrap();
+    /// assert_eq!(found_pos, pos(3, 1));
+    ///
+    /// // After (concise): 3 lines, self-documenting
+    /// WorldTestBuilder::new()
+    ///     .input_underground_at(pos(1, 1), East, YELLOW_BELT)
+    ///     .output_underground_at(pos(3, 1), East, YELLOW_BELT)
+    ///     .expect_underground_pair_from_pos(pos(1, 1), pos(3, 1));
+    /// ```
+    ///
+    /// # Code Reduction Metrics
+    /// - **~80% less code** per test case
+    /// - **Eliminated boilerplate**: No manual world creation, entity setup, or verbose assertions
+    /// - **Better error messages**: Context-aware assertions with position information
+    /// - **Maintainable**: Changes to test patterns centralized in framework
+    struct WorldTestBuilder {
+        world: World,
+    }
 
-        let entity = view.get(pos(1, 1));
-        assert!(entity.is_some());
-        assert!(entity.unwrap().as_belt_connectable().is_some());
+    impl WorldTestBuilder {
+        fn new() -> Self {
+            Self {
+                world: World::new(),
+            }
+        }
+
+        fn belt_at(mut self, pos: Position, direction: Direction, tier: BeltTier) -> Self {
+            self.world.set(pos, Belt::new(direction, tier));
+            self
+        }
+
+        fn input_underground_at(
+            mut self,
+            pos: Position,
+            direction: Direction,
+            tier: BeltTier,
+        ) -> Self {
+            self.world
+                .set(pos, UndergroundBelt::new(direction, true, tier));
+            self
+        }
+
+        fn output_underground_at(
+            mut self,
+            pos: Position,
+            direction: Direction,
+            tier: BeltTier,
+        ) -> Self {
+            self.world
+                .set(pos, UndergroundBelt::new(direction, false, tier));
+            self
+        }
+
+        // Assertion methods for different scenarios
+        fn assert_belt_input_direction(
+            self,
+            pos: Position,
+            belt_direction: Direction,
+            expected: Direction,
+        ) -> Self {
+            let actual = self.world.belt_input_direction(pos, belt_direction);
+            assert_eq!(
+                actual, expected,
+                "Expected belt input direction {:?}, got {:?} at position {:?}",
+                expected, actual, pos
+            );
+            self
+        }
+
+        fn assert_entity_at<F>(self, pos: Position, check: F) -> Self
+        where
+            F: FnOnce(Option<&dyn Entity>),
+        {
+            let entity = self.world.get(pos);
+            check(entity);
+            self
+        }
+
+        fn assert_no_entity_at(self, pos: Position) -> Self {
+            let entity = self.world.get(pos);
+            assert!(
+                entity.is_none(),
+                "Expected no entity at {:?} but found one",
+                pos
+            );
+            self
+        }
+
+        // Custom assertion with access to world
+        fn assert_with_world<F>(self, check: F) -> Self
+        where
+            F: FnOnce(&World),
+        {
+            check(&self.world);
+            self
+        }
+    }
+
+    impl WorldTestBuilder {
+        /// Assert that an underground belt at search_pos finds its pair at expected_pair_pos
+        fn expect_underground_pair_from_pos(
+            self,
+            search_pos: Position,
+            expected_pair_pos: Position,
+        ) -> Self {
+            let entity = self
+                .world
+                .get(search_pos)
+                .expect("No entity at search position");
+            let underground = (entity as &dyn std::any::Any)
+                .downcast_ref::<UndergroundBelt>()
+                .expect("Entity is not an underground belt");
+
+            let result = self.world.get_ug_pair(search_pos, underground);
+            assert!(
+                result.is_some(),
+                "Expected to find underground pair at {:?} from {:?}",
+                expected_pair_pos,
+                search_pos
+            );
+            let (found_pos, _) = result.unwrap();
+            assert_eq!(
+                found_pos, expected_pair_pos,
+                "Found underground pair at wrong position"
+            );
+            self
+        }
+
+        /// Assert that an underground belt at search_pos has no valid pair
+        fn expect_no_underground_pair_from_pos(self, search_pos: Position) -> Self {
+            let entity = self
+                .world
+                .get(search_pos)
+                .expect("No entity at search position");
+            let underground = (entity as &dyn std::any::Any)
+                .downcast_ref::<UndergroundBelt>()
+                .expect("Entity is not an underground belt");
+
+            let result = self.world.get_ug_pair(search_pos, underground);
+            assert!(
+                result.is_none(),
+                "Expected no underground pair from {:?} but found one",
+                search_pos
+            );
+            self
+        }
+    }
+
+    /// Helper function for parameterized testing of multiple scenarios
+    ///
+    /// Allows testing multiple similar cases in a single test function with
+    /// table-driven test data. Each test case is described by a tuple of parameters
+    /// that gets executed in sequence with descriptive error messages.
+    fn underground_pair_test(
+        test_cases: &[(Position, Direction, Position, Direction, BeltTier, bool)],
+    ) {
+        for (input_pos, input_dir, output_pos, output_dir, tier, should_find) in test_cases {
+            let builder = WorldTestBuilder::new()
+                .input_underground_at(*input_pos, *input_dir, *tier)
+                .output_underground_at(*output_pos, *output_dir, *tier);
+
+            if *should_find {
+                builder.expect_underground_pair_from_pos(*input_pos, *output_pos);
+            } else {
+                builder.expect_no_underground_pair_from_pos(*input_pos);
+            }
+        }
+    }
+
+    #[test]
+    fn test_parameterized_directions() {
+        underground_pair_test(&[
+            (pos(1, 1), East, pos(3, 1), East, YELLOW_BELT, true),
+            (pos(3, 1), West, pos(1, 1), West, YELLOW_BELT, true),
+            (pos(1, 3), North, pos(1, 1), North, YELLOW_BELT, true),
+            (pos(1, 1), South, pos(1, 3), South, YELLOW_BELT, true),
+            (pos(1, 1), East, pos(3, 1), West, YELLOW_BELT, false),
+        ]);
+    }
+    #[test]
+    fn test_get_paired_underground_basic_pair() {
+        WorldTestBuilder::new()
+            .input_underground_at(pos(1, 1), East, YELLOW_BELT)
+            .output_underground_at(pos(3, 1), East, YELLOW_BELT)
+            .expect_underground_pair_from_pos(pos(1, 1), pos(3, 1));
+    }
+
+    #[test]
+    fn test_get_paired_underground_no_pair() {
+        WorldTestBuilder::new()
+            .input_underground_at(pos(1, 1), East, YELLOW_BELT)
+            .expect_no_underground_pair_from_pos(pos(1, 1));
+    }
+
+    #[test]
+    fn test_get_paired_underground_wrong_tier() {
+        WorldTestBuilder::new()
+            .input_underground_at(pos(1, 1), East, YELLOW_BELT)
+            .output_underground_at(pos(3, 1), East, RED_BELT)
+            .expect_no_underground_pair_from_pos(pos(1, 1));
+    }
+
+    #[test]
+    fn test_get_paired_underground_wrong_direction() {
+        WorldTestBuilder::new()
+            .input_underground_at(pos(1, 1), East, YELLOW_BELT)
+            .output_underground_at(pos(3, 1), West, YELLOW_BELT)
+            .expect_no_underground_pair_from_pos(pos(1, 1));
+    }
+
+    #[test]
+    fn test_get_paired_underground_max_distance() {
+        let max_distance = YELLOW_BELT.underground_distance as i32;
+        WorldTestBuilder::new()
+            .input_underground_at(pos(1, 1), East, YELLOW_BELT)
+            .output_underground_at(pos(1 + max_distance, 1), East, YELLOW_BELT)
+            .expect_underground_pair_from_pos(pos(1, 1), pos(1 + max_distance, 1));
+    }
+
+    #[test]
+    fn test_get_paired_underground_exceeds_max_distance() {
+        let max_distance = YELLOW_BELT.underground_distance as i32;
+        WorldTestBuilder::new()
+            .input_underground_at(pos(1, 1), East, YELLOW_BELT)
+            .output_underground_at(pos(1 + max_distance + 1, 1), East, YELLOW_BELT)
+            .expect_no_underground_pair_from_pos(pos(1, 1));
+    }
+
+    #[test]
+    fn test_get_paired_underground_different_directions() {
+        WorldTestBuilder::new()
+            .input_underground_at(pos(1, 1), South, YELLOW_BELT)
+            .output_underground_at(pos(1, 3), South, YELLOW_BELT)
+            .expect_underground_pair_from_pos(pos(1, 1), pos(1, 3));
+    }
+
+    #[test]
+    fn test_get_paired_underground_output_to_input() {
+        WorldTestBuilder::new()
+            .output_underground_at(pos(3, 1), East, YELLOW_BELT)
+            .input_underground_at(pos(1, 1), East, YELLOW_BELT)
+            .assert_with_world(|world| {
+                let entity = world.get(pos(3, 1)).unwrap();
+                let output_ug = (entity as &dyn std::any::Any)
+                    .downcast_ref::<UndergroundBelt>()
+                    .unwrap();
+                let result = world.get_ug_pair(pos(3, 1), output_ug);
+                assert!(result.is_some());
+                let (found_pos, found_ug) = result.unwrap();
+                assert_eq!(found_pos, pos(1, 1));
+                assert!(found_ug.is_input);
+            });
+    }
+
+    #[test]
+    fn test_get_paired_underground_finds_closest() {
+        WorldTestBuilder::new()
+            .input_underground_at(pos(1, 1), East, YELLOW_BELT)
+            .output_underground_at(pos(3, 1), East, YELLOW_BELT)
+            .output_underground_at(pos(5, 1), East, YELLOW_BELT)
+            .expect_underground_pair_from_pos(pos(1, 1), pos(3, 1));
+    }
+
+    #[test]
+    fn test_get_paired_underground_different_belt_tiers() {
+        let red_distance = RED_BELT.underground_distance as i32;
+        WorldTestBuilder::new()
+            .input_underground_at(pos(1, 1), East, RED_BELT)
+            .output_underground_at(pos(1 + red_distance, 1), East, RED_BELT)
+            .expect_underground_pair_from_pos(pos(1, 1), pos(1 + red_distance, 1));
+
+        let blue_distance = BLUE_BELT.underground_distance as i32;
+        WorldTestBuilder::new()
+            .input_underground_at(pos(10, 1), East, BLUE_BELT)
+            .output_underground_at(pos(10 + blue_distance, 1), East, BLUE_BELT)
+            .expect_underground_pair_from_pos(pos(10, 1), pos(10 + blue_distance, 1));
+    }
+
+    #[test]
+    fn test_get_paired_underground_blocked_by_entity() {
+        WorldTestBuilder::new()
+            .input_underground_at(pos(1, 1), East, YELLOW_BELT)
+            .belt_at(pos(2, 1), East, YELLOW_BELT)
+            .output_underground_at(pos(4, 1), East, YELLOW_BELT)
+            .expect_underground_pair_from_pos(pos(1, 1), pos(4, 1));
+    }
+
+    #[test]
+    fn test_get_paired_underground_various_orientations() {
+        // West-facing pair
+        WorldTestBuilder::new()
+            .input_underground_at(pos(3, 1), West, YELLOW_BELT)
+            .output_underground_at(pos(1, 1), West, YELLOW_BELT)
+            .expect_underground_pair_from_pos(pos(3, 1), pos(1, 1));
+
+        // North-facing pair
+        WorldTestBuilder::new()
+            .input_underground_at(pos(1, 3), North, YELLOW_BELT)
+            .output_underground_at(pos(1, 1), North, YELLOW_BELT)
+            .expect_underground_pair_from_pos(pos(1, 3), pos(1, 1));
+    }
+
+    #[test]
+    fn test_get_paired_underground_minimum_distance() {
+        WorldTestBuilder::new()
+            .input_underground_at(pos(1, 1), East, YELLOW_BELT)
+            .output_underground_at(pos(2, 1), East, YELLOW_BELT)
+            .expect_underground_pair_from_pos(pos(1, 1), pos(2, 1));
+    }
+
+    #[test]
+    fn test_get_paired_underground_no_entity_at_position() {
+        WorldTestBuilder::new()
+            .input_underground_at(pos(1, 1), East, YELLOW_BELT)
+            .belt_at(pos(2, 1), East, YELLOW_BELT)
+            .expect_no_underground_pair_from_pos(pos(1, 1));
+    }
+
+    #[test]
+    fn test_complex_belt_network() {
+        WorldTestBuilder::new()
+            .belt_at(pos(0, 0), East, YELLOW_BELT)
+            .belt_at(pos(1, 0), East, YELLOW_BELT)
+            .input_underground_at(pos(2, 0), East, YELLOW_BELT)
+            .output_underground_at(pos(5, 0), East, YELLOW_BELT)
+            .belt_at(pos(6, 0), East, YELLOW_BELT)
+            .assert_entity_at(pos(2, 0), |entity| {
+                assert!(entity.is_some());
+                let ug = (entity.unwrap() as &dyn std::any::Any)
+                    .downcast_ref::<UndergroundBelt>()
+                    .unwrap();
+                assert!(ug.is_input);
+            })
+            .assert_entity_at(pos(5, 0), |entity| {
+                assert!(entity.is_some());
+                let ug = (entity.unwrap() as &dyn std::any::Any)
+                    .downcast_ref::<UndergroundBelt>()
+                    .unwrap();
+                assert!(!ug.is_input);
+            })
+            .assert_no_entity_at(pos(3, 0))
+            .assert_no_entity_at(pos(4, 0));
     }
 }
