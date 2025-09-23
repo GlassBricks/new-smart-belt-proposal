@@ -28,6 +28,11 @@
   before: _ _ ri ro l r
   after: r r ri ro r r
 
+- name: Can integrate belt after underground
+  skip: true
+  before: _ _ ri ro ro r
+  after: r r ri ro r r
+
 - name: running into the back of a paired underground is an obstacle
   before: 2ri *_ _ 2ro r
   after: 2ri r ri 2ro r ro r

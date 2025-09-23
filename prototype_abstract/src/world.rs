@@ -56,9 +56,14 @@ pub trait WorldReader {
             if let Some(entity) = self.get(query_pos)
                 && let Some(other_ug) = (entity as &dyn Any).downcast_ref::<UndergroundBelt>()
                 && other_ug.tier == underground.tier
-                && other_ug.shape_direction() == query_direction
             {
-                return Some((query_pos, other_ug));
+                if other_ug.shape_direction() == query_direction {
+                    return Some((query_pos, other_ug));
+                } else if other_ug.shape_direction() == underground.shape_direction() {
+                    // Found another underground of same tier and same shape direction
+                    // This would interfere with pairing, so return None
+                    return None;
+                }
             }
         }
         None
@@ -375,11 +380,26 @@ mod tests {
                 expected_pair_pos,
                 search_pos
             );
-            let (found_pos, _) = result.unwrap();
+            let (found_pos, found_ug) = result.unwrap();
             assert_eq!(
                 found_pos, expected_pair_pos,
                 "Found underground pair at wrong position"
             );
+
+            // assert pair's pair is also self
+            let (new_pos, new_ug) = self
+                .world
+                .get_ug_pair(found_pos, found_ug)
+                .expect("Did not find underground pair's pair");
+            assert_eq!(
+                new_pos, search_pos,
+                "Found underground pair's pair at wrong position"
+            );
+            assert_eq!(
+                new_ug, underground,
+                "Found underground pair's pair is not self"
+            );
+
             self
         }
 
@@ -481,6 +501,33 @@ mod tests {
             .input_underground_at(pos(1, 1), East, YELLOW_BELT)
             .output_underground_at(pos(1 + max_distance + 1, 1), East, YELLOW_BELT)
             .expect_no_underground_pair_from_pos(pos(1, 1));
+    }
+
+    #[test]
+    fn test_get_paired_underground_blocked_by_same_direction() {
+        WorldTestBuilder::new()
+            .input_underground_at(pos(1, 1), East, YELLOW_BELT)
+            .input_underground_at(pos(3, 1), East, YELLOW_BELT)
+            .output_underground_at(pos(5, 1), East, YELLOW_BELT)
+            .expect_no_underground_pair_from_pos(pos(1, 1));
+    }
+
+    #[test]
+    fn test_get_paired_underground_blocked_by_same_direction_with_valid_pair_after() {
+        WorldTestBuilder::new()
+            .input_underground_at(pos(1, 1), East, YELLOW_BELT)
+            .input_underground_at(pos(2, 1), East, YELLOW_BELT)
+            .output_underground_at(pos(4, 1), East, YELLOW_BELT)
+            .expect_no_underground_pair_from_pos(pos(1, 1));
+    }
+
+    #[test]
+    fn test_get_paired_underground_blocked_by_same_direction_different_tier() {
+        WorldTestBuilder::new()
+            .input_underground_at(pos(1, 1), East, YELLOW_BELT)
+            .input_underground_at(pos(3, 1), East, RED_BELT)
+            .output_underground_at(pos(5, 1), East, YELLOW_BELT)
+            .expect_underground_pair_from_pos(pos(1, 1), pos(5, 1));
     }
 
     #[test]
