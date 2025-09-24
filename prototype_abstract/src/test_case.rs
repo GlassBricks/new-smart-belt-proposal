@@ -234,7 +234,7 @@ fn parse_word(input: &str) -> Result<Option<Box<dyn Entity>>> {
 
 pub type WorldParse = (World, Vec<Position>);
 
-fn parse_world(input: &str) -> Result<WorldParse> {
+pub fn parse_world(input: &str) -> Result<WorldParse> {
     let mut world = World::new();
     let mut markers = Vec::new();
     for (y, line) in input.lines().enumerate() {

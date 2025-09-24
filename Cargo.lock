@@ -466,6 +466,7 @@ dependencies = [
  "clap",
  "comrak",
  "pathdiff",
+ "protoype_abstract",
  "serde",
  "serde_json",
  "tempfile",

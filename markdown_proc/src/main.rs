@@ -14,129 +14,102 @@ use comrak::{
 use serde_json::Value;
 use tokio::process::Command;
 
-#[derive(Clone, Copy)]
-enum Direction {
-    Up,
-    Down,
-    Left,
-    Right,
-}
+use protoype_abstract::{Direction, Entity, Position, Splitter, World, WorldReader, pos};
 
-impl Direction {
-    fn is_horizontal(self) -> bool {
-        match self {
-            Direction::Left | Direction::Right => true,
-            Direction::Up | Direction::Down => false,
-        }
-    }
-    fn to_factorio_sat_dir(self) -> u8 {
-        match self {
-            Direction::Right => 0,
-            Direction::Up => 1,
-            Direction::Left => 2,
-            Direction::Down => 3,
-        }
-    }
-}
-
-fn are_perpendicular(dir1: Direction, dir2: Direction) -> bool {
-    dir1.is_horizontal() != dir2.is_horizontal()
-}
-
-#[derive(Clone)]
-enum TileType {
-    Belt(Direction),
-    CurvedBelt {
-        input_direction: Direction,
-        output_direction: Direction,
-    },
-    UGBelt {
-        direction: Direction,
-        is_input: bool,
-    },
-    Splitter {
-        direction: Direction,
-        is_head: bool,
-    },
-    Blocker,
-    Empty,
-}
-
-impl FromStr for TileType {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut chars = s.chars();
-        let direction = match chars.next() {
-            Some('_') => return Ok(TileType::Empty),
-            Some('X') => return Ok(TileType::Blocker),
-            Some('l') => Direction::Left,
-            Some('u') => Direction::Up,
-            Some('r') => Direction::Right,
-            Some('d') => Direction::Down,
-            Some(c) => anyhow::bail!("invalid direction: {c}"),
-            None => anyhow::bail!("invalid direction, empty string"),
-        };
-        Ok(match chars.next() {
-            Some('i') => TileType::UGBelt {
-                direction,
-                is_input: true,
-            },
-            Some('o') => TileType::UGBelt {
-                direction,
-                is_input: false,
-            },
-            Some('s') => TileType::Splitter {
-                direction,
-                is_head: true,
-            },
-            _ => TileType::Belt(direction),
-        })
+fn direction_to_factorio_sat(dir: Direction) -> u8 {
+    match dir {
+        Direction::East => 0,
+        Direction::North => 1,
+        Direction::West => 2,
+        Direction::South => 3,
     }
 }
 
 #[derive(Clone)]
 struct GridImg {
-    content: Vec<Vec<TileType>>,
+    world: World,
+    width: usize,
+    height: usize,
 }
 
 impl FromStr for GridImg {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self> {
-        let mut content = s
-            .lines()
-            .map(|line| {
-                line.split_whitespace()
-                    .map(|s| s.parse())
-                    .collect::<Result<_>>()
-            })
-            .collect::<Result<Vec<Vec<TileType>>>>()?;
+        let (world, _) = protoype_abstract::test_case::parse_world(s)?;
 
-        let max_width = content.iter().map(|row| row.len()).max().unwrap_or(0);
-        for row in &mut content {
-            row.resize(max_width, TileType::Empty);
-        }
+        // Calculate dimensions from the input text to preserve the original grid size
+        let lines: Vec<&str> = s.lines().collect();
+        let height = lines.len();
+        let width = lines
+            .iter()
+            .map(|line| line.split_whitespace().count())
+            .max()
+            .unwrap_or(0);
 
-        Ok(GridImg { content })
+        Ok(GridImg {
+            world,
+            width,
+            height,
+        })
     }
 }
 
-async fn render_with_factorio_sat(grid: GridImg, img_out_path: &Path) -> Result<()> {
-    let grid = apply_splitter_completion(grid)?;
-    let grid = apply_belt_curving(grid)?;
-
-    let height = grid.content.len();
-    if height == 0 {
+fn apply_splitter_completion(world: &mut World) -> Result<()> {
+    let bounds = world.bounds();
+    if bounds.is_empty() {
         return Ok(());
     }
 
+    let mut entities_to_add = Vec::new();
+
+    // Iterate through all positions in the world
+    for y in bounds.min.y..bounds.max.y {
+        for x in bounds.min.x..bounds.max.x {
+            let position = pos(x, y);
+            if let Some(entity) = world.get(position)
+                && let Some(splitter) = (entity as &dyn std::any::Any).downcast_ref::<Splitter>()
+            {
+                let tail_pos = pos(x, y) + splitter.direction.rotate_ccw().to_vector();
+                if tail_pos.x >= bounds.min.x
+                    && tail_pos.x < bounds.max.x
+                    && tail_pos.y >= bounds.min.y
+                    && tail_pos.y < bounds.max.y
+                    && world.get(tail_pos).is_none()
+                {
+                    entities_to_add
+                        .push((tail_pos, Splitter::new(splitter.direction, splitter.tier)));
+                }
+            }
+        }
+    }
+
+    // Add the tail entities
+    for (pos, entity) in entities_to_add {
+        world.set_exactly(pos, entity);
+    }
+
+    Ok(())
+}
+
+async fn render_with_factorio_sat(mut grid: GridImg, img_out_path: &Path) -> Result<()> {
+    // Apply splitter completion first
+    apply_splitter_completion(&mut grid.world)?;
+
+    // Use the original grid dimensions to create the proper rectangular output
     let mut result = Vec::new();
-    for row in &grid.content {
+    for y in 0..grid.height {
         let mut json_row = Vec::new();
-        for belt in row {
-            let tile_data = belt_type_to_json(belt)?;
-            json_row.push(tile_data);
+        for x in 0..grid.width {
+            let position = pos(x as i32, y as i32);
+            let tile_data = if let Some(entity) = grid.world.get(position) {
+                entity_to_json(&grid.world, position, entity)?
+            } else {
+                serde_json::json!({
+                    "type": "empty"
+                })
+            };
+            json_row.push(serde_json::json!({ "tile": tile_data }));
         }
         result.push(json_row);
     }
@@ -187,140 +160,43 @@ async fn render_with_factorio_sat(grid: GridImg, img_out_path: &Path) -> Result<
     Ok(())
 }
 
-fn belt_type_to_json(belt: &TileType) -> Result<Value> {
-    let tile_data = match belt {
-        TileType::Empty => serde_json::json!({
-            "type": "empty"
-        }),
-        TileType::Belt(dir) => serde_json::json!({
+fn entity_to_json(world: &World, position: Position, entity: &dyn Entity) -> Result<Value> {
+    if let Some(belt) = entity.as_belt() {
+        // Use the world's belt input direction logic to determine if this is a curved belt
+        let effective_input = world.effective_input_direction(position, belt);
+
+        let input_dir = effective_input.unwrap_or(belt.direction);
+        let tile_data = serde_json::json!({
             "type": "belt",
-            "input_direction": dir.to_factorio_sat_dir(),
-            "output_direction": dir.to_factorio_sat_dir()
-        }),
-        TileType::CurvedBelt {
-            input_direction,
-            output_direction,
-        } => serde_json::json!({
-            "type": "belt",
-            "input_direction": input_direction.to_factorio_sat_dir(),
-            "output_direction": output_direction.to_factorio_sat_dir()
-        }),
-        TileType::UGBelt {
-            direction,
-            is_input,
-        } => serde_json::json!({
+            "input_direction": direction_to_factorio_sat(input_dir),
+            "output_direction": direction_to_factorio_sat(belt.direction)
+        });
+        Ok(tile_data)
+    } else if let Some(ug_belt) = entity.as_underground_belt() {
+        Ok(serde_json::json!({
             "type": "underground_belt",
-            "direction": direction.to_factorio_sat_dir(),
-            "is_input": is_input
-        }),
-        TileType::Splitter { direction, is_head } => serde_json::json!({
+            "direction": direction_to_factorio_sat(ug_belt.direction),
+            "is_input": ug_belt.is_input
+        }))
+    } else if let Some(splitter) = entity.as_splitter() {
+        let tail_pos = position + splitter.direction.rotate_ccw().to_vector();
+        let is_head = world.get(tail_pos).and_then(|e| e.as_splitter()).is_none();
+        Ok(serde_json::json!({
             "type": "splitter",
-            "direction": direction.to_factorio_sat_dir(),
+            "direction": direction_to_factorio_sat(splitter.direction),
             "is_head": is_head
-        }),
-        TileType::Blocker => {
-            serde_json::json!({ "type": "inserter", "direction": 0, "insert_type": 0 })
-        }
-    };
-
-    Ok(serde_json::json!({ "tile": tile_data }))
-}
-
-fn apply_belt_curving(mut grid: GridImg) -> Result<GridImg> {
-    let content = &mut grid.content;
-    let height = content.len();
-    if height == 0 {
-        return Ok(grid);
+        }))
+    } else if entity.as_colliding().is_some() {
+        Ok(serde_json::json!({
+            "type": "inserter",
+            "direction": 0,
+            "insert_type": 0
+        }))
+    } else {
+        Ok(serde_json::json!({
+            "type": "empty"
+        }))
     }
-    let width = content[0].len();
-
-    for y in 0..height {
-        for x in 0..width {
-            match content[y][x] {
-                TileType::Belt(belt_dir)
-                | TileType::CurvedBelt {
-                    output_direction: belt_dir,
-                    ..
-                }
-                | TileType::UGBelt {
-                    direction: belt_dir,
-                    is_input: false,
-                }
-                | TileType::Splitter {
-                    direction: belt_dir,
-                    ..
-                } => {
-                    let (next_x, next_y) = match belt_dir {
-                        Direction::Right => (x + 1, y),
-                        Direction::Down => (x, y + 1),
-                        Direction::Left => (x.wrapping_sub(1), y),
-                        Direction::Up => (x, y.wrapping_sub(1)),
-                    };
-                    if !(next_x < width && next_y < height) {
-                        continue;
-                    }
-                    match content[next_y][next_x] {
-                        TileType::Belt(next_belt_dir)
-                            if are_perpendicular(belt_dir, next_belt_dir) =>
-                        {
-                            // Create a curved belt: input from current belt direction, output to next belt direction
-                            content[next_y][next_x] = TileType::CurvedBelt {
-                                input_direction: belt_dir,
-                                output_direction: next_belt_dir,
-                            };
-                        }
-                        TileType::CurvedBelt {
-                            output_direction, ..
-                        } if are_perpendicular(belt_dir, output_direction) => {
-                            // make straight again
-                            content[next_y][next_x] = TileType::Belt(output_direction);
-                        }
-                        _ => {}
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-
-    Ok(grid)
-}
-
-fn apply_splitter_completion(grid: GridImg) -> Result<GridImg> {
-    let height = grid.content.len();
-    if height == 0 {
-        return Ok(grid);
-    }
-    let width = grid.content[0].len();
-
-    let mut new_grid = grid.content.clone();
-
-    for y in 0..height {
-        for x in 0..width {
-            if let TileType::Splitter { direction, is_head } = grid.content[y][x] {
-                if is_head {
-                    let (tail_x, tail_y) = match direction {
-                        Direction::Right => (x, y.saturating_sub(1)),
-                        Direction::Left => (x, y + 1),
-                        Direction::Up => (x + 1, y),
-                        Direction::Down => (x.saturating_sub(1), y),
-                    };
-
-                    // Place the tail half if position is valid and empty
-                    if tail_x < width && tail_y < height {
-                        if let TileType::Empty = grid.content[tail_y][tail_x] {
-                            new_grid[tail_y][tail_x] = TileType::Splitter {
-                                direction,
-                                is_head: false,
-                            };
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    Ok(GridImg { content: new_grid })
 }
 
 async fn process_markdown(
@@ -336,11 +212,11 @@ async fn process_markdown(
     let mut image_contents = Vec::new();
 
     for node in root.descendants() {
-        if let NodeValue::CodeBlock(cb) = &node.data.borrow().value {
-            if cb.info == "fac-img" {
-                nodes_to_replace.push(node);
-                image_contents.push(cb.literal.clone());
-            }
+        if let NodeValue::CodeBlock(cb) = &node.data.borrow().value
+            && cb.info == "fac-img"
+        {
+            nodes_to_replace.push(node);
+            image_contents.push(cb.literal.clone());
         }
     }
 
@@ -406,10 +282,11 @@ fn remove_old_images(image_out_dir: &Path, prefix: &str) {
     };
     for entry in entries.flatten() {
         let path = entry.path();
-        if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-            if name.starts_with(&format!("{}_", prefix)) && name.ends_with(".gif") {
-                std::fs::remove_file(&path).ok();
-            }
+        if let Some(name) = path.file_name().and_then(|n| n.to_str())
+            && name.starts_with(&format!("{}_", prefix))
+            && name.ends_with(".gif")
+        {
+            std::fs::remove_file(&path).ok();
         }
     }
 }
@@ -429,6 +306,7 @@ struct Args {
     )]
     remove_old: bool,
 }
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();

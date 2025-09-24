@@ -1,15 +1,8 @@
-use std::{
-    any::Any,
-    collections::HashMap,
-    ops::{Deref as _, DerefMut as _},
-};
+use std::{any::Any, collections::HashMap, ops::DerefMut as _};
 
 use euclid::vec2;
 
-use crate::{
-    Belt, BeltConnectable, BeltTier, BoundingBox, Colliding, Direction, Entity, Position,
-    UndergroundBelt,
-};
+use crate::{BeltConnectable, BeltTier, BoundingBox, Direction, Entity, Position, UndergroundBelt};
 
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct World {
@@ -65,7 +58,7 @@ impl World {
     ) -> Option<(Position, &mut UndergroundBelt, &mut UndergroundBelt)> {
         // First, find the pair position without mutable borrows
         let entity = self.entities.get(&position)?;
-        let ug = (entity.deref() as &dyn Any).downcast_ref::<UndergroundBelt>()?;
+        let ug = entity.as_underground_belt()?;
         let (pair_pos, _) = self.get_ug_pair(position, ug)?;
 
         let [Some(entity), Some(pair_entity)] =
@@ -134,7 +127,7 @@ pub trait WorldReader {
         for i in 1..=underground.tier.underground_distance {
             let query_pos = position + query_direction.to_vector() * i as i32;
             if let Some(entity) = self.get(query_pos)
-                && let Some(other_ug) = (entity as &dyn Any).downcast_ref::<UndergroundBelt>()
+                && let Some(other_ug) = entity.as_underground_belt()
                 && other_ug.tier == underground.tier
             {
                 if other_ug.shape_direction() == query_direction {
@@ -177,7 +170,7 @@ pub trait WorldReader {
         position: Position,
         connectable: &dyn BeltConnectable,
     ) -> Option<Direction> {
-        if let Some(belt) = (connectable as &dyn Any).downcast_ref::<Belt>() {
+        if let Some(belt) = (connectable as &dyn Entity).as_belt() {
             Some(self.belt_input_direction(position, belt.direction))
         } else {
             connectable.primary_input_direction()
@@ -190,7 +183,7 @@ pub trait WorldReader {
 
     fn can_place_belt_on_tile(&self, position: Position) -> bool {
         if let Some(entity) = self.get(position) {
-            (entity as &dyn Any).downcast_ref::<Colliding>().is_none()
+            entity.as_colliding().is_none()
         } else {
             true
         }

@@ -211,6 +211,21 @@ impl dyn BeltConnectable {
     }
 }
 
+impl dyn Entity {
+    pub fn as_belt(&self) -> Option<&Belt> {
+        (self as &dyn Any).downcast_ref::<Belt>()
+    }
+    pub fn as_underground_belt(&self) -> Option<&UndergroundBelt> {
+        (self as &dyn Any).downcast_ref::<UndergroundBelt>()
+    }
+    pub fn as_splitter(&self) -> Option<&Splitter> {
+        (self as &dyn Any).downcast_ref::<Splitter>()
+    }
+    pub fn as_loader_like(&self) -> Option<&LoaderLike> {
+        (self as &dyn Any).downcast_ref::<LoaderLike>()
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BeltConnectableEnum<'a> {
     Belt(&'a Belt),
@@ -240,15 +255,14 @@ impl Deref for BeltConnectableEnum<'_> {
 
 impl dyn Entity {
     pub fn as_belt_connectable(&self) -> Option<BeltConnectableEnum<'_>> {
-        let self_any = self as &dyn Any;
         #[expect(clippy::manual_map)]
-        if let Some(belt) = self_any.downcast_ref::<Belt>() {
+        if let Some(belt) = self.as_belt() {
             Some(BeltConnectableEnum::Belt(belt))
-        } else if let Some(underground) = self_any.downcast_ref::<UndergroundBelt>() {
+        } else if let Some(underground) = self.as_underground_belt() {
             Some(BeltConnectableEnum::UndergroundBelt(underground))
-        } else if let Some(splitter) = self_any.downcast_ref::<Splitter>() {
+        } else if let Some(splitter) = self.as_splitter() {
             Some(BeltConnectableEnum::Splitter(splitter))
-        } else if let Some(loader) = self_any.downcast_ref::<LoaderLike>() {
+        } else if let Some(loader) = self.as_loader_like() {
             Some(BeltConnectableEnum::LoaderLike(loader))
         } else {
             None
