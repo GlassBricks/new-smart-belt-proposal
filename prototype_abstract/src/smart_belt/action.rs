@@ -114,7 +114,7 @@ impl World {
         direction: Direction,
         tier: BeltTier,
     ) {
-        self.set_exactly(position, Belt::new(direction, tier));
+        self.set(position, Belt::new(direction, tier));
     }
 
     pub(super) fn place_underground_belt(
@@ -124,6 +124,6 @@ impl World {
         is_input: bool,
         tier: BeltTier,
     ) {
-        self.set_exactly(position, UndergroundBelt::new(direction, is_input, tier));
+        self.set(position, UndergroundBelt::new(direction, is_input, tier));
     }
 }

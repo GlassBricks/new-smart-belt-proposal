@@ -250,7 +250,7 @@ pub fn parse_world(input: &str) -> Result<WorldParse> {
             }
 
             if let Some(entity) = parse_word(word)? {
-                world.set_exactly(pos, entity);
+                world.set(pos, entity);
             }
         }
     }
@@ -599,13 +599,13 @@ after: "r"
     #[test]
     fn test_print_world() {
         let mut world = World::new();
-        world.set_exactly(pos(0, 0), Belt::new(Direction::East, BELT_TIERS[0]));
-        world.set_exactly(
+        world.set(pos(0, 0), Belt::new(Direction::East, BELT_TIERS[0]));
+        world.set(
             pos(1, 0),
             UndergroundBelt::new(Direction::North, true, BELT_TIERS[1]),
         );
-        world.set_exactly(pos(0, 1), Splitter::new(Direction::West, BELT_TIERS[0]));
-        world.set_exactly(pos(2, 1), Colliding::new());
+        world.set(pos(0, 1), Splitter::new(Direction::West, BELT_TIERS[0]));
+        world.set(pos(2, 1), Colliding::new());
 
         let output = print_world(&world, &[]);
         let expected = r#"

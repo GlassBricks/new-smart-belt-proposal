@@ -22,7 +22,7 @@ impl World {
         self.entities.get(&position).map(|e| e.as_ref())
     }
 
-    pub fn set_exactly(&mut self, position: TilePosition, mut entity: Box<dyn Entity>) {
+    pub fn set(&mut self, position: TilePosition, mut entity: Box<dyn Entity>) {
         if let Some(ug) = (entity.deref_mut() as &mut dyn Any).downcast_mut::<UndergroundBelt>() {
             self.handle_underground_belt(position, ug);
         }
@@ -362,7 +362,7 @@ mod tests {
         }
 
         fn belt_at(mut self, pos: TilePosition, direction: Direction, tier: BeltTier) -> Self {
-            self.world.set_exactly(pos, Belt::new(direction, tier));
+            self.world.set(pos, Belt::new(direction, tier));
             self
         }
 
@@ -373,7 +373,7 @@ mod tests {
             tier: BeltTier,
         ) -> Self {
             self.world
-                .set_exactly(pos, UndergroundBelt::new(direction, true, tier));
+                .set(pos, UndergroundBelt::new(direction, true, tier));
             self
         }
 
@@ -384,7 +384,7 @@ mod tests {
             tier: BeltTier,
         ) -> Self {
             self.world
-                .set_exactly(pos, UndergroundBelt::new(direction, false, tier));
+                .set(pos, UndergroundBelt::new(direction, false, tier));
             self
         }
 

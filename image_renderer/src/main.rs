@@ -68,7 +68,7 @@ fn apply_splitter_completion(world: &mut World) -> Result<()> {
     }
 
     for (pos, entity) in entities_to_add {
-        world.set_exactly(pos, entity);
+        world.set(pos, entity);
     }
 
     Ok(())
