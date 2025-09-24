@@ -2,11 +2,13 @@ use std::{any::Any, collections::HashMap, ops::DerefMut as _};
 
 use euclid::vec2;
 
-use crate::{BeltConnectable, BeltTier, BoundingBox, Direction, Entity, Position, UndergroundBelt};
+use crate::{
+    BeltConnectable, BeltTier, BoundingBox, Direction, Entity, TilePosition, UndergroundBelt,
+};
 
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct World {
-    pub entities: HashMap<Position, Box<dyn Entity>>,
+    pub entities: HashMap<TilePosition, Box<dyn Entity>>,
 }
 
 impl World {
@@ -16,17 +18,17 @@ impl World {
         }
     }
 
-    pub fn get(&self, position: Position) -> Option<&dyn Entity> {
+    pub fn get(&self, position: TilePosition) -> Option<&dyn Entity> {
         self.entities.get(&position).map(|e| e.as_ref())
     }
 
-    pub fn set_exactly(&mut self, position: Position, mut entity: Box<dyn Entity>) {
+    pub fn set_exactly(&mut self, position: TilePosition, mut entity: Box<dyn Entity>) {
         if let Some(ug) = (entity.deref_mut() as &mut dyn Any).downcast_mut::<UndergroundBelt>() {
             self.handle_underground_belt(position, ug);
         }
         self.entities.insert(position, entity);
     }
-    fn handle_underground_belt(&mut self, position: Position, ug: &mut UndergroundBelt) {
+    fn handle_underground_belt(&mut self, position: TilePosition, ug: &mut UndergroundBelt) {
         let Some((pair_pos, pair_ug)) = self.get_ug_pair(position, ug) else {
             return;
         };
@@ -54,8 +56,8 @@ impl World {
 
     fn get_ug_pair_both_mut(
         &mut self,
-        position: Position,
-    ) -> Option<(Position, &mut UndergroundBelt, &mut UndergroundBelt)> {
+        position: TilePosition,
+    ) -> Option<(TilePosition, &mut UndergroundBelt, &mut UndergroundBelt)> {
         // First, find the pair position without mutable borrows
         let entity = self.entities.get(&position)?;
         let ug = entity.as_underground_belt()?;
@@ -72,7 +74,7 @@ impl World {
         Some((pair_pos, ug, pair_ug))
     }
 
-    pub fn flip_ug(&mut self, position: Position) -> bool {
+    pub fn flip_ug(&mut self, position: TilePosition) -> bool {
         if let Some((_, ug, pair_ug)) = self.get_ug_pair_both_mut(position) {
             ug.flip_self();
             pair_ug.flip_self();
@@ -82,7 +84,7 @@ impl World {
         }
     }
 
-    pub fn upgrade_ug_checked(&mut self, position: Position, new_tier: BeltTier) {
+    pub fn upgrade_ug_checked(&mut self, position: TilePosition, new_tier: BeltTier) {
         let (pair_ug, other_pos) = {
             let Some((other_pos, ug, pair_ug)) = self.get_ug_pair_both_mut(position) else {
                 return;
@@ -99,7 +101,7 @@ impl World {
         assert_eq!(new_pos, position, "Upgrading changed ug pair position");
     }
 
-    pub fn remove(&mut self, position: Position) {
+    pub fn remove(&mut self, position: TilePosition) {
         self.entities.remove(&position);
     }
 
@@ -110,19 +112,19 @@ impl World {
 }
 
 impl WorldReader for World {
-    fn get(&self, position: Position) -> Option<&dyn Entity> {
+    fn get(&self, position: TilePosition) -> Option<&dyn Entity> {
         self.get(position)
     }
 }
 
 pub trait WorldReader {
-    fn get(&self, position: Position) -> Option<&dyn Entity>;
+    fn get(&self, position: TilePosition) -> Option<&dyn Entity>;
 
     fn get_ug_pair(
         &self,
-        position: Position,
+        position: TilePosition,
         underground: &UndergroundBelt,
-    ) -> Option<(Position, &UndergroundBelt)> {
+    ) -> Option<(TilePosition, &UndergroundBelt)> {
         let query_direction = underground.shape_direction().opposite();
         for i in 1..=underground.tier.underground_distance {
             let query_pos = position + query_direction.to_vector() * i as i32;
@@ -142,7 +144,7 @@ pub trait WorldReader {
         None
     }
 
-    fn belt_input_direction(&self, position: Position, belt_direction: Direction) -> Direction {
+    fn belt_input_direction(&self, position: TilePosition, belt_direction: Direction) -> Direction {
         let has_input_in = |direction: Direction| {
             let query_pos = position - direction.to_vector();
 
@@ -167,7 +169,7 @@ pub trait WorldReader {
 
     fn effective_input_direction(
         &self,
-        position: Position,
+        position: TilePosition,
         connectable: &dyn BeltConnectable,
     ) -> Option<Direction> {
         if let Some(belt) = (connectable as &dyn Entity).as_belt() {
@@ -181,7 +183,7 @@ pub trait WorldReader {
         connectable.output_direction()
     }
 
-    fn can_place_belt_on_tile(&self, position: Position) -> bool {
+    fn can_place_belt_on_tile(&self, position: TilePosition) -> bool {
         if let Some(entity) = self.get(position) {
             entity.as_colliding().is_none()
         } else {
@@ -190,7 +192,7 @@ pub trait WorldReader {
     }
 }
 
-pub type TileHistory = (Position, Option<Box<dyn BeltConnectable>>);
+pub type TileHistory = (TilePosition, Option<Box<dyn BeltConnectable>>);
 
 #[derive(Debug)]
 pub struct TileHistoryView<'a> {
@@ -208,7 +210,7 @@ impl<'a> TileHistoryView<'a> {
 }
 
 impl<'a> WorldReader for TileHistoryView<'a> {
-    fn get(&self, position: Position) -> Option<&dyn Entity> {
+    fn get(&self, position: TilePosition) -> Option<&dyn Entity> {
         if let Some((history_position, entity_opt)) = self.tile_history
             && *history_position == position
         {
@@ -359,14 +361,14 @@ mod tests {
             }
         }
 
-        fn belt_at(mut self, pos: Position, direction: Direction, tier: BeltTier) -> Self {
+        fn belt_at(mut self, pos: TilePosition, direction: Direction, tier: BeltTier) -> Self {
             self.world.set_exactly(pos, Belt::new(direction, tier));
             self
         }
 
         fn input_underground_at(
             mut self,
-            pos: Position,
+            pos: TilePosition,
             direction: Direction,
             tier: BeltTier,
         ) -> Self {
@@ -377,7 +379,7 @@ mod tests {
 
         fn output_underground_at(
             mut self,
-            pos: Position,
+            pos: TilePosition,
             direction: Direction,
             tier: BeltTier,
         ) -> Self {
@@ -389,7 +391,7 @@ mod tests {
         // Assertion methods for different scenarios
         fn assert_belt_input_direction(
             self,
-            pos: Position,
+            pos: TilePosition,
             belt_direction: Direction,
             expected: Direction,
         ) -> Self {
@@ -402,7 +404,7 @@ mod tests {
             self
         }
 
-        fn assert_entity_at<F>(self, pos: Position, check: F) -> Self
+        fn assert_entity_at<F>(self, pos: TilePosition, check: F) -> Self
         where
             F: FnOnce(Option<&dyn Entity>),
         {
@@ -411,7 +413,7 @@ mod tests {
             self
         }
 
-        fn assert_no_entity_at(self, pos: Position) -> Self {
+        fn assert_no_entity_at(self, pos: TilePosition) -> Self {
             let entity = self.world.get(pos);
             assert!(
                 entity.is_none(),
@@ -434,8 +436,8 @@ mod tests {
         /// Assert that an underground belt at search_pos finds its pair at expected_pair_pos
         fn expect_underground_pair_from_pos(
             self,
-            search_pos: Position,
-            expected_pair_pos: Position,
+            search_pos: TilePosition,
+            expected_pair_pos: TilePosition,
             first_is_input: bool,
         ) -> Self {
             let entity = self
@@ -489,7 +491,7 @@ mod tests {
         }
 
         /// Assert that an underground belt at search_pos has no valid pair
-        fn expect_no_underground_pair_from_pos(self, search_pos: Position) -> Self {
+        fn expect_no_underground_pair_from_pos(self, search_pos: TilePosition) -> Self {
             let entity = self
                 .world
                 .get(search_pos)
@@ -514,7 +516,14 @@ mod tests {
     /// table-driven test data. Each test case is described by a tuple of parameters
     /// that gets executed in sequence with descriptive error messages.
     fn underground_pair_test(
-        test_cases: &[(Position, Direction, Position, Direction, BeltTier, bool)],
+        test_cases: &[(
+            TilePosition,
+            Direction,
+            TilePosition,
+            Direction,
+            BeltTier,
+            bool,
+        )],
     ) {
         for (input_pos, input_dir, output_pos, output_dir, tier, should_find) in test_cases {
             let builder = WorldTestBuilder::new()

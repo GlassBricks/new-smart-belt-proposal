@@ -1,23 +1,25 @@
 use euclid::{
-    default::{Box2D, Point2D, Vector2D},
-    vec2,
+    vec2, {Box2D, Point2D, Vector2D},
 };
 
-pub type Position = Point2D<i32>;
-pub type Vec2 = Vector2D<i32>;
+pub struct TileSpace;
+pub type TilePosition = Point2D<i32, TileSpace>;
+pub type TileVec = Vector2D<i32, TileSpace>;
+pub type BoundingBox = Box2D<i32, TileSpace>;
 
-pub fn pos(x: i32, y: i32) -> Position {
-    Position::new(x, y)
+pub fn pos(x: i32, y: i32) -> TilePosition {
+    TilePosition::new(x, y)
 }
 
 /// South is +y
 /// East is +x
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
 pub enum Direction {
-    North,
-    East,
-    South,
-    West,
+    North = 0,
+    East = 1,
+    South = 2,
+    West = 3,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -35,7 +37,7 @@ pub enum RelativeDirection {
 }
 
 impl Direction {
-    pub fn to_vector(self) -> Vec2 {
+    pub fn to_vector(self) -> TileVec {
         match self {
             Direction::North => vec2(0, -1),
             Direction::East => vec2(1, 0),
@@ -78,15 +80,6 @@ impl Direction {
         }
     }
 
-    fn to_ordinal(self) -> u8 {
-        match self {
-            Direction::North => 0,
-            Direction::East => 1,
-            Direction::South => 2,
-            Direction::West => 3,
-        }
-    }
-
     pub fn from_ordinal(ordinal: u8) -> Option<Direction> {
         match ordinal {
             0 => Some(Direction::North),
@@ -98,8 +91,8 @@ impl Direction {
     }
 
     /// from current to other
-    pub fn direction_to(&self, other: Direction) -> RelativeDirection {
-        let diff = (other.to_ordinal() + 4 - self.to_ordinal()) % 4;
+    pub fn direction_to(self, other: Direction) -> RelativeDirection {
+        let diff = (other as u8 + 4 - self as u8) % 4;
         RelativeDirection::from_ordinal(diff).unwrap()
     }
 }
@@ -127,20 +120,19 @@ impl RelativeDirection {
 
 impl Direction {
     pub fn rotate(self, direction: RelativeDirection) -> Direction {
-        let ordinal = self.to_ordinal();
-        let new_ordinal = (ordinal + direction.to_ordinal()) % 4;
+        let new_ordinal = (self as u8 + direction.to_ordinal()) % 4;
         Direction::from_ordinal(new_ordinal).unwrap()
     }
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct Ray {
-    pub start_position: Position,
+    pub start_position: TilePosition,
     pub direction: Direction,
 }
 
 impl Ray {
-    pub fn new(position: Position, direction: Direction) -> Self {
+    pub fn new(position: TilePosition, direction: Direction) -> Self {
         Self {
             start_position: position,
             direction,
@@ -151,27 +143,25 @@ impl Ray {
         self.direction.direction_to(direction)
     }
 
-    pub fn ray_position(&self, position: Position) -> i32 {
+    pub fn ray_position(&self, position: TilePosition) -> i32 {
         let offset = position - self.start_position;
         let dir_vec = self.direction.to_vector();
         offset.dot(dir_vec)
     }
     /// Get position at index along ray using euclid vector arithmetic
-    pub fn get_position(&self, index: i32) -> Position {
+    pub fn get_position(&self, index: i32) -> TilePosition {
         self.start_position + self.direction.to_vector() * index
     }
-    pub fn snap(&self, position: Position) -> Position {
+    pub fn snap(&self, position: TilePosition) -> TilePosition {
         self.get_position(self.ray_position(position))
     }
 }
 
-pub type BoundingBox = Box2D<i32>;
-
-pub fn bounds_new(top_left: Position, bottom_right: Position) -> BoundingBox {
+pub fn bounds_new(top_left: TilePosition, bottom_right: TilePosition) -> BoundingBox {
     BoundingBox::new(top_left, bottom_right)
 }
 
-pub trait PositionIteratorExt: Iterator<Item = Position> + Sized {
+pub trait PositionIteratorExt: Iterator<Item = TilePosition> + Sized {
     fn bounds(mut self) -> Option<BoundingBox> {
         let first = self.next()?;
         let (min, max) = self.fold((first, first), |(min, max), next_pos| {
@@ -184,7 +174,7 @@ pub trait PositionIteratorExt: Iterator<Item = Position> + Sized {
     }
 }
 
-impl<T: Iterator<Item = Position>> PositionIteratorExt for T {}
+impl<T: Iterator<Item = TilePosition>> PositionIteratorExt for T {}
 
 #[cfg(test)]
 mod tests {
@@ -200,11 +190,6 @@ mod tests {
 
     #[test]
     fn test_direction_ordinal() {
-        assert_eq!(Direction::North.to_ordinal(), 0);
-        assert_eq!(Direction::East.to_ordinal(), 1);
-        assert_eq!(Direction::South.to_ordinal(), 2);
-        assert_eq!(Direction::West.to_ordinal(), 3);
-
         assert_eq!(Direction::from_ordinal(0), Some(Direction::North));
         assert_eq!(Direction::from_ordinal(1), Some(Direction::East));
         assert_eq!(Direction::from_ordinal(2), Some(Direction::South));

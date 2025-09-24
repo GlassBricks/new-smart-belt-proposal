@@ -2,7 +2,7 @@ use std::cmp::max;
 
 use crate::belts::{BELT_TIERS, Belt, BeltTier, LoaderLike, Splitter, UndergroundBelt};
 use crate::{
-    Colliding, Direction, Entity, Position, World, pos,
+    Colliding, Direction, Entity, TilePosition, World, pos,
     smart_belt::{LineDrag, action, action::Error},
 };
 use anyhow::{Context, Result, bail};
@@ -14,9 +14,9 @@ pub struct DragTestCase {
     pub name: String,
     pub before: World,
     pub after: World,
-    pub start_pos: Position,
+    pub start_pos: TilePosition,
     pub tier: BeltTier,
-    pub expected_error: Option<(Position, action::Error)>,
+    pub expected_error: Option<(TilePosition, action::Error)>,
     pub skip: bool,
 }
 
@@ -54,11 +54,14 @@ Got:
                 &expected_errors
                     .iter()
                     .map(|f| f.0)
-                    .collect::<Vec<Position>>()
+                    .collect::<Vec<TilePosition>>()
             ),
             print_world(
                 &result,
-                &actual_errors.iter().map(|f| f.0).collect::<Vec<Position>>()
+                &actual_errors
+                    .iter()
+                    .map(|f| f.0)
+                    .collect::<Vec<TilePosition>>()
             )
         );
         if actual_errors != expected_errors {
@@ -82,9 +85,9 @@ Got errors:
 fn run_test_case(
     world: &World,
     tier: BeltTier,
-    start_pos: Position,
+    start_pos: TilePosition,
     max_x: i32,
-) -> (World, Vec<(Position, Error)>) {
+) -> (World, Vec<(TilePosition, Error)>) {
     let mut world = world.clone();
     let end_pos = pos(max_x, start_pos.y);
     let mut drag = LineDrag::start_drag(&mut world, tier, start_pos, Direction::East);
@@ -232,7 +235,7 @@ fn parse_word(input: &str) -> Result<Option<Box<dyn Entity>>> {
     }))
 }
 
-pub type WorldParse = (World, Vec<Position>);
+pub type WorldParse = (World, Vec<TilePosition>);
 
 pub fn parse_world(input: &str) -> Result<WorldParse> {
     let mut world = World::new();
@@ -240,7 +243,7 @@ pub fn parse_world(input: &str) -> Result<WorldParse> {
     for (y, line) in input.lines().enumerate() {
         let words = line.split_whitespace();
         for (x, mut word) in words.enumerate() {
-            let pos = Position::new(x as i32, y as i32);
+            let pos = TilePosition::new(x as i32, y as i32);
             if word.starts_with('*') {
                 markers.push(pos);
                 word = &word[1..];
@@ -318,7 +321,7 @@ fn print_entity(entity: &dyn Entity) -> String {
     }
 }
 
-fn print_world(world: &World, markers: &[Position]) -> String {
+fn print_world(world: &World, markers: &[TilePosition]) -> String {
     let bounds = world.bounds();
 
     if bounds.is_empty() {

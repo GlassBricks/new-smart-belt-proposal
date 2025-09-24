@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 use super::LineDrag;
 use crate::belts::{Belt, BeltTier, UndergroundBelt};
-use crate::{Direction, Position, World, not_yet_impl};
+use crate::{Direction, TilePosition, World, not_yet_impl};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum Action {
@@ -108,13 +108,18 @@ impl<'a> LineDrag<'a> {
     }
 }
 impl World {
-    pub(super) fn place_belt(&mut self, position: Position, direction: Direction, tier: BeltTier) {
+    pub(super) fn place_belt(
+        &mut self,
+        position: TilePosition,
+        direction: Direction,
+        tier: BeltTier,
+    ) {
         self.set_exactly(position, Belt::new(direction, tier));
     }
 
     pub(super) fn place_underground_belt(
         &mut self,
-        position: Position,
+        position: TilePosition,
         direction: Direction,
         is_input: bool,
         tier: BeltTier,

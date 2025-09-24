@@ -334,7 +334,7 @@ Some things we're not 100% sure about, and might consider:
 - Forwards splitters should not be given special treatment
 
 ### Formally
-See [[prototype_abstract/src/smart_belt/tile_classification.rs]], which aims to be self-documenting code.
+See [tile_classification.rs](prototype_abstract/src/smart_belt/tile_classification.rs), which aims to be self-documenting code.
 
 #### A note on belt curvature
 

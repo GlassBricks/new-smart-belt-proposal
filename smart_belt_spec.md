@@ -67,28 +67,28 @@ Made simple modifications to get it to work with 2.0.
 
 These should be integrated into the belt line.
 
-![](images/spec_0.gif)
+![](images/spec_0.png)
 
 #### Obstacles
 
 These should be under grounded over.
 
-![](images/spec_1.gif)
+![](images/spec_1.png)
 
 For this red belt can underground over it, allowing belt-weaving.
 
-![](images/spec_2.gif)
+![](images/spec_2.png)
 
 #### Impassable obstacle
 
 These are *not possible* to underground over;
 the player will be notified with an error (X is in the way) if they try to drag a belt pass them.
 
-![](images/spec_3.gif)
+![](images/spec_3.png)
 
 #### Random other examples
 
-![](images/spec_4.gif)
+![](images/spec_4.png)
 
 ### Tricky cases
 
@@ -100,7 +100,7 @@ When we run into an existing belt (or underground belt) in the same direction as
 However, if we then run into a curve, trying to underground over it, or straighten the curved belt, may break an existing belt line.
 As such, if we try to traverse past the curved belt, we give up and give an error.
 
-![](images/spec_5.gif)
+![](images/spec_5.png)
 
 However, in other cases we sometimes want to jump over belt segments given the choice.
 
@@ -108,16 +108,16 @@ However, in other cases we sometimes want to jump over belt segments given the c
 
 We would like to underground over side balancers, when running over the unused input:
 
-![](images/spec_6.gif)
+![](images/spec_6.png)
 
 But if we can use the output (it's all straight), we should integrate instead of underground over:
 
-![](images/spec_7.gif)
+![](images/spec_7.png)
 
 However, if input is actually *used* (has at least one belt input into it), it's less clear if we should integrate or underground over it.
 The compromise chosen is to always not underground, even if the splitter later runs into a dead end.
 
-![](images/spec_8.gif)
+![](images/spec_8.png)
 
 This motivates treating belt segments starting with a splitter differently:
 
@@ -134,11 +134,11 @@ For backwards belt, we want to lookahead to decide if we underground over it, or
 
 2 example cases:
 
-![](images/spec_9.gif)
+![](images/spec_9.png)
 
 HOWEVER, we don't want infinite lookahead: With infinite lookahead, dragging ghost belt to upgrade this will stop at the splitter, and eventually say "underground too long". This is even if you don't end up dragging all the way to the curved belt:
 
-![](images/spec_10.gif)
+![](images/spec_10.png)
 
 As such, we limit our lookahead to up to as far as the last underground can reach.
 
@@ -201,7 +201,7 @@ Some things we're not 100% sure about, and might consider:
 
 ### Formally
 
-See \[\[prototype\_abstract/src/smart\_belt/tile\_classification.rs\]\], which aims to be self-documenting code.
+See [tile\_classification.rs](prototype_abstract/src/smart_belt/tile_classification.rs), which aims to be self-documenting code.
 
 #### A note on belt curvature
 

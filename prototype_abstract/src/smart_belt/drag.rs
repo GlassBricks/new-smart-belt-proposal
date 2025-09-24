@@ -3,7 +3,7 @@ use dyn_clone::clone_box;
 use super::{DragState, DragStep, DragWorldView, Error, NormalState};
 use crate::belts::BeltTier;
 use crate::smart_belt::Action;
-use crate::{Direction, Position, Ray, TileHistory, World, WorldReader};
+use crate::{Direction, TilePosition, Ray, TileHistory, World, WorldReader};
 
 /**
  * Handles line dragging; includes mutable methods
@@ -21,14 +21,14 @@ pub struct LineDrag<'a> {
     // one tile (the last placed output belt).
     pub(super) tile_history: Option<TileHistory>,
     // for testing
-    pub(super) errors: Vec<(Position, Error)>,
+    pub(super) errors: Vec<(TilePosition, Error)>,
 }
 
 impl<'a> LineDrag<'a> {
     pub fn start_drag(
         world: &'a mut World,
         tier: BeltTier,
-        start_pos: Position,
+        start_pos: TilePosition,
         direction: Direction,
     ) -> LineDrag<'a> {
         let mut errors = Vec::new();
@@ -61,11 +61,11 @@ impl<'a> LineDrag<'a> {
         self.last_position + 1
     }
 
-    pub(crate) fn get_errors(self) -> Vec<(Position, Error)> {
+    pub(crate) fn get_errors(self) -> Vec<(TilePosition, Error)> {
         self.errors
     }
 
-    pub(crate) fn get_tile_history(position: Position, world: &World) -> TileHistory {
+    pub(crate) fn get_tile_history(position: TilePosition, world: &World) -> TileHistory {
         let entity = world
             .get(position)
             .and_then(|e| e.as_belt_connectable_dyn())
@@ -93,7 +93,7 @@ impl<'a> LineDrag<'a> {
     }
 
     /// the only mutable functions are here!
-    pub fn interpolate_to(&mut self, new_position: Position) {
+    pub fn interpolate_to(&mut self, new_position: TilePosition) {
         let dist = self.ray.ray_position(new_position);
         while self.last_position < dist {
             let step = self.step_forward();
