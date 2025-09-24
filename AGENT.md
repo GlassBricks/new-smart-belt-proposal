@@ -6,10 +6,7 @@ Informal spec is in spec_src/spec.md.
 The main prototype implementation is a rust crate, with tests.
 Rust was chosen, to allow the prototype to be mostly but not completely functional.
 
-Cargo.toml is in `prototype_abstract/`; For cargo commands, use `cd prototype_abstract && cargo ...`
-
 ## Main logic
-
 - All the "main" logic is in `prototype_abstract/src/smart_belt/*.rs`.
 - This logic will eventually be extracted into a different programming language.
 

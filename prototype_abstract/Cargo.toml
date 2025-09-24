@@ -4,13 +4,13 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-anyhow = { version = "1.0.100", features = ["backtrace"] }
-dyn-clone = "1.0.20"
-dyn-eq = "0.1.3"
-euclid = "0.22"
-itertools = "0.14.0"
-serde = { version = "1.0.225", features = ["derive"] }
-serde_yaml = "0.9.34"
+anyhow.workspace = true
+dyn-clone.workspace = true
+dyn-eq.workspace = true
+euclid.workspace = true
+itertools.workspace = true
+serde.workspace = true
+serde_yaml.workspace = true
 
 [build-dependencies]
-serde_yaml = "0.9.34"
+serde_yaml.workspace = true
