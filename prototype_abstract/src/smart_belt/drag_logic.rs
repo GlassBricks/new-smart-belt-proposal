@@ -82,23 +82,6 @@ pub(super) struct DragStep(pub Action, pub Vec<Error>, pub DragState);
  * Purely functional logic for straight line dragging.
  */
 impl<'a> LineDrag<'a> {
-    // fn process_pass_through(&self) -> StepResult {
-    //     todo!()
-    // let entity = self.world_view.get_entity_at_position(position);
-    // let next_tile_type = match entity {
-    //     Some(Entity::UndergroundBelt(ug))
-    //         if ug.tier == tier && ug.shape_direction() == self.world_view.drag_direction() =>
-    //     {
-    //         TileType::IntegratedOutput
-    //     }
-    //     _ => TileType::PassThroughUnderground(tier),
-    // };
-    // StepResult {
-    //     action: Action::None,
-    //     next_tile_type,
-    // }
-    // }
-
     pub(super) fn normal_state_step(&self, last_state: &NormalState) -> DragStep {
         let classifier =
             TileClassifier::new(self.world_view(), self.tier, last_state, self.last_position);
@@ -108,12 +91,12 @@ impl<'a> LineDrag<'a> {
             TileType::IntegratedSplitter => {
                 self.normal_result(Action::IntegrateSplitter, NormalState::IntegratedSplitter)
             }
-            TileType::ImpassableCurvedBelt => DragStep(
+            TileType::ImpassableObstacle => DragStep(
                 Action::None,
                 vec![],
                 NormalState::OverImpassableCurvedBelt.into(),
             ),
-            TileType::ImpassableUnderground => self.handle_impassable_underground(last_state),
+            TileType::BlockingUnderground => self.handle_impassable_underground(last_state),
             TileType::PassThroughUnderground {
                 output_pos,
                 upgrade_failure,
@@ -233,9 +216,7 @@ impl<'a> LineDrag<'a> {
     /// When traversing an impassable obstacle, we give an error only when you pass it.
     fn deferred_error(&self) -> Option<Error> {
         match self.last_state {
-            DragState::Normal(NormalState::OverImpassableCurvedBelt) => {
-                Some(Error::CurvedBeltInTheWay)
-            }
+            DragState::Normal(NormalState::OverImpassableCurvedBelt) => Some(Error::EntityInTheWay),
             _ => None,
         }
     }

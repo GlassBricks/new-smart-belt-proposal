@@ -226,6 +226,8 @@ fn parse_word(input: &str) -> Result<Option<Box<dyn Entity>>> {
         Some('i') => UndergroundBelt::new(direction, true, tier),
         Some('o') => UndergroundBelt::new(direction, false, tier),
         Some('s') => Splitter::new(direction, tier),
+        Some('I') => LoaderLike::new(direction, true, tier),
+        Some('O') => LoaderLike::new(direction, false, tier),
         _ => bail!("Invalid entity type"),
     }))
 }
@@ -251,17 +253,22 @@ pub fn parse_world(input: &str) -> Result<WorldParse> {
     }
     Ok((world, markers))
 }
+
+fn get_dir_char(direction: Direction) -> char {
+    match direction {
+        Direction::East => 'r',
+        Direction::West => 'l',
+        Direction::North => 'u',
+        Direction::South => 'd',
+    }
+}
+
 fn print_entity(entity: &dyn Entity) -> String {
     use crate::belts::BELT_TIERS;
 
     if let Some(Belt { direction, tier }) = (entity as &dyn std::any::Any).downcast_ref::<Belt>() {
         let tier_num = BELT_TIERS.iter().position(|&t| t == *tier).unwrap_or(0) + 1;
-        let dir_char = match direction {
-            Direction::East => 'r',
-            Direction::West => 'l',
-            Direction::North => 'u',
-            Direction::South => 'd',
-        };
+        let dir_char = get_dir_char(*direction);
         if tier_num == 1 {
             format!("{}", dir_char)
         } else {
@@ -274,12 +281,7 @@ fn print_entity(entity: &dyn Entity) -> String {
     }) = (entity as &dyn std::any::Any).downcast_ref::<UndergroundBelt>()
     {
         let tier_num = BELT_TIERS.iter().position(|&t| t == *tier).unwrap_or(0) + 1;
-        let dir_char = match direction {
-            Direction::East => 'r',
-            Direction::West => 'l',
-            Direction::North => 'u',
-            Direction::South => 'd',
-        };
+        let dir_char = get_dir_char(*direction);
         let type_char = if *is_input { 'i' } else { 'o' };
         if tier_num == 1 {
             format!("{}{}", dir_char, type_char)
@@ -290,22 +292,26 @@ fn print_entity(entity: &dyn Entity) -> String {
         (entity as &dyn std::any::Any).downcast_ref::<Splitter>()
     {
         let tier_num = BELT_TIERS.iter().position(|&t| t == *tier).unwrap_or(0) + 1;
-        let dir_char = match direction {
-            Direction::East => 'r',
-            Direction::West => 'l',
-            Direction::North => 'u',
-            Direction::South => 'd',
-        };
+        let dir_char = get_dir_char(*direction);
         if tier_num == 1 {
             format!("{}s", dir_char)
         } else {
             format!("{}{}s", tier_num, dir_char)
         }
-    } else if (entity as &dyn std::any::Any)
-        .downcast_ref::<LoaderLike>()
-        .is_some()
+    } else if let Some(LoaderLike {
+        direction,
+        tier,
+        is_input,
+    }) = (entity as &dyn std::any::Any).downcast_ref::<LoaderLike>()
     {
-        "l".to_string() // not yet done
+        let tier_num = BELT_TIERS.iter().position(|&t| t == *tier).unwrap_or(0) + 1;
+        let type_char = if *is_input { 'I' } else { 'O' };
+        let dir_char = get_dir_char(*direction);
+        if tier_num == 1 {
+            format!("{}{}", dir_char, type_char)
+        } else {
+            format!("{}{}{}", tier_num, dir_char, type_char)
+        }
     } else if (entity as &dyn std::any::Any)
         .downcast_ref::<Colliding>()
         .is_some()

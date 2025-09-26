@@ -51,6 +51,7 @@ impl<'a> DragWorldView<'a> {
             self.ray.get_position(position - 1),
             self.ray.get_position(position),
         );
+        dbg!(last_pos, cur_pos);
 
         let Some(last_entity) = self
             .world_reader
@@ -59,6 +60,7 @@ impl<'a> DragWorldView<'a> {
         else {
             return false;
         };
+        dbg!(last_entity);
 
         let Some(cur_entity) = self
             .world_reader
@@ -67,6 +69,7 @@ impl<'a> DragWorldView<'a> {
         else {
             return false;
         };
+        dbg!(cur_entity);
 
         let connects_forward = self.world_reader.effective_output_direction(last_entity)
             == Some(self.drag_direction())
@@ -75,13 +78,28 @@ impl<'a> DragWorldView<'a> {
                 .effective_input_direction(cur_pos, cur_entity)
                 == Some(self.drag_direction());
         if connects_forward {
+            eprintln!("Forward");
             return true;
         }
-        self.world_reader
-            .effective_input_direction(last_pos, last_entity)
-            == Some(self.drag_direction().opposite())
-            && self.world_reader.effective_output_direction(cur_entity)
-                == Some(self.drag_direction().opposite())
+        let opposite_direction = self.drag_direction().opposite();
+        dbg!(opposite_direction);
+        let last_pos_input = self
+            .world_reader
+            .effective_input_direction(last_pos, last_entity);
+        dbg!(last_pos_input);
+        let connects_backward_input = last_pos_input == Some(opposite_direction);
+        dbg!(connects_backward_input);
+        let output_direction = self.world_reader.effective_output_direction(cur_entity);
+        dbg!(output_direction);
+        let connects_backward_output = output_direction == Some(opposite_direction);
+        dbg!(connects_backward_output);
+
+        let connects_backward = connects_backward_input && connects_backward_output;
+        if connects_backward {
+            eprintln!("Backward");
+            return true;
+        }
+        false
     }
 
     pub fn can_place_belt_on_tile(&self, index: i32) -> bool {

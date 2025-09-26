@@ -1,0 +1,20 @@
+- name: Can enter loader
+  before: _ rI
+  after: r rI
+
+- name: Can underground over wrong direction loaderss
+  before: _ lO _ _ uI _ _ lI
+  after: ri lO ro ri uI ro ri lI ro
+
+- name: Cannot traverse past loader
+  before: _ rI
+  after: r rI *r
+  expected_errors: [entity_in_the_way]
+
+- name: Belt segments after loader are obstacles 1
+  before: _ rO r _
+  after: ri rO r ro
+
+- name: Belt segments after loader are obstacles 2
+  before: _ lI l _
+  after: ri lI l ro

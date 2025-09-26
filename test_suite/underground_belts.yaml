@@ -31,7 +31,7 @@
 - name: Curved belt after underground
   before: _ _ ri ro u r
   after: r r ri ro u *r
-  expected_errors: [curved_belt_in_the_way]
+  expected_errors: [entity_in_the_way]
 
 - name: Can flip belt after underground
   before: _ _ ri ro l r
@@ -85,7 +85,7 @@
 - name: Can upgrade underground after curved belt failure
   before: _ r u 2ri _ 2ro
   after: r r u *ri _ ro
-  expected_errors: [curved_belt_in_the_way]
+  expected_errors: [entity_in_the_way]
 
 - name: Can upgrade underground after blocked output failure
   before: _ ri ro X X X 2lo 2li
@@ -95,9 +95,7 @@
 - name: Can have multiple errors
   before: _ r u 2ri ro 2ro
   after: r r u **2ri ro 2ro
-  expected_errors:
-    - curved_belt_in_the_way
-    - cannot_upgrade_underground
+  expected_errors: [entity_in_the_way, cannot_upgrade_underground]
 
 - name: unenterable underground of different tier is obstacle
   before: _ X 2ri _ _ 2ro
@@ -108,3 +106,12 @@
   after: r X *ri ro r
   expected_errors:
     - entity_in_the_way
+
+- name: backwards paired underground of different tier is obstacle
+  before: 2lo *_ 2li l l
+  after: 2lo ri 2li l l ro
+
+- name: backwards paired underground of same tier is impassable, and doesn't override later belt
+  before: lo *_ li l l
+  after: lo r *li l l r
+  expected_errors: [entity_in_the_way]

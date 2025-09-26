@@ -99,8 +99,7 @@ impl<'a> LineDrag<'a> {
             let pos = self.last_position;
             let view = self.world_view();
             let entity = view.get_entity_at_position(pos);
-            let last_state = &self.last_state;
-            dbg!(pos, entity, last_state);
+            dbg!(pos, entity);
 
             let step = self.step_forward();
             self.apply_step(step);
@@ -116,6 +115,7 @@ impl<'a> LineDrag<'a> {
             self.errors
                 .push((self.ray.get_position(self.next_position()), error));
         }
+        dbg!(&next_state);
         self.last_position += 1;
         self.last_state = next_state;
     }

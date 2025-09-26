@@ -22,18 +22,12 @@ pub(super) enum Action {
     },
     IntegrateSplitter,
     None,
-    // errors
-    // EntityInTheWay,
-    // ImpassableObstacle,
-    // TooLongToReach,
-    // CannotUpgradeUnderground,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Error {
     TooFarToConnect,
-    CurvedBeltInTheWay,
     EntityInTheWay,
     CannotUpgradeUnderground,
 }

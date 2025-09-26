@@ -1,5 +1,6 @@
 use crate::{Direction, Entity};
 use std::any::Any;
+use std::fmt::Debug;
 use std::ops::Deref;
 
 #[derive(Debug)]
@@ -8,7 +9,7 @@ pub struct BeltTierData {
     pub underground_distance: u8,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct BeltTier(&'static BeltTierData);
 
 impl PartialEq for BeltTier {
@@ -24,6 +25,12 @@ impl Deref for BeltTier {
 
     fn deref(&self) -> &Self::Target {
         self.0
+    }
+}
+
+impl Debug for BeltTier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("BeltTier").field(&self.name).finish()
     }
 }
 
@@ -132,12 +139,20 @@ pub struct LoaderLike {
 }
 
 impl LoaderLike {
-    pub fn new(direction: Direction, tier: BeltTier, is_input: bool) -> Box<Self> {
+    pub fn new(direction: Direction, is_input: bool, tier: BeltTier) -> Box<Self> {
         Box::new(LoaderLike {
             direction,
             tier,
             is_input,
         })
+    }
+
+    pub fn shape_direction(&self) -> Direction {
+        if self.is_input {
+            self.direction.opposite()
+        } else {
+            self.direction
+        }
     }
 }
 
@@ -206,8 +221,7 @@ impl dyn BeltConnectable {
 
     /// Does not take into account belt curvature.
     pub fn primary_input_direction(&self) -> Option<Direction> {
-        self.has_backwards_input()
-            .then_some(self.direction().opposite())
+        self.has_backwards_input().then_some(self.direction())
     }
 }
 
