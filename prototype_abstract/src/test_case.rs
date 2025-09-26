@@ -215,10 +215,10 @@ fn parse_word(input: &str) -> Result<Option<Box<dyn Entity>>> {
         .context("")?;
 
     let direction = match chars.next() {
-        Some('l') => Direction::West,
-        Some('r') => Direction::East,
-        Some('u') => Direction::North,
-        Some('d') => Direction::South,
+        Some('<') => Direction::West,
+        Some('>') => Direction::East,
+        Some('^') => Direction::North,
+        Some('v') => Direction::South,
         c => bail!("Invalid direction: {:?}", c),
     };
     Ok(Some(match chars.next() {
@@ -256,10 +256,10 @@ pub fn parse_world(input: &str) -> Result<WorldParse> {
 
 fn get_dir_char(direction: Direction) -> char {
     match direction {
-        Direction::East => 'r',
-        Direction::West => 'l',
-        Direction::North => 'u',
-        Direction::South => 'd',
+        Direction::East => '>',
+        Direction::West => '<',
+        Direction::North => '^',
+        Direction::South => 'v',
     }
 }
 
@@ -357,7 +357,6 @@ fn print_world(world: &World, markers: &[TilePosition]) -> String {
 
     result
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -374,7 +373,7 @@ mod tests {
         );
 
         // Test direction only - defaults to tier 1 and belt type
-        if let Some(entity) = parse_word("r").unwrap() {
+        if let Some(entity) = parse_word(">").unwrap() {
             if let Some(belt) = (entity.as_ref() as &dyn std::any::Any).downcast_ref::<Belt>() {
                 assert_eq!(belt.direction, Direction::East);
                 assert_eq!(belt.tier, BELT_TIERS[0]); // Default to yellow
@@ -385,7 +384,7 @@ mod tests {
             panic!("Expected Some(Belt) with defaults");
         }
 
-        if let Some(entity) = parse_word("1r").unwrap() {
+        if let Some(entity) = parse_word("1>").unwrap() {
             if let Some(belt) = (entity.as_ref() as &dyn std::any::Any).downcast_ref::<Belt>() {
                 assert_eq!(belt.direction, Direction::East);
                 assert_eq!(belt.tier, BELT_TIERS[0]); // Yellow
@@ -396,7 +395,7 @@ mod tests {
             panic!("Expected Some(Belt)");
         }
 
-        if let Some(entity) = parse_word("2u").unwrap() {
+        if let Some(entity) = parse_word("2^").unwrap() {
             if let Some(belt) = (entity.as_ref() as &dyn std::any::Any).downcast_ref::<Belt>() {
                 assert_eq!(belt.direction, Direction::North);
                 assert_eq!(belt.tier, BELT_TIERS[1]); // Red
@@ -407,7 +406,7 @@ mod tests {
             panic!("Expected Some(Belt) with default type");
         }
 
-        if let Some(entity) = parse_word("rs").unwrap() {
+        if let Some(entity) = parse_word(">s").unwrap() {
             if let Some(splitter) =
                 (entity.as_ref() as &dyn std::any::Any).downcast_ref::<Splitter>()
             {
@@ -420,7 +419,7 @@ mod tests {
             panic!("Expected Some(Splitter) with default tier");
         }
 
-        if let Some(entity) = parse_word("1li").unwrap() {
+        if let Some(entity) = parse_word("1<i").unwrap() {
             if let Some(ub) =
                 (entity.as_ref() as &dyn std::any::Any).downcast_ref::<UndergroundBelt>()
             {
@@ -433,7 +432,7 @@ mod tests {
         } else {
             panic!("Expected Some(UndergroundBelt) input");
         }
-        if let Some(entity) = parse_word("2ro").unwrap() {
+        if let Some(entity) = parse_word("2>o").unwrap() {
             if let Some(ub) =
                 (entity.as_ref() as &dyn std::any::Any).downcast_ref::<UndergroundBelt>()
             {
@@ -447,7 +446,7 @@ mod tests {
             panic!("Expected Some(UndergroundBelt) output");
         }
 
-        if let Some(entity) = parse_word("3us").unwrap() {
+        if let Some(entity) = parse_word("3^s").unwrap() {
             if let Some(splitter) =
                 (entity.as_ref() as &dyn std::any::Any).downcast_ref::<Splitter>()
             {
@@ -463,11 +462,11 @@ mod tests {
 
     #[test]
     fn test_parse_word_invalid_cases() {
-        assert!(parse_word("0r").is_err());
-        assert!(parse_word("4r").is_err());
+        assert!(parse_word("0>").is_err());
+        assert!(parse_word("4>").is_err());
         assert!(parse_word("1x").is_err());
-        assert!(parse_word("1rx").is_err());
-        assert!(parse_word("ar").is_err());
+        assert!(parse_word("1>x").is_err());
+        assert!(parse_word("a>").is_err());
     }
 
     #[test]
@@ -475,8 +474,8 @@ mod tests {
         use serde_yaml;
 
         let yaml = r#"
-before: "r\t2u"
-after: "2r\tu\tX"
+before: ">\t2^"
+after: "2>\t^\tX"
 "#;
 
         let test_case: DragTestCase = serde_yaml::from_str(yaml).expect("Failed to deserialize");
@@ -532,8 +531,8 @@ after: "2r\tu\tX"
         use serde_yaml;
 
         let yaml = r#"
-before: "r"
-after: "r"
+before: ">"
+after: ">"
 "#;
 
         let test_case: DragTestCase = serde_yaml::from_str(yaml).expect("Failed to deserialize");
@@ -542,7 +541,7 @@ after: "r"
     }
     #[test]
     fn test_parse_world_with_marker() {
-        let input = "r *2u\nls _ X";
+        let input = "> *2^\n<s _ X";
         let (world, markers) = parse_world(input).expect("Failed to parse world");
 
         // Check that we have one marker at position (1, 0)
@@ -610,8 +609,8 @@ after: "r"
 
         let output = print_world(&world, &[]);
         let expected = r#"
-r    2ui  _
-ls   _    X"#
+>    2^i  _
+<s   _    X"#
             .trim_start();
         assert_eq!(output, expected);
         let (back_to_world, _) = parse_world(&output).expect("Failed to parse world");

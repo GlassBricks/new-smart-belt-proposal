@@ -70,24 +70,24 @@ These should be integrated into the belt line.
 
 ```fac-img
 
- _ _ l _ r
- _ _ l r r l
+ _ _ < _ >
+ _ _ < > > <
 
-_ l l l l l
-_ r r r r r
+_ < < < < <
+_ > > > > >
 
-_ r ri _ ro r
-_ l lo _ li l
-_ l ri _ ro l
-
-
-_ _ r rs r r
+_ > >i _ >o >
+_ < <o _ <i <
+_ < >i _ >o <
 
 
-ri _ ro rs ri _ ro
+_ _ > >s > >
 
 
-_ _ _ rs rs
+>i _ >o >s >i _ >o
+
+
+_ _ _ >s >s
 ```
 
 #### Obstacles
@@ -98,41 +98,41 @@ These should be under grounded over.
 
 _ X _ _
 
-_ l
+_ <
 
-_ r u l
+_ > ^ <
 
-_ u l _ _
+_ ^ < _ _
 
-_ _ u _ _ u
-_ r u _ r u _
-_ u _ _ u
+_ _ ^ _ _ ^
+_ > ^ _ > ^ _
+_ ^ _ _ ^
 
-_ d l l l _
+_ v < < < _
 
-_ d l l l _
-_ r r r u _
+_ v < < < _
+_ > > > ^ _
 
-_ _ _ ls
-
-
-
-_ _ r r rs
-_ _ u
+_ _ _ <s
 
 
-_ _ rs r r d
+
+_ _ > > >s
+_ _ ^
 
 
-_ _ rs X
+_ _ >s > > v
+
+
+_ _ >s X
 ```
 
 For this red belt can underground over it, allowing belt-weaving.
 
 ```fac-img
-_ _ _ _  _ _ _ _  d _
-_ d l lo _ _ _ li l
-_ d
+_ _ _ _  _ _ _ _  v _
+_ v < <o _ _ _ <i <
+_ v
 
 ```
 
@@ -143,13 +143,13 @@ the player will be notified with an error (X is in the way) if they try to drag 
 
 ```fac-img
 
-_ l lo _ li X _
+_ < <o _ <i X _
 
-_ _ _  _  d
-_ d lo li l
-_ d
+_ _ _  _  v
+_ v <o <i <
+_ v
 
-_ ri _ ro rs X
+_ >i _ >o >s X
 
 ```
 
@@ -157,25 +157,25 @@ _ ri _ ro rs X
 
 ```fac-img
 
-_ _  u r _
+_ _  ^ > _
 
-r ri u ro r r
-
-
-_ _ rs X _ _
+> >i ^ >o > >
 
 
-r ri rs X ro r
-
-_ _ r u l _ _
-
-r r ri u ro r r _
+_ _ >s X _ _
 
 
+> >i >s X >o >
 
-_ _ lo _ li l _
+_ _ > ^ < _ _
 
-r r ri _ ro r r
+> > >i ^ >o > > _
+
+
+
+_ _ <o _ <i < _
+
+> > >i _ >o > >
 
 ```
 
@@ -190,11 +190,11 @@ However, if we then run into a curve, trying to underground over it, or straight
 As such, if we try to traverse past the curved belt, we give up and give an error.
 
 ```fac-img
-_ _ _ _ r _
-_ _ r r u
+_ _ _ _ > _
+_ _ > > ^
 
-_ _ _ _ r
-r r r r u
+_ _ _ _ >
+> > > > ^
 
 ```
 
@@ -205,36 +205,36 @@ However, in other cases we sometimes want to jump over belt segments given the c
 We would like to underground over side balancers, when running over the unused input:
 
 ```fac-img
-_ _ _  _ r d _
-r r r  _ u r r
-_ _ _ rs r u _
+_ _ _  _ > v _
+> > >  _ ^ > >
+_ _ _ >s > ^ _
 
-_ _ _  _  r d
-r r r  _  u r r
-_ r ri rs r u ro r
+_ _ _  _  > v
+> > >  _  ^ > >
+_ > >i >s > ^ >o >
 ```
 
 But if we can use the output (it's all straight), we should integrate instead of underground over:
 
 ```fac-img
-_ r _  d
-_ _ rs r r r _
+_ > _  v
+_ _ >s > > > _
 
-_ r _  d
-r r rs r r r r
+_ > _  v
+> > >s > > > >
 ```
 
 However, if input is actually _used_ (has at least one belt input into it), it's less clear if we should integrate or underground over it.
 The compromise chosen is to always not underground, even if the splitter later runs into a dead end.
 
 ```fac-img
-_ _ _  _ r d _
-r r r  _ u r r
-_ _ r rs r u _
+_ _ _  _ > v _
+> > >  _ ^ > >
+_ _ > >s > ^ _
 
-_ _ _  _ r d
-r r r  _ u r r
-r r r rs r u _ _
+_ _ _  _ > v
+> > >  _ ^ > >
+> > > >s > ^ _ _
 ```
 
 This motivates treating belt segments starting with a splitter differently:
@@ -251,16 +251,16 @@ For backwards belt, we want to lookahead to decide if we underground over it, or
 
 2 example cases:
 ```fac-img
-_ _ l l l _ _
+_ _ < < < _ _
 
-r r r r r r r
+> > > > > > >
 
-_ _ _ _ d _ _
-_ _ l l l _ _
+_ _ _ _ v _ _
+_ _ < < < _ _
 
 
-_ _ _ _ d _ _
-r ri l l l ro r
+_ _ _ _ v _ _
+> >i < < < >o >
 
 ```
 
@@ -268,13 +268,12 @@ HOWEVER, we don't want infinite lookahead: With infinite lookahead, dragging gho
 
 ```fac-img
 
-_ _ rs r r r r r r u
+_ _ >s > > > > > > ^
 
 
-r r rs r r r r r r u
+> > >s > > > > > > ^
 
 ```
-
 As such, we limit our lookahead to up to as far as the last underground can reach.
 
 - If we can underground over the whole thing, do it

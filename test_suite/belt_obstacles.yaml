@@ -1,151 +1,151 @@
 - name: Perpendicular belt
-  before: _ _ u
-  after: r ri u ro r r
+  before: _ _ ^
+  after: "> >i ^ >o >"
 
 - name: Multiple perpendicular belt
-  before: _ _ u d
-  after: r ri u d ro r r
+  before: _ _ ^ v
+  after: "> >i ^ v >o >"
 
 - name: Backwards curved belt
   before: |
-    _ _ d
-    _ _ l
+    _ _ v
+    _ _ <
   after: |
-    _ _  d _
-    r ri l ro r
+    _ _  v _
+    > >i < >o >
 
 - name: Forwards curved belt
   before: |
-    _ _ d
-    _ _ r
+    _ _ v
+    _ _ >
   after: |
-    _ _  d _
-    r ri r ro r
+    _ _  v _
+    > >i > >o >
 
 - name: Forwards curved belt continuation
   before: |
-    _ _ d
-    _ _ r r
+    _ _ v
+    _ _ > >
   after: |
-    _ _  d _
-    r ri r r ro r
+    _ _  v _
+    > >i > > >o >
 
 - name: Backwards curved belt continuation
   before: |
-    _ _ _ d
-    _ _ l l
+    _ _ _ v
+    _ _ < <
   after: |
-    _ _  _ d _
-    r ri l l ro r
+    _ _  _ v _
+    > >i < < >o >
 
 - name: Forwards curved belt continuation, too long
   before: |
-    _ _ d
-    _ _ r r r r r
+    _ _ v
+    _ _ > > > > >
   after: |
-    _ _  d _
-    r r r r r r r *r
+    _ _  v   _
+    > > > > > > > *>
   expected_errors: [too_far_to_connect]
 
 - name: Backwards curved belt continuation, too long to check
   before: |
-    _ _ _ _ _ d
-    _ l l l l l
+    _ _ _ _ _ v
+    _ < < < < <
   after: |
-    _ _ _ _ _ d
-    r r r r r l *r
+    _ _ _ _ _ v
+    > > > > > < *>
   expected_errors: [entity_in_the_way]
 
 - name: 2 backwards curved belts
   before: |
-    _ _ _ d
-    _ _ u l
+    _ _ _ v
+    _ _ ^ <
   after: |
-    _ _ _  d _
-    r ri u l ro r
+    _ _ _  v _
+    > >i ^ < >o >
 
 - name: 2 forwards curved belts
   before: |
-    _ _ d
-    _ _ r u
+    _ _ v
+    _ _ > ^
   after: |
-    _ _  d _ _
-    r ri r u ro r
+    _ _  v _ _
+    > >i > ^ >o >
 
 - name: sideloaded belt is normal obstacle
   before: |
-    _ _ r u l
+    _ _ > ^ <
   after: |
-    r r ri u ro r
+    > > >i ^ >o >
 
 - name: sideloaded belt is normal obstacle 2
   before: |
-    _ _ d
-    _ _ d l _
+    _ _ v
+    _ _ v < _
   after: |
-    _ _  d
-    r ri d ro r
+    _ _  v   _
+    > >i v >o >
 
 - name: sideloaded belt is not obstacle
   before: |
-    _ _ d
-    _ r r _ _
+    _ _ v
+    _ > > _ _
   after: |
-    _ _ d
-    r r r r r
+    _ _ v
+    > > > > >
 
 - name: curved belt after obstacle is obstacle
   before: |
-    _ _ d
-    _ X r
+    _ _ v
+    _ X >
   after: |
-    _  _ d
-    ri X r ro r
+    _  _ v
+    >i X > >o >
 
 - name: running into a curved belt is error
   before: |
-    _ r u
+    _ > ^
   after: |
-    r r u *r
+    > > ^ *>
   expected_errors: [entity_in_the_way]
 
 - name: hovering over curved belt gives no error
   before: |
-    _ r u
+    _ > ^
   after: |
-    r r u
+    > > ^
 
 - name: curvy
   before: |
-    _ _ _ u _ _ u
-    _ _ r u _ r u
-    _ _ u _ _ u _
+    _ _ _ ^ _ _ ^
+    _ _ > ^ _ > ^
+    _ _ ^ _ _ ^ _
   after: |
-    _  _   _ u _ _ u
-    2r 2ri r u _ r u 2ro
-    _  _   u _ _ u _
+    _  _   _ ^ _ _ ^
+    2> 2>i > ^ _ > ^ 2>o
+    _  _   ^ _ _ ^ _
 
 - name: first belt shouldn't change effective curvature
-  before: _ u l
-  after: ri u l ro
+  before: _ ^ <
+  after: ">i ^ < >o"
 
 - name: Belt weaving over backwards belt segment with curve
   before: |
-    _ _ _  _  d
-    _ l lo li l
+    _ _ _  _  v
+    _ < <o <i <
   after: |
-    _ _ _  _  d
-    2ri l lo li l 2ro
+    _ _ _  _  v
+    2>i < <o <i < 2>o
 
 - name: Integrating backwards belt segment without curve
-  before: _ l lo li l
-  after: 2r 2r 2ri 2ro 2r
+  before: _ < <o <i <
+  after: 2> 2> 2>i 2>o 2>
 
 - name: If can't belt weave, is error
   before: |
-    _ _ _  _  d
-    _ l lo li l
+    _ _ _  _  v
+    _ < <o <i <
   after: |
-    _  _ _  _   d
-    r r ri ro *l r
+    _  _ _  _   v
+    > > >i >o *< >
   expected_errors: [entity_in_the_way]

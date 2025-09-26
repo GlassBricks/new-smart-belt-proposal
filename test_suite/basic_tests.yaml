@@ -1,47 +1,47 @@
 - name: Empty world
   before: ""
-  after: r r r
+  after: "> > >"
 
 - name: Overlapping exisiting belt
-  before: _ r r
-  after: r r r
+  before: _ > >
+  after: "> > >"
 
 - name: Overlapping backwards belt
-  before: _ l l
-  after: r r r
+  before: _ < <
+  after: "> > >"
 
 - name: Simple obstacle
   before: _ _ X
-  after: r ri X ro r
+  after: "> >i X >o >"
 
 - name: Simple obstacle 2
   before: _ _ X X
-  after: r ri X X ro r
+  after: "> >i X X >o >"
 
 - name: Obstacle too long
   before: _ _ X X X X X
-  after: r r X X X X X *r r
+  after: "> > X X X X X *> >"
   expected_errors: [too_far_to_connect]
 
 - name: Underground extension
   before: _ _ X X _ X
-  after: r ri X X _ X ro r
+  after: "> >i X X _ X >o >"
 
 - name: No extension
   before: _ _ X _ _ X
-  after: r ri X ro ri X ro r
+  after: "> >i X >o >i X >o >"
 
 - name: Extension, then too long
   before: _ _ X X _ X X
-  after: r ri X X ro X X *r r
+  after: "> >i X X >o X X *> >"
   expected_errors: [too_far_to_connect]
 
 - name: Blocked at start
   before: X
-  after: "*X r r"
+  after: "*X > >"
   expected_errors: [entity_in_the_way]
 
 - name: More blocked at start
   before: X X X X
-  after: "*X X X X r"
+  after: "*X X X X >"
   expected_errors: [entity_in_the_way]

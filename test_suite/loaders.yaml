@@ -1,20 +1,20 @@
 - name: Can enter loader
-  before: _ rI
-  after: r rI
+  before: "_ >I"
+  after: "> >I"
 
-- name: Can underground over wrong direction loaderss
-  before: _ lO _ _ uI _ _ lI
-  after: ri lO ro ri uI ro ri lI ro
+- name: Can underground over wrong direction loaders
+  before: "_ <O _ _ ^I _ _ <I"
+  after: ">i <O >o >i ^I >o >i <I >o"
 
 - name: Cannot traverse past loader
-  before: _ rI
-  after: r rI *r
+  before: "_ >I"
+  after: "> >I *>"
   expected_errors: [entity_in_the_way]
 
 - name: Belt segments after loader are obstacles 1
-  before: _ rO r _
-  after: ri rO r ro
+  before: "_ >O > _"
+  after: ">i >O > >o"
 
 - name: Belt segments after loader are obstacles 2
-  before: _ lI l _
-  after: ri lI l ro
+  before: "_ <I < _"
+  after: ">i <I < >o"
