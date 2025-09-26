@@ -18,10 +18,6 @@
   before: _ u rs r
   after: ri u rs r ro
 
-- name: Splitter with belt after it is integrated
-  before: _ rs r r r
-  after: r rs r r r
-
 - name: Backwards belt connected to splitter results in obstacle
   before: _ l ls _
   after: ri l ls ro
@@ -34,3 +30,19 @@
 - name: Can upgrade a splitter
   before: _ 2rs _
   after: r rs r
+
+- name: Splitter with belt curved belt after it is not integrated
+  before: _ rs r 2r u
+  after: ri rs r 2r u ro
+
+- name: Splitter with belt curved belt after is integrated if too long to check
+  before: _ 2rs 2r 2r 2r 2r r r u
+  after: r rs r r r r r r u
+
+- name: Double splitter with belt curved after it is not integrated
+  before: _ rs rs r u
+  after: ri rs rs r u ro
+
+- name: Splitter with ug belt after it is still integrated if can belt weave
+  before: _ rs ri ro u
+  after: 2ri rs ri ro u 2ro

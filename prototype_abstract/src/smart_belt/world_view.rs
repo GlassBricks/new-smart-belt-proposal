@@ -67,6 +67,7 @@ impl<'a> DragWorldView<'a> {
         else {
             return false;
         };
+
         let connects_forward = self.world_reader.effective_output_direction(last_entity)
             == Some(self.drag_direction())
             && self

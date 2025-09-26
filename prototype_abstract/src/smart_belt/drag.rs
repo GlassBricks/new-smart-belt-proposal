@@ -96,6 +96,12 @@ impl<'a> LineDrag<'a> {
     pub fn interpolate_to(&mut self, new_position: TilePosition) {
         let dist = self.ray.ray_position(new_position);
         while self.last_position < dist {
+            let pos = self.last_position;
+            let view = self.world_view();
+            let entity = view.get_entity_at_position(pos);
+            let last_state = &self.last_state;
+            dbg!(pos, entity, last_state);
+
             let step = self.step_forward();
             self.apply_step(step);
         }
@@ -103,8 +109,10 @@ impl<'a> LineDrag<'a> {
 
     fn apply_step(&mut self, step: DragStep) {
         let DragStep(action, error, next_state) = step;
+        dbg!(&action);
         self.apply_action(action);
         for error in error {
+            dbg!(&error);
             self.errors
                 .push((self.ray.get_position(self.next_position()), error));
         }

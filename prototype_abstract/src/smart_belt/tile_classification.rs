@@ -57,7 +57,9 @@ impl<'a> TileClassifier<'a> {
 
     /// most things are simple to classify. The tricky cases are in existing belt-like-entities.
     pub(super) fn classify_next_tile(&self) -> TileType {
-        if let Some(entity) = self.world_view.get_entity_at_position(self.next_position()) {
+        let result = if let Some(entity) =
+            self.world_view.get_entity_at_position(self.next_position())
+        {
             match entity.as_belt_connectable() {
                 Some(BeltConnectableEnum::Belt(belt)) => self.classify_belt(belt),
                 Some(BeltConnectableEnum::UndergroundBelt(ug)) => self.classify_underground(ug),
@@ -67,7 +69,9 @@ impl<'a> TileClassifier<'a> {
             }
         } else {
             self.classify_empty_tile()
-        }
+        };
+        dbg!(&result);
+        result
     }
 
     fn classify_belt(&self, belt: &Belt) -> TileType {
@@ -129,14 +133,24 @@ impl<'a> TileClassifier<'a> {
         match relative_dir {
             Left | Right => TileType::Obstacle,
             Forward | Backward => {
-                if let Some((pair_pos, _)) = self.world_view.get_ug_pair(self.next_position(), ug) {
-                    if relative_dir == Forward {
-                        self.try_integrate_underground(ug, pair_pos)
+                let Some((pair_pos, _)) = self.world_view.get_ug_pair(self.next_position(), ug)
+                else {
+                    // unpaired undergrounds are always usable
+                    return TileType::Usable;
+                };
+                if self.last_state.is_traversing_obstacle() {
+                    // we can't use an input underground if we're already traversing an obstacle!
+                    if ug.tier == self.tier {
+                        // impassable!
+                        todo!()
                     } else {
-                        self.try_skip_underground(ug)
+                        // can belt weave
+                        TileType::Obstacle
                     }
+                } else if relative_dir == Forward {
+                    self.try_integrate_underground(ug, pair_pos)
                 } else {
-                    TileType::Usable
+                    self.try_skip_underground(ug)
                 }
             }
         }
@@ -167,21 +181,13 @@ impl<'a> TileClassifier<'a> {
     fn classify_splitter(&self, splitter: &Splitter) -> TileType {
         if self.last_state.is_traversing_obstacle()
             || self.world_view.relative_direction(splitter.direction) != Forward
+            || self.should_ug_over_splitter_segment(splitter)
         {
             // if we can't enter this splitter, it's an obstacle
             TileType::Obstacle
         } else {
             TileType::IntegratedSplitter
         }
-        //     && self.should_ug_over_belt_segment_after_splitter()
-        //     && todo!()
-        // {
-        //     todo!()
-        //     // TileType::Obstacle
-        // } else {
-        //     todo!()
-        //     // TileType::IntegratedSplitter
-        // }
     }
 
     fn classify_loader(&self, loader: &LoaderLike) -> TileType {
@@ -213,54 +219,6 @@ impl<'a> TileClassifier<'a> {
         }
     }
 
-    // After a _forwards_ splitter:
-    //
-    // splitter* forwards_belt* curved_belt
-    //
-    // Future extension 1: also consider belt weaving
-    // splitter* (forwards_belt | diff_tier_paired_ug)* curved_belt
-    //
-    // Extension 2: also consider blocked undergrounds
-    // splitter* (forwards_belt | diff_tier_paired_ug)* obstacle
-    // fn should_ug_over_belt_segment_after_splitter(&self) -> bool {
-    //     todo!()
-    // // assumes: first_belt_entity is straight
-
-    // // todo: refactor to remove need for this assertion
-    // assert!(state.last_tile_type.is_output());
-
-    // let belt_direction = self.world_view.belt_direction();
-
-    // // ug over a belt segment, if there's something in it that would break the belt line if we try to enter it.
-    // let last_input_position = state
-    //     .last_possible_entrance
-    //     .expect("todo: refactor to remove need for this assertion");
-    // let furthest_output_position =
-    //     last_input_position + self.belt_tier.underground_distance as i32;
-
-    // let entity_iter = (state.next_position()..furthest_output_position).map_while(|position| {
-    //     self.world_view
-    //         .get_entity_at_position(position)
-    //         .and_then(|e| e.as_belt_like())
-    //         .map(|e| (position, e))
-    // });
-    // let mut splitter_skip = entity_iter.skip_while(|(_, e)| {
-    //     e.as_splitter()
-    //         .is_some_and(|s| s.direction == belt_direction)
-    // });
-
-    // let last_entity = splitter_skip.find(|(_, e)| {
-    //     !e.as_belt().is_some_and(|belt| {
-    //         belt.direction == belt_direction && !self.world_view.belt_is_curved(belt)
-    //     })
-    // });
-    // last_entity.is_some_and(|(position, belt)| {
-    //     belt.as_belt().is_some_and(|belt| {
-    //         belt.direction == belt_direction && self.world_view.belt_is_curved(belt)
-    //     }) && self.world_view.belt_directly_connects_into_next(position)
-    // })
-    // }
-
     /// Check the belt segment.
     /// We ug over a backwards belt segment if:
     /// it consists only of straight backwards belt segments and underground belts, at least
@@ -279,6 +237,7 @@ impl<'a> TileClassifier<'a> {
             // if we can't underground over it, default to including, it even if we may error.
             return false;
         };
+        let backwards_dir = self.world_view.drag_direction().opposite();
 
         // iterate over belt segment, check for bad entities.
         // Only check up to _before_ the max underground position, to avoid long-distance
@@ -292,7 +251,6 @@ impl<'a> TileClassifier<'a> {
             else {
                 break;
             };
-            let backwards_dir = self.world_view.drag_direction().opposite();
             match belt_connectable {
                 BeltConnectableEnum::Belt(belt) => {
                     if belt.direction != backwards_dir {
@@ -313,6 +271,78 @@ impl<'a> TileClassifier<'a> {
             }
         }
         // default: integrate this belt segment
+        false
+    }
+
+    /// We currently only ug over a splitter if we see:
+    /// splitter* (straight_belt*) curved_belt
+    fn should_ug_over_splitter_segment(&self, _splitter: &Splitter) -> bool {
+        // if we can't underground over this at all, don't try
+        let Some(max_underground_position) = self.max_underground_position() else {
+            return false;
+        };
+        let belt_direction = self.world_view.drag_direction();
+
+        let mut pos = self.next_position();
+        let get_entity = |pos| {
+            if pos >= max_underground_position {
+                return None;
+            }
+            self.world_view
+                .get_entity_at_position(pos)
+                .and_then(|e| e.as_belt_connectable())
+        };
+
+        // Skip splitter*
+        while let Some(entity) = get_entity(pos)
+            && matches!(
+                entity,
+                BeltConnectableEnum::Splitter(Splitter { direction, .. })
+                if *direction == belt_direction,
+            )
+        {
+            pos += 1;
+        }
+
+        // Process remaining belt segment
+        while let Some(entity) = get_entity(pos) {
+            match entity {
+                BeltConnectableEnum::Belt(belt) => {
+                    if self.world_view.belt_is_curved(pos, belt) {
+                        // curved belt: this segment is an obstacle if it's connected to this curved belt
+                        return self.world_view.belt_was_directly_connected_to_previous(pos);
+                    } else {
+                        // straight belt
+                        if belt.direction != self.world_view.drag_direction() {
+                            // if not part of belt segment, break
+                            break;
+                        }
+                        // else, continue scanning belt segment
+                    }
+                }
+                BeltConnectableEnum::UndergroundBelt(ug) => {
+                    if ug.shape_direction() != self.world_view.drag_direction().opposite() {
+                        // not part of belt segment, break
+                        break;
+                    }
+                    let Some((pair_pos, _)) = self.world_view.get_ug_pair(pos, ug) else {
+                        // no pair, treated as normal belt -- ends belt segment
+                        break;
+                    };
+                    if ug.tier == self.tier {
+                        // we can't underground over this
+                        break;
+                    }
+                    // scan after pair's output
+                    pos = pair_pos;
+                }
+                BeltConnectableEnum::Splitter(_splitter) => {
+                    break; // if we see another splitter, defer decision to until we reach it
+                }
+                BeltConnectableEnum::LoaderLike(_loader_like) => todo!(),
+            }
+            pos += 1;
+        }
         false
     }
 

@@ -98,3 +98,14 @@
   expected_errors:
     - curved_belt_in_the_way
     - cannot_upgrade_underground
+
+- name: unenterable underground of different tier is obstacle
+  before: _ X 2ri _ _ 2ro
+  after: ri X 2ri ro ri 2ro ro r
+
+- name: unenterable underground of same tier is impassable
+  skip: true
+  before: _ X ri ro _
+  after: r X *ri ro r
+  expected_errors:
+    - entity_in_the_way
