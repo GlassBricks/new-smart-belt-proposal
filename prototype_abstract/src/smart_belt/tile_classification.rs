@@ -59,9 +59,7 @@ impl<'a> TileClassifier<'a> {
 
     /// most things are simple to classify. The tricky cases are in existing belt-like-entities.
     pub(super) fn classify_next_tile(&self) -> TileType {
-        let result = if let Some(entity) =
-            self.world_view.get_entity_at_position(self.next_position())
-        {
+        if let Some(entity) = self.world_view.get_entity_at_position(self.next_position()) {
             match entity.as_belt_connectable() {
                 Some(BeltConnectableEnum::Belt(belt)) => self.classify_belt(belt),
                 Some(BeltConnectableEnum::UndergroundBelt(ug)) => self.classify_underground(ug),
@@ -71,8 +69,7 @@ impl<'a> TileClassifier<'a> {
             }
         } else {
             self.classify_empty_tile()
-        };
-        dbg!(result)
+        }
     }
 
     fn classify_belt(&self, belt: &Belt) -> TileType {
@@ -292,9 +289,24 @@ impl<'a> TileClassifier<'a> {
         // default: integrate this belt segment
         false
     }
+
+    fn last_output_already_exists(&self) -> bool {
+        self.last_state.is_outputting_belt()
+            && self
+                .world_view
+                .get_entity_at_position(self.last_position)
+                .and_then(|e| e.as_belt_connectable_dyn())
+                .is_some_and(|b| b.has_output_going(self.world_view.drag_direction()))
+    }
+
     /// We currently only ug over a splitter if we see:
     /// splitter* (straight_belt*) curved_belt
     fn should_ug_over_splitter_segment(&self, _splitter: &Splitter) -> bool {
+        // if the last tile directly connects to this splitter, don't try
+        if self.last_output_already_exists() {
+            return false;
+        }
+
         // if we can't underground over this at all, don't try
         let Some(max_underground_position) = self.max_underground_position() else {
             return false;

@@ -1,0 +1,236 @@
+# Test cases extracted from spec.md examples
+# All examples assume dragging left to right
+
+### Simple cases - Non-obstacles (should be integrated)
+
+- name: "0"
+  before: " _ _ < _ >"
+  after: "> > > > >"
+
+- name: "1"
+  before: " _ _ < > > <"
+  after: "> > > > > >"
+
+- name: "2"
+  before: |
+    _ < < < < <
+  after: |
+    > > > > > >
+
+- name: "3"
+  before: _ > > > > >
+  after: "> > > > > >"
+
+- name: "4"
+  before: " _ > >i _ >o >"
+  after: "> > >i _ >o >"
+
+- name: "5"
+  before: " _ < <o _ <i <"
+  after: "> > >i _ >o >"
+
+- name: "6"
+  before: " _ < >i _ >o <"
+  after: "> > >i _ >o >"
+
+- name: "7"
+  before: " _ _ > >s > >"
+  after: "> > > >s > >"
+
+- name: "8"
+  before: ">i _ >o >s >i _ >o"
+  after: "> > > >s >i _ >o"
+
+- name: "9"
+  before: " _ _ _ >s >s"
+  after: "> > > >s >s"
+
+### Simple cases - Obstacles (should be undergrounded over)
+
+- name: "10"
+  before: " _ X _ _"
+  after: ">i X >o >"
+
+- name: "11"
+  before: " _ <"
+  after: "> > >"
+
+- name: "12"
+  before: " _ > ^ <"
+  after: "> >i ^ >o >"
+
+- name: "13"
+  before: "_ _ ^ < _ _"
+  after: "> >i ^ < >o"
+
+- name: "14"
+  before: |
+    _ _ ^ _ _ ^
+    _ > ^ _ > ^ _
+    _ ^ _ _ ^
+  after: |
+    > >i ^ >o >i ^ >o
+    _ > ^ _ > ^ _ _
+    _ ^ _ _ ^
+
+- name: "15"
+  before: "_ _ v < < < _"
+  after: "> >i v < < < >o"
+
+- name: "16"
+  before: |
+    _ v < < < _
+    _ > > > ^ _
+  after: |
+    >i v < < < >o
+    _ > > > ^ _
+
+- name: "17"
+  before: "_ _ _ <s"
+  after: "> > >i <s >o"
+
+- name: "18"
+  before: |
+    _ _ > > >s
+    _ _ ^
+  after: |
+    > >i > > >s >o
+    _ _  ^
+
+- name: "19"
+  before: "_ _ _ >s > > v"
+  after: "> > >i >s > > v >o"
+
+- name: "20"
+  before: "_ _ >s X _"
+  after: "> > >s *X >"
+  expected_errors: [entity_in_the_way]
+
+# Belt weaving example (red belt over existing)
+- name: "21"
+  before: |
+    _ _ _ _  _ _ _ _  v _
+    _ v < <o _ _ _ <i <
+    _ v
+  after: |
+    2> 2> 2> 2> 2> 2> 2> 2>i v 2>o
+    _ v < <o _ _ _ <i <
+    _ v
+
+### Impassable obstacles (should give errors)
+
+- name: "22"
+  before: " _ < <o _ <i X _"
+  after: "> > >i _ >o *X >"
+  expected_errors: [entity_in_the_way]
+
+- name: "23"
+  before: |
+    _ _ _  _  v
+    _ v <o <i <
+    _ v
+  after: |
+    _ _ _ _ v _
+    > v *<o <i < >
+    _ v
+  expected_errors: [entity_in_the_way]
+
+- name: "24"
+  before: " _ >i _ >o >s X"
+  after: "> >i _ >o >s *X >"
+  expected_errors: [entity_in_the_way]
+
+### Random other examples
+
+- name: "25"
+  before: " _ _  ^ > _"
+  after: "> >i ^ >o > >"
+
+- name: "26"
+  before: " _ _ > ^ < _ _"
+  after: "> > >i ^ >o > >"
+
+- name: "27"
+  before: "> > >i ^ >o > > _"
+  after: "> > >i ^ >o > > >"
+
+- name: "28"
+  before: " _ _ <o _ <i < _"
+  after: "> > >i _ >o > >"
+
+- name: "29"
+  before: "> > >i _ >o > >"
+  after: "> > >i _ >o > >"
+
+### Tricky cases - Curved belts (should give errors when trying to traverse)
+
+- name: "30"
+  before: |
+    _  _ _ _ > _
+    *_ _ > > ^
+  after: |
+    _ _ _ _ >
+    > > > > ^ *>  >
+  expected_errors: [entity_in_the_way]
+
+### Splitter integration cases
+
+# Underground over side balancer when input unused
+- name: "31"
+  before: |
+    _ _ _ >s > ^ _
+  after: |
+    > > >i >s > ^ >o >
+
+# Integrate splitter when output is straight
+- name: "32"
+  before: |
+    _ _ >s > > > _
+  after: |
+    > > >s > > > >
+
+# Don't underground when splitter input is used
+- name: "33"
+  before: |
+    _ _ >  _ ^ > >
+    *_ _ > >s > ^ _
+  after: |
+    _ _ >  _ ^ > >
+    > > > >s > ^ *>
+  expected_errors: [entity_in_the_way]
+
+### Backwards belt cases
+# Integrate backwards belt when possible (straight line)
+- name: "34"
+  before: " _ _ < < < _ _"
+  after: "> > > > > > >"
+
+- name: "35"
+  before: "> > > > > > >"
+  after: "> > > > > > >"
+
+# Underground over backwards belt when it has obstacles
+- name: "36"
+  before: |
+    _ _ _ _ v _ _
+    _ _ < < < _ _
+  after: |
+    _ _ _ _ v _ _
+    > >i < < < >o >
+
+- name: "37"
+  before: |
+    _ _ _ _ v _ _
+    > >i < < < >o >
+  after: |
+    _ _ _ _ v _ _
+    > >i < < < >o >
+
+# Lookahead limitation example (integrate when too long to check)
+- name: "38"
+  before: " _ _ >s > > > > > > ^"
+  after: "> > >s > > > > > > ^"
+
+- name: "39"
+  before: "> > >s > > > > > > ^"
+  after: "> > >s > > > > > > ^"
