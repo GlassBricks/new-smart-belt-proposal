@@ -80,7 +80,7 @@ impl<'a> LineDrag<'a> {
 
     fn step_forward(&mut self) -> DragStep {
         match &self.last_state {
-            DragState::Normal(state) => self.normal_step(state),
+            DragState::Normal(state) => self.normal_state_step(state),
             &DragState::PassThrough { output_pos } => {
                 let next_state = if self.next_position() == output_pos {
                     NormalState::IntegratedOutputUnderground.into()

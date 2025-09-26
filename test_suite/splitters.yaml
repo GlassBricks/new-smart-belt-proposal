@@ -1,0 +1,36 @@
+- name: Can integrate a splitter
+  before: _ rs _
+  after: r rs r
+
+- name: Can integrate multiple splitters
+  before: _ rs rs
+  after: r rs rs r
+
+- name: Other direction splitter is obstacle
+  before: _ ls _ us _ _ ds _
+  after: ri ls _ us ro ri ds ro r
+
+- name: Splitter with blocked entrance is not integrated
+  before: _ u rs
+  after: ri u rs ro
+
+- name: Splitter with blocked entrance makes following belt segment unintegrated
+  before: _ u rs r
+  after: ri u rs r ro
+
+- name: Splitter with belt after it is integrated
+  before: _ rs r r r
+  after: r rs r r r
+
+- name: Backwards belt connected to splitter results in obstacle
+  before: _ l ls _
+  after: ri l ls ro
+
+- name: Cannot use splitter as underground output location
+  before: _ X X X rs r _
+  after: r X X X rs r *r
+  expected_errors: [too_far_to_connect]
+
+- name: Can upgrade a splitter
+  before: _ 2rs _
+  after: r rs r

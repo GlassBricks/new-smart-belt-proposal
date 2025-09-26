@@ -38,6 +38,7 @@ pub(super) enum NormalState {
     },
     /// When we are hovering over the exit of an integrated output belt.
     IntegratedOutputUnderground,
+    IntegratedSplitter,
     /// We have just encountered an impassable obstacle. However, we don't error until the user tries to _pass_ the obstacle.
     OverImpassableCurvedBelt,
 }
@@ -53,7 +54,8 @@ impl NormalState {
         match self {
             NormalState::BeltPlaced
             | NormalState::OutputUgPlaced { .. }
-            | NormalState::IntegratedOutputUnderground => true,
+            | NormalState::IntegratedOutputUnderground
+            | NormalState::IntegratedSplitter => true,
             NormalState::Traversing { .. }
             | NormalState::TraversingAfterOutput { .. }
             | NormalState::OverImpassableCurvedBelt
@@ -68,7 +70,8 @@ impl NormalState {
             | NormalState::OutputUgPlaced { .. }
             | NormalState::OverImpassableCurvedBelt
             | NormalState::ErrorRecovery
-            | NormalState::IntegratedOutputUnderground => false,
+            | NormalState::IntegratedOutputUnderground
+            | NormalState::IntegratedSplitter => false,
         }
     }
 }
@@ -96,12 +99,15 @@ impl<'a> LineDrag<'a> {
     // }
     // }
 
-    pub(super) fn normal_step(&self, last_state: &NormalState) -> DragStep {
+    pub(super) fn normal_state_step(&self, last_state: &NormalState) -> DragStep {
         let classifier =
             TileClassifier::new(self.world_view(), self.tier, last_state, self.last_position);
         match classifier.classify_next_tile() {
             TileType::Usable => self.place_belt_or_underground(last_state),
             TileType::Obstacle => self.handle_obstacle(last_state),
+            TileType::IntegratedSplitter => {
+                self.normal_result(Action::IntegrateSplitter, NormalState::IntegratedSplitter)
+            }
             TileType::ImpassableCurvedBelt => DragStep(
                 Action::None,
                 vec![],
@@ -130,7 +136,8 @@ impl<'a> LineDrag<'a> {
             | NormalState::OutputUgPlaced { .. }
             | NormalState::OverImpassableCurvedBelt
             | NormalState::ErrorRecovery
-            | NormalState::IntegratedOutputUnderground => {
+            | NormalState::IntegratedOutputUnderground
+            | NormalState::IntegratedSplitter => {
                 self.normal_result(Action::PlaceBelt, NormalState::BeltPlaced)
             }
             NormalState::Traversing { input_pos, .. }
@@ -180,7 +187,7 @@ impl<'a> LineDrag<'a> {
                 output_pos: self.last_position,
             },
             NormalState::OverImpassableCurvedBelt => NormalState::BeltPlaced,
-            NormalState::IntegratedOutputUnderground => {
+            NormalState::IntegratedOutputUnderground | NormalState::IntegratedSplitter => {
                 return DragStep(
                     Action::None,
                     vec![Error::EntityInTheWay],

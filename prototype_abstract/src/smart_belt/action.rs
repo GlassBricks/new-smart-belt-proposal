@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 use super::LineDrag;
 use crate::belts::{Belt, BeltTier, UndergroundBelt};
-use crate::{Direction, TilePosition, World, not_yet_impl};
+use crate::{Direction, Splitter, TilePosition, World, not_yet_impl};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum Action {
@@ -20,6 +20,7 @@ pub(super) enum Action {
     IntegrateUndergroundPair {
         do_upgrade: bool,
     },
+    IntegrateSplitter,
     None,
     // errors
     // EntityInTheWay,
@@ -107,6 +108,16 @@ impl<'a> LineDrag<'a> {
                 }
                 if upgrade && tier != self.tier {
                     self.world.upgrade_ug_checked(world_pos, self.tier);
+                }
+            }
+            Action::IntegrateSplitter => {
+                let splitter = self
+                    .world
+                    .get_mut(world_pos)
+                    .and_then(|e| (e as &mut dyn Any).downcast_mut::<Splitter>())
+                    .expect("Expected Splitter at position");
+                if splitter.tier != self.tier {
+                    splitter.tier = self.tier;
                 }
             }
         }

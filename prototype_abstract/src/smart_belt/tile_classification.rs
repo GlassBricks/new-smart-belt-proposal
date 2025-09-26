@@ -15,6 +15,8 @@ pub(super) enum TileType {
     Usable,
     /// An obstacle we want to underground over.
     Obstacle,
+    /// A splitter that we will use
+    IntegratedSplitter,
     /// A curved belt we directly ran into, which is an impassable obstacle.
     ImpassableCurvedBelt,
     // An integrated splitter. Should not be replaced with underground belt.
@@ -162,9 +164,15 @@ impl<'a> TileClassifier<'a> {
         }
     }
 
-    fn classify_splitter(&self, _splitter: &Splitter) -> TileType {
-        todo!()
-        // if self.world_view.relative_direction(splitter.direction) == Forward
+    fn classify_splitter(&self, splitter: &Splitter) -> TileType {
+        if self.last_state.is_traversing_obstacle()
+            || self.world_view.relative_direction(splitter.direction) != Forward
+        {
+            // if we can't enter this splitter, it's an obstacle
+            TileType::Obstacle
+        } else {
+            TileType::IntegratedSplitter
+        }
         //     && self.should_ug_over_belt_segment_after_splitter()
         //     && todo!()
         // {
@@ -296,7 +304,11 @@ impl<'a> TileClassifier<'a> {
                     }
                 }
                 BeltConnectableEnum::UndergroundBelt(_) => todo!(),
-                BeltConnectableEnum::Splitter(_) => todo!(),
+                BeltConnectableEnum::Splitter(splitter) => {
+                    // if the splitter is backwards, it connects to this belt segment, and makes
+                    // the whole thing an obstacle
+                    return splitter.direction == backwards_dir;
+                }
                 BeltConnectableEnum::LoaderLike(_) => todo!(),
             }
         }
@@ -310,9 +322,7 @@ impl<'a> TileClassifier<'a> {
             NormalState::Traversing { input_pos, .. }
             | NormalState::OutputUgPlaced { input_pos, .. }
             | NormalState::TraversingAfterOutput { input_pos, .. } => Some(*input_pos),
-            NormalState::OverImpassableCurvedBelt
-            | NormalState::ErrorRecovery
-            | NormalState::IntegratedOutputUnderground => None,
+            _ => None,
         };
         input_pos.map(|f| f + self.tier.underground_distance as i32)
     }

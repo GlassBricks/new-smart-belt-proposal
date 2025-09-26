@@ -21,6 +21,9 @@ impl World {
     pub fn get(&self, position: TilePosition) -> Option<&dyn Entity> {
         self.entities.get(&position).map(|e| e.as_ref())
     }
+    pub fn get_mut(&mut self, position: TilePosition) -> Option<&mut dyn Entity> {
+        self.entities.get_mut(&position).map(|e| e.as_mut())
+    }
 
     pub fn set(&mut self, position: TilePosition, mut entity: Box<dyn Entity>) {
         if let Some(ug) = (entity.deref_mut() as &mut dyn Any).downcast_mut::<UndergroundBelt>() {
@@ -312,44 +315,6 @@ mod tests {
             });
     }
 
-    /// Generalized entity testing framework for Factorio smart belt prototype
-    ///
-    /// This builder pattern provides a concise, fluent API for setting up entity placement
-    /// tests and making assertions about world state. It dramatically reduces boilerplate
-    /// code while making tests more readable and maintainable.
-    ///
-    /// # Features
-    /// - **Entity Placement**: Place belts, underground belts, and other entities
-    /// - **Assertions**: Assert on world state, entity properties, and relationships
-    /// - **Chaining**: Fluent API allows method chaining for readable test descriptions
-    /// - **Type Safety**: Compile-time checks ensure correct entity types and parameters
-    /// - **Error Messages**: Descriptive error messages with position and context information
-    ///
-    /// # Example Usage
-    /// ```ignore
-    /// // Before (verbose): 13+ lines of boilerplate
-    /// let mut world = World::new();
-    /// let input_ug = UndergroundBelt::new(East, true, YELLOW_BELT);
-    /// let output_ug = UndergroundBelt::new(East, false, YELLOW_BELT);
-    /// world.set(pos(1, 1), input_ug.clone());
-    /// world.set(pos(3, 1), output_ug);
-    /// let result = world.get_paired_underground(pos(1, 1), &input_ug);
-    /// assert!(result.is_some());
-    /// let (found_pos, _) = result.unwrap();
-    /// assert_eq!(found_pos, pos(3, 1));
-    ///
-    /// // After (concise): 3 lines, self-documenting
-    /// WorldTestBuilder::new()
-    ///     .input_underground_at(pos(1, 1), East, YELLOW_BELT)
-    ///     .output_underground_at(pos(3, 1), East, YELLOW_BELT)
-    ///     .expect_underground_pair_from_pos(pos(1, 1), pos(3, 1));
-    /// ```
-    ///
-    /// # Code Reduction Metrics
-    /// - **~80% less code** per test case
-    /// - **Eliminated boilerplate**: No manual world creation, entity setup, or verbose assertions
-    /// - **Better error messages**: Context-aware assertions with position information
-    /// - **Maintainable**: Changes to test patterns centralized in framework
     struct WorldTestBuilder {
         world: World,
     }
