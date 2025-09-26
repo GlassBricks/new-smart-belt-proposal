@@ -1,5 +1,7 @@
 use itertools::Itertools;
 
+use crate::smart_belt::tile_classification::ObstacleKind;
+
 use super::{Action, LineDrag, TileClassifier, TileType, action::Error};
 
 #[derive(Debug, Clone)]
@@ -40,7 +42,7 @@ pub(super) enum NormalState {
     IntegratedOutputUnderground,
     IntegratedSplitter,
     /// We have just encountered an impassable obstacle. However, we don't error until the user tries to _pass_ the obstacle.
-    OverImpassableCurvedBelt,
+    OverImpassableObstacle(ObstacleKind),
 }
 
 impl From<NormalState> for DragState {
@@ -58,7 +60,7 @@ impl NormalState {
             | NormalState::IntegratedSplitter => true,
             NormalState::Traversing { .. }
             | NormalState::TraversingAfterOutput { .. }
-            | NormalState::OverImpassableCurvedBelt
+            | NormalState::OverImpassableObstacle(_)
             | NormalState::ErrorRecovery => false,
         }
     }
@@ -68,7 +70,7 @@ impl NormalState {
             NormalState::Traversing { .. } | NormalState::TraversingAfterOutput { .. } => true,
             NormalState::BeltPlaced
             | NormalState::OutputUgPlaced { .. }
-            | NormalState::OverImpassableCurvedBelt
+            | NormalState::OverImpassableObstacle(_)
             | NormalState::ErrorRecovery
             | NormalState::IntegratedOutputUnderground
             | NormalState::IntegratedSplitter => false,
@@ -91,26 +93,14 @@ impl<'a> LineDrag<'a> {
             TileType::IntegratedSplitter => {
                 self.normal_result(Action::IntegrateSplitter, NormalState::IntegratedSplitter)
             }
-            TileType::ImpassableObstacle => DragStep(
-                Action::None,
-                vec![],
-                NormalState::OverImpassableCurvedBelt.into(),
-            ),
+            TileType::ImpassableObstacle(obstacle) => {
+                self.handle_impassable_obstacle(last_state, obstacle)
+            }
             TileType::BlockingUnderground => self.handle_impassable_underground(last_state),
             TileType::PassThroughUnderground {
                 output_pos,
                 upgrade_failure,
             } => self.integrate_underground_pair(output_pos, upgrade_failure),
-            // TileType::Obstacle => {
-            // if matches!(prev_state, TileType::IntegratedOutput) {
-            //     Action::EntityInTheWay
-            // } else if self.underground_would_be_too_long(prev_state, position + 1) {
-            //     Action::TooLongToReach
-            // alternative: report too long to reach the moment it becomes too long, not after passing all obstacles
-            // } else {
-            //     Action::None
-            // }
-            // }
         }
     }
 
@@ -118,7 +108,7 @@ impl<'a> LineDrag<'a> {
         match last_state {
             NormalState::BeltPlaced
             | NormalState::OutputUgPlaced { .. }
-            | NormalState::OverImpassableCurvedBelt
+            | NormalState::OverImpassableObstacle(_)
             | NormalState::ErrorRecovery
             | NormalState::IntegratedOutputUnderground
             | NormalState::IntegratedSplitter => {
@@ -170,7 +160,7 @@ impl<'a> LineDrag<'a> {
                 input_pos: entrance_position,
                 output_pos: self.last_position,
             },
-            NormalState::OverImpassableCurvedBelt => NormalState::BeltPlaced,
+            NormalState::OverImpassableObstacle(_) => NormalState::ErrorRecovery,
             NormalState::IntegratedOutputUnderground | NormalState::IntegratedSplitter => {
                 return DragStep(
                     Action::None,
@@ -195,6 +185,17 @@ impl<'a> LineDrag<'a> {
         }
     }
 
+    fn handle_impassable_obstacle(&self, last_state: &NormalState, kind: ObstacleKind) -> DragStep {
+        let next_state = match last_state {
+            // if already in error state, ignore further errors
+            NormalState::ErrorRecovery | NormalState::OverImpassableObstacle(_) => {
+                NormalState::ErrorRecovery
+            }
+            _ => NormalState::OverImpassableObstacle(kind),
+        };
+        self.normal_result(Action::None, next_state)
+    }
+
     fn handle_impassable_underground(&self, last_state: &NormalState) -> DragStep {
         let errors = match last_state {
             NormalState::ErrorRecovery => vec![], // if already in error recovery state, don't give new errors
@@ -215,8 +216,15 @@ impl<'a> LineDrag<'a> {
 
     /// When traversing an impassable obstacle, we give an error only when you pass it.
     fn deferred_error(&self) -> Option<Error> {
-        match self.last_state {
-            DragState::Normal(NormalState::OverImpassableCurvedBelt) => Some(Error::EntityInTheWay),
+        match &self.last_state {
+            DragState::Normal(NormalState::OverImpassableObstacle(obstacle)) => {
+                Some(match obstacle {
+                    ObstacleKind::CurvedBelt | ObstacleKind::Loader => {
+                        Error::CannotTraversePastEntity
+                    }
+                    ObstacleKind::Tile => Error::CannotTraversePastTile,
+                })
+            }
             _ => None,
         }
     }

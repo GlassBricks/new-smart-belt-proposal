@@ -1,4 +1,7 @@
+use std::any::Any;
+
 use crate::BeltConnectable;
+use crate::Impassable;
 use crate::RelativeDirection::*;
 use crate::belts::BeltTier;
 use crate::belts::LoaderLike;
@@ -19,7 +22,7 @@ pub(super) enum TileType {
     /// A splitter that we will use
     IntegratedSplitter,
     /// A curved belt we directly ran into, which is an impassable obstacle.
-    ImpassableObstacle,
+    ImpassableObstacle(ObstacleKind),
     BlockingUnderground,
     // An integrated splitter. Should not be replaced with underground belt.
     // IntegratedSplitter,
@@ -29,6 +32,13 @@ pub(super) enum TileType {
         upgrade_failure: bool,
         output_pos: i32,
     },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ObstacleKind {
+    CurvedBelt,
+    Tile,
+    Loader,
 }
 
 pub(super) struct TileClassifier<'a> {
@@ -59,16 +69,23 @@ impl<'a> TileClassifier<'a> {
 
     /// most things are simple to classify. The tricky cases are in existing belt-like-entities.
     pub(super) fn classify_next_tile(&self) -> TileType {
+        // note: we're faking impassable tiles with entities
         if let Some(entity) = self.world_view.get_entity_at_position(self.next_position()) {
             match entity.as_belt_connectable() {
                 Some(BeltConnectableEnum::Belt(belt)) => self.classify_belt(belt),
                 Some(BeltConnectableEnum::UndergroundBelt(ug)) => self.classify_underground(ug),
                 Some(BeltConnectableEnum::Splitter(splitter)) => self.classify_splitter(splitter),
                 Some(BeltConnectableEnum::LoaderLike(loader)) => self.classify_loader(loader),
-                None => TileType::Obstacle,
+                None => {
+                    if (entity as &dyn Any).is::<Impassable>() {
+                        TileType::ImpassableObstacle(ObstacleKind::Tile)
+                    } else {
+                        TileType::Obstacle
+                    }
+                }
             }
         } else {
-            self.classify_empty_tile()
+            TileType::Usable
         }
     }
 
@@ -106,7 +123,7 @@ impl<'a> TileClassifier<'a> {
                 .belt_was_directly_connected_to_previous(self.next_position())
         {
             // it's impassable (smart belt is not allowed to rotate belt)
-            TileType::ImpassableObstacle
+            TileType::ImpassableObstacle(ObstacleKind::CurvedBelt)
         } else {
             // Any other curved belt is a normal obstacle
             TileType::Obstacle
@@ -191,7 +208,7 @@ impl<'a> TileClassifier<'a> {
 
     fn classify_loader(&self, loader: &LoaderLike) -> TileType {
         if self.belt_connects_into_loader(loader) {
-            TileType::ImpassableObstacle
+            TileType::ImpassableObstacle(ObstacleKind::Loader)
         } else {
             TileType::Obstacle
         }
@@ -200,19 +217,6 @@ impl<'a> TileClassifier<'a> {
     fn belt_connects_into_loader(&self, loader: &LoaderLike) -> bool {
         not_yet_impl!("backwards dragging into loader");
         loader.shape_direction() == self.world_view.drag_direction().opposite() && loader.is_input
-    }
-
-    fn classify_empty_tile(&self) -> TileType {
-        if self.world_view.can_place_belt_on_tile(self.next_position()) {
-            TileType::Usable
-        } else if self
-            .world_view
-            .is_undergroundable_tile(self.next_position())
-        {
-            todo!()
-        } else {
-            todo!()
-        }
     }
 
     /// Check the belt segment.

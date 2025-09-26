@@ -1,0 +1,19 @@
+- name: Multiple intraversables
+  before: "_ # # #"
+  after: "> # *# #"
+  expected_errors: [cannot_traverse_past_tile]
+
+- name: Can't traverse past impasable tile
+  before: "_ # _"
+  after: "> # *>"
+  expected_errors: [cannot_traverse_past_tile]
+
+- name: Can't traverse past impasable tile2
+  before: "_ X # _"
+  after: "> X # *>"
+  expected_errors: [cannot_traverse_past_tile]
+
+- name: Can't traverse past impasable tile2
+  before: "_ # X # _"
+  after: "> # *X # >"
+  expected_errors: [cannot_traverse_past_tile]

@@ -54,7 +54,7 @@
   after: |
     _ _ _ _ _ v
     > > > > > < *>
-  expected_errors: [entity_in_the_way]
+  expected_errors: [cannot_traverse_past_entity]
 
 - name: 2 backwards curved belts
   before: |
@@ -83,7 +83,7 @@
     _ _ v
     _ _ v < _
   after: |
-    _ _  v   _
+    _ _  v
     > >i v >o >
 
 - name: sideloaded belt is not obstacle
@@ -107,7 +107,7 @@
     _ > ^
   after: |
     > > ^ *>
-  expected_errors: [entity_in_the_way]
+  expected_errors: [cannot_traverse_past_entity]
 
 - name: hovering over curved belt gives no error
   before: |

@@ -15,6 +15,15 @@ impl Colliding {
 }
 impl Entity for Colliding {}
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Impassable;
+impl Impassable {
+    pub fn new() -> Box<Self> {
+        Box::new(Impassable)
+    }
+}
+impl Entity for Impassable {}
+
 impl dyn Entity {
     pub fn as_colliding(&self) -> Option<&Colliding> {
         (self as &dyn Any).downcast_ref::<Colliding>()
