@@ -19,6 +19,7 @@ pub(super) enum TileType {
     IntegratedSplitter,
     /// A curved belt we directly ran into, which is an impassable obstacle.
     ImpassableCurvedBelt,
+    ImpassableUnderground,
     // An integrated splitter. Should not be replaced with underground belt.
     // IntegratedSplitter,
     /// An existing paired underground belt we will pass-through.
@@ -142,12 +143,13 @@ impl<'a> TileClassifier<'a> {
                     // we can't use an input underground if we're already traversing an obstacle!
                     if ug.tier == self.tier {
                         // impassable!
-                        todo!()
+                        TileType::ImpassableUnderground
                     } else {
                         // can belt weave
                         TileType::Obstacle
                     }
                 } else if relative_dir == Forward {
+                    // running into underground, use it!
                     self.try_integrate_underground(ug, pair_pos)
                 } else {
                     self.try_skip_underground(ug)
@@ -172,7 +174,7 @@ impl<'a> TileClassifier<'a> {
 
     fn try_skip_underground(&self, ug: &UndergroundBelt) -> TileType {
         if self.tier == ug.tier {
-            todo!()
+            TileType::ImpassableUnderground
         } else {
             TileType::Obstacle
         }

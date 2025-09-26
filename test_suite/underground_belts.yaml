@@ -104,7 +104,6 @@
   after: ri X 2ri ro ri 2ro ro r
 
 - name: unenterable underground of same tier is impassable
-  skip: true
   before: _ X ri ro _
   after: r X *ri ro r
   expected_errors:

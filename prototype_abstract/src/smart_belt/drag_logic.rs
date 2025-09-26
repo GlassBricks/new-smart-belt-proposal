@@ -113,6 +113,7 @@ impl<'a> LineDrag<'a> {
                 vec![],
                 NormalState::OverImpassableCurvedBelt.into(),
             ),
+            TileType::ImpassableUnderground => self.handle_impassable_underground(last_state),
             TileType::PassThroughUnderground {
                 output_pos,
                 upgrade_failure,
@@ -209,6 +210,14 @@ impl<'a> LineDrag<'a> {
             }
             DragStep(action, errors, DragState::PassThrough { output_pos })
         }
+    }
+
+    fn handle_impassable_underground(&self, last_state: &NormalState) -> DragStep {
+        let errors = match last_state {
+            NormalState::ErrorRecovery => vec![], // if already in error recovery state, don't give new errors
+            _ => vec![Error::EntityInTheWay],
+        };
+        DragStep(Action::None, errors, NormalState::ErrorRecovery.into())
     }
 
     /// Returns an result with no errors.
