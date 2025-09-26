@@ -1,3 +1,5 @@
+use itertools::Itertools;
+
 use super::{Action, LineDrag, TileClassifier, TileType, action::Error};
 
 #[derive(Debug, Clone)]
@@ -71,7 +73,7 @@ impl NormalState {
     }
 }
 
-pub(super) struct DragStep(pub Action, pub Option<Error>, pub DragState);
+pub(super) struct DragStep(pub Action, pub Vec<Error>, pub DragState);
 
 /**
  * Purely functional logic for straight line dragging.
@@ -102,22 +104,23 @@ impl<'a> LineDrag<'a> {
             TileType::Obstacle => self.handle_obstacle(last_state),
             TileType::ImpassableCurvedBelt => DragStep(
                 Action::None,
-                None,
+                vec![],
                 NormalState::OverImpassableCurvedBelt.into(),
             ),
-            TileType::PassThroughUnderground { output_pos } => {
-                self.integrate_underground_pair(output_pos)
-            } // TileType::IntegratedOutput => Action::IntegrateEntity,
-              // TileType::Obstacle => {
-              // if matches!(prev_state, TileType::IntegratedOutput) {
-              //     Action::EntityInTheWay
-              // } else if self.underground_would_be_too_long(prev_state, position + 1) {
-              //     Action::TooLongToReach
-              // alternative: report too long to reach the moment it becomes too long, not after passing all obstacles
-              // } else {
-              //     Action::None
-              // }
-              // }
+            TileType::PassThroughUnderground {
+                output_pos,
+                upgrade_failure,
+            } => self.integrate_underground_pair(output_pos, upgrade_failure),
+            // TileType::Obstacle => {
+            // if matches!(prev_state, TileType::IntegratedOutput) {
+            //     Action::EntityInTheWay
+            // } else if self.underground_would_be_too_long(prev_state, position + 1) {
+            //     Action::TooLongToReach
+            // alternative: report too long to reach the moment it becomes too long, not after passing all obstacles
+            // } else {
+            //     Action::None
+            // }
+            // }
         }
     }
 
@@ -136,7 +139,7 @@ impl<'a> LineDrag<'a> {
             {
                 DragStep(
                     Action::PlaceBelt,
-                    Some(Error::TooFarToConnect),
+                    vec![Error::TooFarToConnect],
                     NormalState::BeltPlaced.into(),
                 )
             }
@@ -180,7 +183,7 @@ impl<'a> LineDrag<'a> {
             NormalState::IntegratedOutputUnderground => {
                 return DragStep(
                     Action::None,
-                    Some(Error::EntityInTheWay),
+                    vec![Error::EntityInTheWay],
                     NormalState::ErrorRecovery.into(),
                 );
             }
@@ -188,17 +191,27 @@ impl<'a> LineDrag<'a> {
         self.normal_result(Action::None, new_state)
     }
 
-    fn integrate_underground_pair(&self, output_pos: i32) -> DragStep {
-        self.normal_result(
-            Action::IntegrateUndergroundPair,
-            DragState::PassThrough { output_pos },
-        )
+    fn integrate_underground_pair(&self, output_pos: i32, upgrade_failure: bool) -> DragStep {
+        {
+            let action = Action::IntegrateUndergroundPair {
+                do_upgrade: !upgrade_failure,
+            };
+            let mut errors = self.deferred_error().into_iter().collect_vec();
+            if upgrade_failure {
+                errors.push(Error::CannotUpgradeUnderground);
+            }
+            DragStep(action, errors, DragState::PassThrough { output_pos })
+        }
     }
 
     /// Returns an result with no errors.
     /// However, if the last state has a deferred error, it will be returned here.
     fn normal_result(&self, action: Action, new_state: impl Into<DragState>) -> DragStep {
-        DragStep(action, self.deferred_error(), new_state.into())
+        DragStep(
+            action,
+            self.deferred_error().into_iter().collect(),
+            new_state.into(),
+        )
     }
 
     /// When traversing an impassable obstacle, we give an error only when you pass it.

@@ -1,7 +1,7 @@
 use crate::geometry::RelativeDirection;
 use crate::{
     Belt, BeltTier, Direction, Entity, Ray, TileHistory, TileHistoryView, UndergroundBelt, World,
-    WorldReader, not_yet_impl,
+    WorldReader,
 };
 
 /**
@@ -107,12 +107,33 @@ impl<'a> DragWorldView<'a> {
             })
     }
 
-    pub(crate) fn can_upgrade_underground(&self, _ug: &UndergroundBelt, _tier: BeltTier) -> bool {
-        not_yet_impl!("can_upgrade_underground");
+    pub(crate) fn can_upgrade_underground(
+        &self,
+        _ug: &UndergroundBelt,
+        ug_pos: i32,
+        pair_pos: i32,
+        tier: BeltTier,
+    ) -> bool {
+        let distance = pair_pos.abs_diff(ug_pos);
+        // Can't upgrade if if upgrading would make the pair too short
+        if distance > tier.underground_distance as u32 {
+            return false;
+        }
+        // can't upgrade if there's an intercepting belt in the middl
+        for in_btwn_pos in (ug_pos + 1)..pair_pos {
+            let world_pos = self.ray.get_position(in_btwn_pos);
+            if self
+                .world_reader
+                .get(world_pos)
+                .and_then(|e| e.as_underground_belt())
+                .is_some_and(|e| {
+                    e.tier == tier && e.direction.axis() == self.drag_direction().axis()
+                })
+            {
+                return false;
+            }
+        }
+
         true
     }
-
-    // pub fn can_upgrade_underground(&self, _ug: &UndergroundBelt, _new_tier: &BeltTier) -> bool {
-    //     todo!()
-    // }
 }

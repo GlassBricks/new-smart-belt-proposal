@@ -16,7 +16,7 @@ pub struct DragTestCase {
     pub after: World,
     pub start_pos: TilePosition,
     pub tier: BeltTier,
-    pub expected_error: Option<(TilePosition, action::Error)>,
+    pub expected_errors: Vec<(TilePosition, action::Error)>,
     pub skip: bool,
 }
 
@@ -31,13 +31,9 @@ pub fn check_test_case(test: &DragTestCase) -> anyhow::Result<()> {
 
     let expected_world = &test.after;
 
-    let expected_errors = test
-        .expected_error
-        .clone()
-        .map(|e| vec![e])
-        .unwrap_or_default();
+    let expected_errors = &test.expected_errors;
 
-    if result != *expected_world || actual_errors != expected_errors {
+    if result != *expected_world || actual_errors != *expected_errors {
         eprintln!(
             r#"
 Expected:
@@ -64,7 +60,7 @@ Got:
                     .collect::<Vec<TilePosition>>()
             )
         );
-        if actual_errors != expected_errors {
+        if actual_errors != *expected_errors {
             eprintln!(
                 r#"
 Expected errors:
@@ -111,7 +107,8 @@ struct TestCaseSerde {
     after: String,
     #[serde(default)]
     skip: bool,
-    expected_error: Option<action::Error>,
+    #[serde(default)]
+    expected_errors: Vec<action::Error>,
 }
 
 impl<'de> Deserialize<'de> for DragTestCase {
@@ -129,20 +126,18 @@ impl<'de> Deserialize<'de> for DragTestCase {
         let (after, after_markers) = parse_world(&serde_case.after)
             .map_err(|e| Error::custom(format!("Failed to parse 'after' entities: {}", e)))?;
 
-        let expected_error = if let Some(expected_error) = serde_case.expected_error {
-            if after_markers.len() != 1 {
-                return Err(Error::custom(
-                    "Expected exactly one marker for error location",
-                ));
-            }
-            let position = after_markers[0];
-            Some((position, expected_error))
-        } else {
-            if !after_markers.is_empty() {
-                return Err(Error::custom("Marker given, but no error expected"));
-            }
-            None
-        };
+        let serde_expected_errors = serde_case.expected_errors;
+
+        if after_markers.len() != serde_expected_errors.len() {
+            return Err(Error::custom(
+                "Expected number of markers to match number of expected errors",
+            ));
+        }
+
+        let expected_errors = after_markers
+            .into_iter()
+            .zip(serde_expected_errors)
+            .collect_vec();
 
         let start_pos = if !before_markers.is_empty() {
             if before_markers.len() > 1 {
@@ -177,7 +172,7 @@ impl<'de> Deserialize<'de> for DragTestCase {
             after,
             tier,
             start_pos,
-            expected_error,
+            expected_errors,
             skip,
         })
     }
@@ -244,7 +239,7 @@ pub fn parse_world(input: &str) -> Result<WorldParse> {
         let words = line.split_whitespace();
         for (x, mut word) in words.enumerate() {
             let pos = TilePosition::new(x as i32, y as i32);
-            if word.starts_with('*') {
+            while word.starts_with('*') {
                 markers.push(pos);
                 word = &word[1..];
             }

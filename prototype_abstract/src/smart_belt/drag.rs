@@ -3,7 +3,7 @@ use dyn_clone::clone_box;
 use super::{DragState, DragStep, DragWorldView, Error, NormalState};
 use crate::belts::BeltTier;
 use crate::smart_belt::Action;
-use crate::{Direction, TilePosition, Ray, TileHistory, World, WorldReader};
+use crate::{Direction, Ray, TileHistory, TilePosition, World, WorldReader};
 
 /**
  * Handles line dragging; includes mutable methods
@@ -87,7 +87,7 @@ impl<'a> LineDrag<'a> {
                 } else {
                     self.last_state.clone()
                 };
-                DragStep(Action::None, None, next_state)
+                DragStep(Action::None, vec![], next_state)
             }
         }
     }
@@ -104,7 +104,7 @@ impl<'a> LineDrag<'a> {
     fn apply_step(&mut self, step: DragStep) {
         let DragStep(action, error, next_state) = step;
         self.apply_action(action);
-        if let Some(error) = error {
+        for error in error {
             self.errors
                 .push((self.ray.get_position(self.next_position()), error));
         }

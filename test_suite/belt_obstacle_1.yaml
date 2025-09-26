@@ -45,7 +45,7 @@
   after: |
     _ _  d _
     r r r r r r r *r
-  expected_error: too_far_to_connect
+  expected_errors: [too_far_to_connect]
 
 - name: Backwards curved belt continuation, too long to check
   before: |
@@ -54,7 +54,7 @@
   after: |
     _ _ _ _ _ d
     r r r r r l *r
-  expected_error: curved_belt_in_the_way
+  expected_errors: [curved_belt_in_the_way]
 
 - name: 2 backwards curved belts
   before: |
@@ -107,7 +107,7 @@
     _ r u
   after: |
     r r u *r
-  expected_error: curved_belt_in_the_way
+  expected_errors: [curved_belt_in_the_way]
 
 - name: hovering over curved belt gives no error
   before: |

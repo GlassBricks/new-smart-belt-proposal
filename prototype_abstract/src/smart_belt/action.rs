@@ -17,7 +17,9 @@ pub(super) enum Action {
         previous_output_pos: i32,
         new_output_pos: i32,
     },
-    IntegrateUndergroundPair,
+    IntegrateUndergroundPair {
+        do_upgrade: bool,
+    },
     None,
     // errors
     // EntityInTheWay,
@@ -32,6 +34,7 @@ pub enum Error {
     TooFarToConnect,
     CurvedBeltInTheWay,
     EntityInTheWay,
+    CannotUpgradeUnderground,
 }
 
 impl<'a> LineDrag<'a> {
@@ -88,7 +91,9 @@ impl<'a> LineDrag<'a> {
                     self.tier,
                 );
             }
-            Action::IntegrateUndergroundPair => {
+            Action::IntegrateUndergroundPair {
+                do_upgrade: upgrade,
+            } => {
                 let ug = self
                     .world
                     .get(world_pos)
@@ -100,7 +105,7 @@ impl<'a> LineDrag<'a> {
                 if !is_input {
                     self.world.flip_ug(world_pos);
                 }
-                if tier != self.tier {
+                if upgrade && tier != self.tier {
                     self.world.upgrade_ug_checked(world_pos, self.tier);
                 }
             }

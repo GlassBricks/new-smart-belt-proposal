@@ -15,15 +15,16 @@ pub(super) enum TileType {
     Usable,
     /// An obstacle we want to underground over.
     Obstacle,
-    /// An existing paired underground belt we will pass-through.
-    PassThroughUnderground { output_pos: i32 },
     /// A curved belt we directly ran into, which is an impassable obstacle.
     ImpassableCurvedBelt,
     // An integrated splitter. Should not be replaced with underground belt.
     // IntegratedSplitter,
-    // An input underground we will "pass-through"
-    // An input underground belt that we can't use (as upgrading would break stuff).
-    // UnupgradableUnderground,
+    /// An existing paired underground belt we will pass-through.
+    PassThroughUnderground {
+        /// failure if we want to upgrade this underground but we can't.
+        upgrade_failure: bool,
+        output_pos: i32,
+    },
 }
 
 pub(super) struct TileClassifier<'a> {
@@ -140,12 +141,16 @@ impl<'a> TileClassifier<'a> {
     }
 
     fn try_integrate_underground(&self, ug: &UndergroundBelt, pair_pos: i32) -> TileType {
-        if self.tier != ug.tier && !self.world_view.can_upgrade_underground(ug, self.tier) {
-            todo!()
-        } else {
-            TileType::PassThroughUnderground {
-                output_pos: pair_pos,
-            }
+        let upgrade_failure = self.tier != ug.tier
+            && !self.world_view.can_upgrade_underground(
+                ug,
+                self.next_position(),
+                pair_pos,
+                self.tier,
+            );
+        TileType::PassThroughUnderground {
+            output_pos: pair_pos,
+            upgrade_failure,
         }
     }
 

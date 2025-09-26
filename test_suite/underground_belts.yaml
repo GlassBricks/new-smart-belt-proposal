@@ -18,19 +18,20 @@
   before: _ _ lo li r r
   after: r r ri ro r r
 
-- name: Upgrading existing underground
-  before: _ _ 2lo 2li r r
-  after: r r ri ro r r
-
 - name: Obstacle after underground is error
-  before: _ _ ri ro X X
-  after: r r ri ro *X X
-  expected_error: entity_in_the_way
+  before: _ ri ro X X
+  after: r ri ro *X X
+  expected_errors: [entity_in_the_way]
+
+- name: Error recovery
+  before: _ ri ro X X X X X X X X X X
+  after: r ri ro *X X X X X X X X X X r
+  expected_errors: [entity_in_the_way]
 
 - name: Curved belt after underground
   before: _ _ ri ro u r
   after: r r ri ro u *r
-  expected_error: curved_belt_in_the_way
+  expected_errors: [curved_belt_in_the_way]
 
 - name: Can flip belt after underground
   before: _ _ ri ro l r
@@ -43,3 +44,57 @@
 - name: running into the back of a paired underground is an obstacle
   before: 2ri *_ _ 2ro r
   after: 2ri r ri 2ro r ro r
+
+- name: Upgrading existing underground
+  before: _ _ 2lo 2li r r
+  after: r r ri ro r r
+
+- name: Cannot upgrade due to too making too short
+  before: _ 2lo _ _ _ _ _ 2li _
+  after: r *2ri _ _ _ _ _ 2ro r
+  expected_errors: [cannot_upgrade_underground]
+
+- name: Cannot upgrade due to intercepting underground 1
+  before: _ 2lo _ ro _ _ 2li _
+  after: r *2ri _ ro _ _ 2ro r
+  expected_errors: [cannot_upgrade_underground]
+
+- name: Cannot upgrade due to intercepting underground 2
+  before: _ 2lo _ ri _ _ 2li _
+  after: r *2ri _ ri _ _ 2ro r
+  expected_errors: [cannot_upgrade_underground]
+
+- name: Cannot upgrade due to intercepting underground 3
+  before: _ 2lo _ lo _ _ 2li _
+  after: r *2ri _ lo _ _ 2ro r
+  expected_errors: [cannot_upgrade_underground]
+
+- name: Cannot upgrade due to intercepting underground 4
+  before: _ 2lo _ li _ _ 2li _
+  after: r *2ri _ li _ _ 2ro r
+  expected_errors: [cannot_upgrade_underground]
+
+- name: Still can upgrade if another tier
+  before: _ 2lo _ 3li _ _ 2li _
+  after: r ri _ 3li _ _ ro r
+
+- name: Still can upgrade if wrong direction
+  before: _ 2lo _ ui _ _ 2li _
+  after: r ri _ ui _ _ ro r
+
+- name: Can upgrade underground after curved belt failure
+  before: _ r u 2ri _ 2ro
+  after: r r u *ri _ ro
+  expected_errors: [curved_belt_in_the_way]
+
+- name: Can upgrade underground after blocked output failure
+  before: _ ri ro X X X 2lo 2li
+  after: r ri ro *X X X ri ro r
+  expected_errors: [entity_in_the_way]
+
+- name: Can have multiple errors
+  before: _ r u 2ri ro 2ro
+  after: r r u **2ri ro 2ro
+  expected_errors:
+    - curved_belt_in_the_way
+    - cannot_upgrade_underground
