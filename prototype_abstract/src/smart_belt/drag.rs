@@ -52,15 +52,11 @@ impl<'a> LineDrag<'a> {
         }
     }
 
-    pub(super) fn next_position(&self) -> i32 {
-        self.last_position + 1
-    }
-
-    pub(crate) fn get_errors(self) -> Vec<(TilePosition, Error)> {
+    pub fn get_errors(self) -> Vec<(TilePosition, Error)> {
         self.errors
     }
 
-    pub(crate) fn get_tile_history(position: TilePosition, world: &World) -> TileHistory {
+    pub(super) fn get_tile_history(position: TilePosition, world: &World) -> TileHistory {
         let entity = world
             .get(position)
             .and_then(|e| e.as_belt_connectable_dyn())
@@ -68,16 +64,25 @@ impl<'a> LineDrag<'a> {
         (position, entity)
     }
 
-    pub(crate) fn record_tile_history(&mut self, position: i32) {
+    pub(super) fn record_tile_history(&mut self, position: i32) {
         let world_position = self.ray.get_position(position);
         self.tile_history = Some(Self::get_tile_history(world_position, self.world));
     }
 
+    pub(super) fn next_position(&self, is_forward: bool) -> i32 {
+        self.last_position + if is_forward { 1 } else { -1 }
+    }
+
     fn step(&mut self, is_forward: bool) -> DragStep {
+        eprintln!(
+            "STEP: forward: {}, pos: {:?}",
+            is_forward,
+            self.ray.get_position(self.next_position(is_forward))
+        );
         match &self.last_state {
             DragState::Normal(state) => self.normal_state_step(state, is_forward),
             &DragState::PassThrough { output_pos } => {
-                let next_state = if self.next_position() == output_pos {
+                let next_state = if self.next_position(is_forward) == output_pos {
                     NormalState::IntegratedOutput.into()
                 } else {
                     self.last_state.clone()
@@ -89,28 +94,28 @@ impl<'a> LineDrag<'a> {
 
     /// the only mutable functions are here!
     pub fn interpolate_to(&mut self, new_position: TilePosition) {
-        let dist = self.ray.ray_position(new_position);
-        while self.last_position < dist {
+        let target_pos = self.ray.ray_position(new_position);
+        while self.last_position < target_pos {
             let step = self.step(true);
-            self.apply_step(step);
+            self.apply_step(step, true);
         }
-        while self.last_position > dist {
+        while self.last_position > target_pos {
             let step = self.step(false);
-            self.apply_step(step);
+            self.apply_step(step, false);
         }
     }
 
-    fn apply_step(&mut self, step: DragStep) {
+    fn apply_step(&mut self, step: DragStep, is_forward: bool) {
         let DragStep(action, error, next_state) = step;
-        // dbg!(&action);
-        self.apply_action(action);
+        eprintln!("action: {:?}", action);
+        self.apply_action(action, is_forward);
         for error in error {
-            // dbg!(&error);
+            eprintln!("error: {:?}", error);
             self.errors
-                .push((self.ray.get_position(self.next_position()), error));
+                .push((self.ray.get_position(self.next_position(is_forward)), error));
         }
-        // dbg!(&next_state);
-        self.last_position += 1;
+        eprintln!("next_state: {:?}", next_state);
         self.last_state = next_state;
+        self.last_position = self.next_position(is_forward);
     }
 }

@@ -85,7 +85,7 @@ impl<'a> LineDrag<'a> {
 
         let classifier = TileClassifier::new(world_view, self.tier, last_state, self.last_position);
         match classifier.classify_next_tile() {
-            TileType::Usable => self.place_belt_or_underground(last_state),
+            TileType::Usable => self.place_belt_or_underground(last_state, is_forward),
             TileType::Obstacle => self.handle_obstacle(last_state),
             TileType::IntegratedSplitter => {
                 self.normal_result(Action::IntegrateSplitter, NormalState::IntegratedOutput)
@@ -101,7 +101,7 @@ impl<'a> LineDrag<'a> {
         }
     }
 
-    fn place_belt_or_underground(&self, last_state: &NormalState) -> DragStep {
+    fn place_belt_or_underground(&self, last_state: &NormalState, is_forward: bool) -> DragStep {
         match last_state {
             NormalState::BeltPlaced
             | NormalState::OutputUgPlaced { .. }
@@ -112,7 +112,8 @@ impl<'a> LineDrag<'a> {
             }
             NormalState::Traversing { input_pos, .. }
             | NormalState::TraversingAfterOutput { input_pos, .. }
-                if self.next_position() - input_pos > self.tier.underground_distance.into() =>
+                if self.next_position(is_forward) - input_pos
+                    > self.tier.underground_distance.into() =>
             {
                 DragStep(
                     Action::PlaceBelt,
@@ -123,7 +124,7 @@ impl<'a> LineDrag<'a> {
             &NormalState::Traversing { input_pos, .. } => self.normal_result(
                 Action::CreateUnderground {
                     input_pos,
-                    output_pos: self.next_position(),
+                    output_pos: self.next_position(is_forward),
                 },
                 NormalState::OutputUgPlaced { input_pos },
             ),
@@ -134,7 +135,7 @@ impl<'a> LineDrag<'a> {
             } => self.normal_result(
                 Action::ExtendUnderground {
                     previous_output_pos: output_pos,
-                    new_output_pos: self.next_position(),
+                    new_output_pos: self.next_position(is_forward),
                 },
                 NormalState::OutputUgPlaced { input_pos },
             ),

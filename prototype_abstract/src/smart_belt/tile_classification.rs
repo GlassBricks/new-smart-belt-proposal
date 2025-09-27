@@ -264,7 +264,7 @@ impl<'a> TileClassifier<'a> {
                         not_yet_impl!("Forwards absolute direction, backwards relative direction");
                         break;
                     }
-                    if self.world_view.belt_is_curved(position, belt) {
+                    if self.world_view.belt_was_curved(position, belt) {
                         return true;
                     }
                 }
@@ -354,7 +354,7 @@ impl<'a> TileClassifier<'a> {
         while let Some(entity) = get_entity(pos) {
             match entity {
                 BeltConnectableEnum::Belt(belt) => {
-                    if self.world_view.belt_is_curved(pos, belt) {
+                    if self.world_view.belt_was_curved(pos, belt) {
                         // curved belt: this segment is an obstacle if it's connected to this curved belt
                         return self.world_view.belt_directly_connects_to_next(pos - 1);
                     } else {

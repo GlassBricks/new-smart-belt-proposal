@@ -1,9 +1,11 @@
 use std::{any::Any, collections::HashMap, ops::DerefMut as _};
 
+use dyn_clone::clone_box;
 use euclid::vec2;
 
 use crate::{
-    BeltConnectable, BeltTier, BoundingBox, Direction, Entity, TilePosition, UndergroundBelt,
+    Belt, BeltConnectable, BeltTier, BoundingBox, Direction, Entity, LoaderLike, Splitter,
+    TilePosition, Transform, UndergroundBelt,
 };
 
 #[derive(Debug, Default, PartialEq, Clone)]
@@ -182,6 +184,10 @@ pub trait WorldReader {
         }
     }
 
+    fn belt_was_curved(&self, position: TilePosition, belt: &Belt) -> bool {
+        self.effective_input_direction(position, belt) != Some(belt.direction)
+    }
+
     fn effective_output_direction(&self, connectable: &dyn BeltConnectable) -> Option<Direction> {
         connectable.output_direction()
     }
@@ -221,6 +227,82 @@ impl<'a> WorldReader for TileHistoryView<'a> {
         } else {
             self.world.get(position)
         }
+    }
+}
+
+impl Transform {
+    pub fn transform_entity(&self, entity: &dyn crate::Entity) -> Box<dyn crate::Entity> {
+        if let Some(belt) = entity.as_belt() {
+            Belt::new(self.transform_direction(belt.direction), belt.tier)
+        } else if let Some(ug) = entity.as_underground_belt() {
+            UndergroundBelt::new(self.transform_direction(ug.direction), ug.is_input, ug.tier)
+        } else if let Some(splitter) = entity.as_splitter() {
+            Splitter::new(self.transform_direction(splitter.direction), splitter.tier)
+        } else if let Some(loader) = entity.as_loader_like() {
+            LoaderLike::new(
+                self.transform_direction(loader.direction),
+                loader.is_input,
+                loader.tier,
+            )
+        } else {
+            clone_box(entity)
+        }
+    }
+}
+
+pub fn flip_entity(entity: &dyn crate::Entity) -> Box<dyn crate::Entity> {
+    if let Some(belt) = entity.as_belt() {
+        Belt::new(belt.direction.opposite(), belt.tier)
+    } else if let Some(ug) = entity.as_underground_belt() {
+        UndergroundBelt::new(ug.direction.opposite(), !ug.is_input, ug.tier)
+    } else if let Some(splitter) = entity.as_splitter() {
+        Splitter::new(splitter.direction.opposite(), splitter.tier)
+    } else if let Some(loader) = entity.as_loader_like() {
+        LoaderLike::new(loader.direction.opposite(), loader.is_input, loader.tier)
+    } else {
+        clone_box(entity)
+    }
+}
+impl World {
+    pub fn transform_world(&self, transform: &Transform) -> Self {
+        let mut new_world = World::new();
+
+        for (&pos, entity) in &self.entities {
+            let new_pos = transform.transform_position(pos);
+            let new_entity = transform.transform_entity(entity.as_ref());
+            new_world.entities.insert(new_pos, new_entity);
+        }
+
+        new_world
+    }
+
+    fn flip_all_entities(&self) -> Self {
+        let mut new_world = World::new();
+
+        for (&pos, entity) in &self.entities {
+            let new_entity = flip_entity(entity.as_ref());
+            new_world.entities.insert(pos, new_entity);
+        }
+
+        new_world
+    }
+
+    pub fn flip_all_entities_checked(&self) -> anyhow::Result<Self> {
+        let result = self.flip_all_entities();
+        for (&pos, entity) in &self.entities {
+            let Some(this_belt) = entity.as_belt() else {
+                continue;
+            };
+            let new_belt = result.get(pos).unwrap().as_belt().unwrap();
+            anyhow::ensure!(
+                self.belt_was_curved(pos, this_belt) == result.belt_was_curved(pos, new_belt),
+                "Belt at position {:?}'s curvature ({:?}) did not match flipped belt's curvature ({:?})",
+                pos,
+                self.belt_was_curved(pos, this_belt),
+                result.belt_was_curved(pos, new_belt)
+            );
+        }
+        Ok(result)
     }
 }
 

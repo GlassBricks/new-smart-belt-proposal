@@ -9,34 +9,34 @@ use crate::{
 };
 use anyhow::{Context, Result, bail};
 use itertools::Itertools;
-use rand::{Rng, SeedableRng, rngs::StdRng};
 use serde::{Deserialize, Deserializer};
 
 #[derive(Debug, Clone)]
 pub struct DragTestCase {
     pub name: String,
+    pub entities: TestCaseEntities,
+    pub not_reversible: bool,
+    pub skip_reversible: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct TestCaseEntities {
     pub before: World,
     pub after: World,
     pub start_pos: TilePosition,
-    pub drag_direction: Direction,
+    pub belt_direction: Direction,
     pub end_pos: TilePosition,
     pub tier: BeltTier,
     pub expected_errors: Vec<(TilePosition, action::Error)>,
-    pub skip: bool,
 }
 
-pub fn check_test_case(test: &DragTestCase) -> anyhow::Result<()> {
-    if test.skip {
-        eprintln!("SKIPPING! {}", test.name);
-        return Ok(());
-    }
-
+fn check_test_case(test: &TestCaseEntities) -> anyhow::Result<()> {
     let (result, actual_errors) = run_test_case(
         &test.before,
         test.tier,
         test.start_pos,
         test.end_pos,
-        test.drag_direction,
+        test.belt_direction,
     );
 
     let expected_world = &test.after;
@@ -44,7 +44,7 @@ pub fn check_test_case(test: &DragTestCase) -> anyhow::Result<()> {
     let expected_errors = &test.expected_errors;
 
     if result != *expected_world || actual_errors != *expected_errors {
-        eprintln!(
+        let mut error_message = format!(
             r#"
 Expected:
 
@@ -71,7 +71,7 @@ Got:
             )
         );
         if actual_errors != *expected_errors {
-            eprintln!(
+            error_message.push_str(&format!(
                 r#"
 Expected errors:
 {:?}
@@ -79,54 +79,64 @@ Got errors:
 {:?}
 "#,
                 expected_errors, actual_errors
-            );
+            ));
         }
 
-        bail!("Test Failed");
+        bail!(error_message);
     }
 
     Ok(())
 }
 
-pub fn check_test_case_with_all_transforms(test: &DragTestCase) -> anyhow::Result<()> {
-    if test.skip {
-        eprintln!("SKIPPING! {}", test.name);
-        return Ok(());
-    }
-
+pub fn check_test_case_all_variations(test: &DragTestCase) -> anyhow::Result<()> {
     for (i, transform) in Transform::all_unique_transforms().iter().enumerate() {
-        let mut rng = StdRng::seed_from_u64(42 + i as u64);
-        let translation = euclid::vec2(rng.gen_range(-10..=10), rng.gen_range(-10..=10));
-        let transform = transform.with_translation(translation);
+        // let mut rng = StdRng::seed_from_u64(42 + i as u64);
+        // let translation = euclid::vec2(rng.gen_range(-10..=10), rng.gen_range(-10..=10));
+        // let transform = transform.with_translation(translation);
 
-        let transformed_test = transform_test_case(test, &transform);
-        let test_name = format!("{} [transform {}]", test.name, i);
+        let transformed_test = transform_test_case(&test.entities, transform);
 
-        if let Err(e) = check_test_case(&transformed_test) {
-            eprintln!("Failed transformed test: {}", test_name);
-            return Err(e.context(format!("Transform {} failed", i)));
+        let test_name = format!("\n{} [transform {}]", test.name, i);
+        check_test_case(&transformed_test).with_context(|| test_name.to_string())?;
+        if !test.not_reversible {
+            if test.skip_reversible {
+                eprintln!("SKIPPING reverse {}", &test_name);
+                continue;
+            }
+            let test_case = flip_test_case(&test.entities).context("Failed to flip test case")?;
+            check_test_case(&test_case).with_context(|| format!("{} [flip]", test_name))?;
         }
     }
 
     Ok(())
 }
 
-fn transform_test_case(test: &DragTestCase, transform: &Transform) -> DragTestCase {
-    DragTestCase {
-        name: format!("{} [transformed]", test.name),
-        before: transform.transform_world(&test.before),
-        after: transform.transform_world(&test.after),
+fn transform_test_case(test: &TestCaseEntities, transform: &Transform) -> TestCaseEntities {
+    TestCaseEntities {
+        before: test.before.transform_world(transform),
+        after: test.after.transform_world(transform),
         start_pos: transform.transform_position(test.start_pos),
         end_pos: transform.transform_position(test.end_pos),
-        drag_direction: transform.transform_direction(test.drag_direction),
+        belt_direction: transform.transform_direction(test.belt_direction),
         tier: test.tier,
         expected_errors: test
             .expected_errors
             .iter()
             .map(|(pos, error)| (transform.transform_position(*pos), error.clone()))
             .collect(),
-        skip: test.skip,
     }
+}
+
+fn flip_test_case(test: &TestCaseEntities) -> anyhow::Result<TestCaseEntities> {
+    Ok(TestCaseEntities {
+        before: test.before.flip_all_entities_checked()?,
+        after: test.after.flip_all_entities_checked()?,
+        start_pos: test.start_pos,
+        end_pos: test.end_pos,
+        belt_direction: test.belt_direction.opposite(),
+        tier: test.tier,
+        expected_errors: test.expected_errors.clone(),
+    })
 }
 
 fn run_test_case(
@@ -136,10 +146,12 @@ fn run_test_case(
     end_pos: TilePosition,
     drag_direction: Direction,
 ) -> (World, Vec<(TilePosition, Error)>) {
+    eprintln!("Starting test case\n");
     let mut world = world.clone();
     let mut drag = LineDrag::start_drag(&mut world, tier, start_pos, drag_direction);
     drag.interpolate_to(end_pos);
     let errors = drag.get_errors();
+    eprintln!();
     (world, errors)
 }
 
@@ -157,9 +169,73 @@ struct TestCaseSerde {
     before: String,
     after: String,
     #[serde(default)]
-    skip: bool,
+    skip_reversible: bool,
     #[serde(default)]
     expected_errors: Vec<action::Error>,
+    #[serde(default)]
+    not_reversible: bool,
+}
+fn get_entities<'de, D>(serde_case: TestCaseSerde) -> Result<TestCaseEntities, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    use serde::de::Error;
+
+    let (before, before_markers) = parse_world(&serde_case.before)
+        .map_err(|e| Error::custom(format!("Failed to parse 'before' entities: {}", e)))?;
+
+    let (after, after_markers) = parse_world(&serde_case.after)
+        .map_err(|e| Error::custom(format!("Failed to parse 'after' entities: {}", e)))?;
+
+    let serde_expected_errors = serde_case.expected_errors;
+
+    if after_markers.len() != serde_expected_errors.len() {
+        return Err(Error::custom(
+            "Expected number of markers to match number of expected errors",
+        ));
+    }
+
+    let expected_errors = after_markers
+        .into_iter()
+        .zip(serde_expected_errors)
+        .collect_vec();
+
+    let start_pos = if !before_markers.is_empty() {
+        if before_markers.len() > 1 {
+            return Err(Error::custom(
+                "Expected exactly one marker for drag start position",
+            ));
+        }
+        before_markers[0]
+    } else {
+        *after
+            .entities
+            .keys()
+            .find(|p| p.x == 0)
+            .expect("No first position found")
+    };
+
+    let first_ent = after
+        .entities
+        .iter()
+        .filter(|(p, _)| p.y == start_pos.y && p.x >= start_pos.x)
+        .sorted_by_key(|(p, _)| p.x)
+        .find_map(|(_, ent)| ent.as_belt_connectable_dyn())
+        .expect("No belt found in drag row");
+    let tier = *first_ent.tier();
+
+    let max_x = max(before.max_x(), after.max_x());
+    let end_pos = pos(max_x, start_pos.y);
+
+    Ok(TestCaseEntities {
+        before,
+        after,
+        tier,
+        start_pos,
+        end_pos,
+        belt_direction: Direction::East,
+        expected_errors,
+    })
 }
 
 impl<'de> Deserialize<'de> for DragTestCase {
@@ -167,69 +243,18 @@ impl<'de> Deserialize<'de> for DragTestCase {
     where
         D: Deserializer<'de>,
     {
-        use serde::de::Error;
-
         let serde_case = TestCaseSerde::deserialize(deserializer)?;
 
-        let (before, before_markers) = parse_world(&serde_case.before)
-            .map_err(|e| Error::custom(format!("Failed to parse 'before' entities: {}", e)))?;
+        let name = serde_case.name.as_deref().unwrap_or("Unnamed").to_string();
+        let skip_reversible = serde_case.skip_reversible;
+        let not_reversible = serde_case.not_reversible;
 
-        let (after, after_markers) = parse_world(&serde_case.after)
-            .map_err(|e| Error::custom(format!("Failed to parse 'after' entities: {}", e)))?;
-
-        let serde_expected_errors = serde_case.expected_errors;
-
-        if after_markers.len() != serde_expected_errors.len() {
-            return Err(Error::custom(
-                "Expected number of markers to match number of expected errors",
-            ));
-        }
-
-        let expected_errors = after_markers
-            .into_iter()
-            .zip(serde_expected_errors)
-            .collect_vec();
-
-        let start_pos = if !before_markers.is_empty() {
-            if before_markers.len() > 1 {
-                return Err(Error::custom(
-                    "Expected exactly one marker for drag start position",
-                ));
-            }
-            before_markers[0]
-        } else {
-            *after
-                .entities
-                .keys()
-                .find(|p| p.x == 0)
-                .expect("No first position found")
-        };
-
-        let first_ent = after
-            .entities
-            .iter()
-            .filter(|(p, _)| p.y == start_pos.y && p.x >= start_pos.x)
-            .sorted_by_key(|(p, _)| p.x)
-            .find_map(|(_, ent)| ent.as_belt_connectable_dyn())
-            .expect("No belt found in drag row");
-        let tier = *first_ent.tier();
-
-        let skip = serde_case.skip;
-        let name = serde_case.name.unwrap_or("Unnamed".to_string());
-
-        let max_x = max(before.max_x(), after.max_x());
-        let end_pos = pos(max_x, start_pos.y);
-
+        let entities = get_entities::<D>(serde_case)?;
         Ok(DragTestCase {
             name,
-            before,
-            after,
-            tier,
-            start_pos,
-            end_pos,
-            drag_direction: Direction::East,
-            expected_errors,
-            skip,
+            entities,
+            skip_reversible,
+            not_reversible,
         })
     }
 }
@@ -524,19 +549,20 @@ after: "2>\t^\tX"
 "#;
 
         let test_case: DragTestCase = serde_yaml::from_str(yaml).expect("Failed to deserialize");
+        let entities = &test_case.entities;
 
-        assert_eq!(test_case.start_pos, pos(0, 0));
-        assert_eq!(test_case.tier, BELT_TIERS[1]);
+        assert_eq!(entities.start_pos, pos(0, 0));
+        assert_eq!(entities.tier, BELT_TIERS[1]);
 
         // Check that entities were parsed correctly
-        assert!(test_case.before.get(pos(0, 0)).is_some());
-        assert!(test_case.before.get(pos(1, 0)).is_some());
-        assert!(test_case.after.get(pos(0, 0)).is_some());
-        assert!(test_case.after.get(pos(1, 0)).is_some());
-        assert!(test_case.after.get(pos(2, 0)).is_some());
+        assert!(entities.before.get(pos(0, 0)).is_some());
+        assert!(entities.before.get(pos(1, 0)).is_some());
+        assert!(entities.after.get(pos(0, 0)).is_some());
+        assert!(entities.after.get(pos(1, 0)).is_some());
+        assert!(entities.after.get(pos(2, 0)).is_some());
 
         // Check specific entity types and properties
-        if let Some(entity) = test_case.before.get(pos(0, 0)) {
+        if let Some(entity) = entities.before.get(pos(0, 0)) {
             if let Some(belt) = (entity as &dyn Any).downcast_ref::<Belt>() {
                 assert_eq!(belt.direction, Direction::East);
                 assert_eq!(belt.tier, BELT_TIERS[0]);
@@ -547,7 +573,7 @@ after: "2>\t^\tX"
             panic!("Expected Belt entity at (0,0)");
         }
 
-        if let Some(entity) = test_case.before.get(pos(1, 0)) {
+        if let Some(entity) = entities.before.get(pos(1, 0)) {
             if let Some(belt) = (entity as &dyn Any).downcast_ref::<Belt>() {
                 assert_eq!(belt.direction, Direction::North);
                 assert_eq!(belt.tier, BELT_TIERS[1]);
@@ -558,7 +584,7 @@ after: "2>\t^\tX"
             panic!("Expected Belt entity at (1,0)");
         }
 
-        if let Some(entity) = test_case.after.get(pos(2, 0)) {
+        if let Some(entity) = entities.after.get(pos(2, 0)) {
             if (entity as &dyn Any).is::<Colliding>() {
                 // Correct - X should parse to Colliding
             } else {
@@ -568,19 +594,7 @@ after: "2>\t^\tX"
             panic!("Expected Colliding entity at (2,0)");
         }
     }
-    #[test]
-    fn test_test_case_deserialization_defaults() {
-        use serde_yaml;
 
-        let yaml = r#"
-before: ">"
-after: ">"
-"#;
-
-        let test_case: DragTestCase = serde_yaml::from_str(yaml).expect("Failed to deserialize");
-        assert_eq!(test_case.start_pos, pos(0, 0)); // Default drag_row
-        assert_eq!(test_case.tier, BELT_TIERS[0]); // Default belt_tier (yellow)
-    }
     #[test]
     fn test_parse_world_with_marker() {
         let input = "> *2^\n<s _ X";

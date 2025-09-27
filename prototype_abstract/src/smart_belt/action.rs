@@ -35,8 +35,8 @@ pub enum Error {
 }
 
 impl<'a> LineDrag<'a> {
-    pub(super) fn apply_action(&mut self, action: Action) {
-        let position = self.next_position();
+    pub(super) fn apply_action(&mut self, action: Action, is_forward: bool) {
+        let position = self.next_position(is_forward);
         let world_pos = self.ray.get_position(position);
         match action {
             Action::None => {}

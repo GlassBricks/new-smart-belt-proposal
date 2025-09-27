@@ -296,43 +296,6 @@ pub trait PositionIteratorExt: Iterator<Item = TilePosition> + Sized {
 
 impl<T: Iterator<Item = TilePosition>> PositionIteratorExt for T {}
 
-impl Transform {
-    pub fn transform_world(&self, world: &crate::World) -> crate::World {
-        use crate::World;
-        let mut new_world = World::new();
-
-        for (&pos, entity) in &world.entities {
-            let new_pos = self.transform_position(pos);
-            let new_entity = self.transform_entity(entity.as_ref());
-            new_world.entities.insert(new_pos, new_entity);
-        }
-
-        new_world
-    }
-
-    pub fn transform_entity(&self, entity: &dyn crate::Entity) -> Box<dyn crate::Entity> {
-        use crate::{Belt, Colliding, Impassable, LoaderLike, Splitter, UndergroundBelt};
-
-        if let Some(belt) = entity.as_belt() {
-            Belt::new(self.transform_direction(belt.direction), belt.tier)
-        } else if let Some(ug) = entity.as_underground_belt() {
-            UndergroundBelt::new(self.transform_direction(ug.direction), ug.is_input, ug.tier)
-        } else if let Some(splitter) = entity.as_splitter() {
-            Splitter::new(self.transform_direction(splitter.direction), splitter.tier)
-        } else if let Some(loader) = entity.as_loader_like() {
-            LoaderLike::new(
-                self.transform_direction(loader.direction),
-                loader.is_input,
-                loader.tier,
-            )
-        } else if entity.as_colliding().is_some() {
-            Colliding::new()
-        } else {
-            Impassable::new()
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -573,7 +536,7 @@ mod tests {
 
         let transform =
             Transform::rotation(RelativeDirection::Right).with_translation(euclid::vec2(10, 20));
-        let transformed_world = transform.transform_world(&world);
+        let transformed_world = world.transform_world(&transform);
 
         assert_eq!(transformed_world.entities.len(), 2);
 

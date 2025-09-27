@@ -52,12 +52,7 @@ impl<'a> DragWorldView<'a> {
 
     pub fn belt_was_curved(&self, position: i32, belt: &Belt) -> bool {
         let position = self.ray.get_position(position);
-        self.world_reader.effective_input_direction(position, belt) != Some(belt.direction)
-    }
-
-    pub fn belt_is_curved(&self, position: i32, belt: &Belt) -> bool {
-        let position = self.ray.get_position(position);
-        self.world_reader.effective_input_direction(position, belt) != Some(belt.direction)
+        self.world_reader.belt_was_curved(position, belt)
     }
 
     pub fn belt_directly_connects_to_next(&self, last_pos: i32) -> bool {
