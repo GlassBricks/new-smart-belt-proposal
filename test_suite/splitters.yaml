@@ -1,53 +1,73 @@
 - name: Can integrate a splitter
-  before: _   >s   _
-  after: ">   >s   >"
+  before: _ >s _
+  after: "> >s >"
 
 - name: Can integrate multiple splitters
-  before: _   >s   >s
-  after: ">   >s   >s   >"
+  before: _ >s >s
+  after: "> >s >s >"
 
 - name: Other direction splitter is obstacle
-  before: _   <s   _   ^s   _   _   vs   _
-  after: ">i  <s   _   ^s   >o  >i  vs   >o  >"
+  before: _ <s _ ^s _ _ vs _
+  after: ">i <s _ ^s >o >i vs >o >"
 
 - name: Splitter with blocked entrance is not integrated
-  before: _   ^   >s
-  after: ">i  ^   >s  >o"
+  before: _ X >s
+  after: ">i X >s >o"
 
 - name: Splitter with blocked entrance makes following belt segment unintegrated
-  before: _   ^   >s  >
-  after: ">i  ^   >s  >   >o"
+  before: _ X >s >
+  after: ">i X >s > >o"
 
 - name: Backwards belt connected to splitter results in obstacle
-  before: _   <   <s   _
-  after: ">i  <   <s   >o"
+  before: _ < <s _
+  after: ">i < <s >o"
 
 - name: Cannot use splitter as underground output location
-  before: _   X   X   X   >s   >   _
-  after: ">   X   X   X   >s   >   *>  "
+  before: _ X X X >s > _
+  after: "> X X X >s > *> "
   expected_errors: [too_far_to_connect]
 
 - name: Can upgrade a splitter
-  before: _   2>s  _
-  after: ">   >s   >"
+  before: _ 2>s _
+  after: "> >s >"
 
 - name: Splitter with belt curved belt after it is not integrated
-  before: _   >s   >   2>   ^
-  after: ">i  >s   >   2>   ^   >o"
+  before: |
+    _  _ _ _  ^
+    _ >s > 2> ^
+  after: |
+    _ _ _ _ ^
+    >i >s > 2> ^ >o
 
 - name: Splitter with belt curved belt after is integrated if too long to check
-  before: _   2>s  2>  2>  2>  2>  >   >   ^
-  after: ">   >s   >   >   >   >   >   >   ^"
+  before: |
+    _  _  _  _  _  _  _ _ ^
+    _ 2>s 2> 2> 2> 2> > > ^
+  after: |
+    _ _  _ _ _ _ _ _ ^
+    > >s > > > > > > ^
 
 - name: Double splitter with belt curved after it is not integrated
-  before: _   >s   >s   >   ^
-  after: ">i  >s   >s   >   ^   >o"
+  before: |
+    _ _  _  _ ^
+    _ >s >s > ^
+  after: |
+    _ _  _  _ ^
+    >i >s >s > ^ >o
 
-- name: Splitter with belt curved belt after, but also curved belt before, is integrated
-  before: _   >   >s   >   2>   ^
-  after: ">   >   >s   >    >   ^  *>"
+- name: Splitter with belt curved belt after, but belt input is still integrated
+  before: |
+    _ _ _  _  _ ^
+    _ > >s > 2> ^
+  after: |
+    _ _ _  _ _ ^
+    > > >s > > ^ *>
   expected_errors: [cannot_traverse_past_entity]
 
 - name: Splitter with ug belt after it is still integrated if can belt weave
-  before: _   >s   >i   >o   ^
-  after: "2>i >s   >i   >o   ^   2>o"
+  before: |
+    _  _  _  _ ^
+    _ >s >i >o ^
+  after: |
+    _   _  _  _  ^
+    2>i >s >i >o ^ 2>o

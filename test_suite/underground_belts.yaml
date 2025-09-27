@@ -11,8 +11,12 @@
   after: "> >i X X >o >"
 
 - name: Passing through existing underground
-  before: "_ _ >i X ^ > X >o _"
-  after: "> > >i X ^ > X >o >"
+  before: |
+    _ _ _ _  ^
+    _ _ >i X ^ > X >o _
+  after: |
+    _ _ _ _  ^
+    > > >i X ^ > X >o >
 
 - name: Flipping existing underground
   before: "_ _ <o <i > >"
@@ -29,8 +33,12 @@
   expected_errors: [entity_in_the_way]
 
 - name: Curved belt after underground
-  before: "_ _ >i >o ^ >"
-  after: "> > >i >o ^ *>"
+  before: |
+    _ _ _ _   ^
+    _ _ >i >o ^
+  after: |
+    _ _ _ _   ^
+    > > >i >o ^ *>
   expected_errors: [cannot_traverse_past_entity]
 
 - name: Can flip belt after underground
@@ -83,19 +91,39 @@
   after: "> >i _ ^i _ _ >o >"
 
 - name: Can upgrade underground after curved belt failure
-  before: "_ > ^ 2>i _ 2>o"
-  after: "> > ^ *>i _ >o"
+  before: |
+    _ _ ^
+    _ > ^ 2>i _ 2>o
+  after: |
+    _ _ ^
+    > > ^ *>i _ >o
   expected_errors: [cannot_traverse_past_entity]
+  not_reversible: true
+
+- name: Can upgrade underground after curved belt reverse
+  before: |
+    _ _ v
+    _ < < 2>i _ 2>o
+  after: |
+    _ _ v
+    < < < *<o _ <i
+  expected_errors: [cannot_traverse_past_entity]
+  not_reversible: true
 
 - name: Can upgrade underground after blocked output failure
   before: "_ >i >o X X X 2<o 2<i"
   after: "> >i >o *X X X >i >o >"
   expected_errors: [entity_in_the_way]
 
-- name: Can have multiple errors
-  before: "_ > ^ 2>i >o 2>o"
-  after: "> > ^ **2>i >o 2>o"
+- name: Can have multiple errors, forward
+  before: |
+    _ _ ^
+    _ > ^ 2>i >o 2>o
+  after: |
+    _ _ ^
+    > > ^ **2>i >o 2>o
   expected_errors: [cannot_traverse_past_entity, cannot_upgrade_underground]
+  not_reversible: true
 
 - name: unenterable underground of different tier is obstacle
   before: "_ X 2>i _ _ 2>o"
@@ -114,9 +142,4 @@
 - name: backwards paired underground of same tier is impassable, and doesn't override later belt
   before: "<o *_ <i < <"
   after: "<o > *<i < < >"
-  expected_errors: [entity_in_the_way]
-
-- name: Obstacle after underground is error
-  before: "_ >i >o X X"
-  after: "> >i >o *X X"
   expected_errors: [entity_in_the_way]

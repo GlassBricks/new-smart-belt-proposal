@@ -17,7 +17,6 @@ pub struct DragTestCase {
     pub entities: TestCaseEntities,
     pub after_for_reverse: Option<World>,
     pub not_reversible: bool,
-    pub skip_reversible: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -114,7 +113,7 @@ pub fn check_test_case_normal(test: &DragTestCase) -> Result<()> {
 }
 
 pub fn check_test_case_reverse(test: &DragTestCase) -> Result<()> {
-    if test.not_reversible || test.skip_reversible {
+    if test.not_reversible {
         eprintln!("Skipping, not reversible");
         return Ok(());
     }
@@ -213,8 +212,6 @@ struct TestCaseSerde {
     after: String,
     after_for_reverse: Option<String>,
     #[serde(default)]
-    skip_reversible: bool,
-    #[serde(default)]
     expected_errors: Vec<action::Error>,
     #[serde(default)]
     not_reversible: bool,
@@ -261,6 +258,7 @@ fn get_entities(serde_case: &TestCaseSerde) -> Result<TestCaseEntities, String> 
 
     let max_x = max(before.max_x(), after.max_x());
     let end_pos = pos(max_x, start_pos.y);
+    let direction = first_ent.direction();
 
     Ok(TestCaseEntities {
         before,
@@ -268,7 +266,7 @@ fn get_entities(serde_case: &TestCaseSerde) -> Result<TestCaseEntities, String> 
         tier,
         start_pos,
         end_pos,
-        belt_direction: Direction::East,
+        belt_direction: direction,
         expected_errors,
     })
 }
@@ -281,7 +279,6 @@ impl<'de> Deserialize<'de> for DragTestCase {
         let serde_case = TestCaseSerde::deserialize(deserializer)?;
 
         let name = serde_case.name.as_deref().unwrap_or("Unnamed").to_string();
-        let skip_reversible = serde_case.skip_reversible;
         let not_reversible = serde_case.not_reversible;
 
         let entities = get_entities(&serde_case).map_err(serde::de::Error::custom)?;
@@ -298,7 +295,6 @@ impl<'de> Deserialize<'de> for DragTestCase {
             name,
             entities,
             after_for_reverse,
-            skip_reversible,
             not_reversible,
         })
     }

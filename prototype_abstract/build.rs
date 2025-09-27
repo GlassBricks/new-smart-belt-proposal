@@ -53,7 +53,7 @@ fn main() {
                             }
                             acc
                         });
-                format!("{:03}_{}", i + 1, sanitized_name.trim_end_matches('_'))
+                sanitized_name.trim_end_matches('_').to_string()
             } else {
                 format!("{:03}", i + 1)
             };

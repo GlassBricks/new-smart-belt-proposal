@@ -8,12 +8,12 @@
   after: "> # *>"
   expected_errors: [cannot_traverse_past_tile]
 
-- name: Can't traverse past impasable tile2
+- name: Can't traverse past impasable tile 2
   before: "_ X # _"
   after: "> X # *>"
   expected_errors: [cannot_traverse_past_tile]
 
-- name: Can't traverse past impasable tile2
+- name: Can't traverse past impasable tile 3
   before: "_ # X # _"
   after: "> # *X # >"
   expected_errors: [cannot_traverse_past_tile]

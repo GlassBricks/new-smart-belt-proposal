@@ -1,7 +1,6 @@
 use crate::geometry::RelativeDirection;
 use crate::{
-    Belt, BeltTier, Direction, Entity, Ray, TileHistory, TileHistoryView, UndergroundBelt, World,
-    WorldReader,
+    Belt, Direction, Entity, Ray, TileHistory, TileHistoryView, UndergroundBelt, World, WorldReader,
 };
 
 /**
@@ -30,10 +29,6 @@ impl<'a> DragWorldView<'a> {
         }
     }
 
-    pub fn relative_direction(&self, direction: Direction) -> RelativeDirection {
-        self.belt_direction().direction_to(direction)
-    }
-
     pub fn belt_direction(&self) -> Direction {
         self.ray.direction
     }
@@ -45,7 +40,14 @@ impl<'a> DragWorldView<'a> {
         }
     }
 
-    pub fn reverse_multiplier(&self) -> i32 {
+    pub fn belt_relative_direction(&self, direction: Direction) -> RelativeDirection {
+        self.belt_direction().direction_to(direction)
+    }
+    pub fn drag_relative_direction(&self, direction: Direction) -> RelativeDirection {
+        self.drag_direction().direction_to(direction)
+    }
+
+    pub fn direction_multiplier(&self) -> i32 {
         if self.is_forward { 1 } else { -1 }
     }
 
@@ -126,35 +128,5 @@ impl<'a> DragWorldView<'a> {
                 let other_ray_pos = self.ray.ray_position(other_pos);
                 (other_ray_pos, other)
             })
-    }
-
-    pub(crate) fn can_upgrade_underground(
-        &self,
-        _ug: &UndergroundBelt,
-        ug_pos: i32,
-        pair_pos: i32,
-        tier: BeltTier,
-    ) -> bool {
-        let distance = pair_pos.abs_diff(ug_pos);
-        // Can't upgrade if if upgrading would make the pair too short
-        if distance > tier.underground_distance as u32 {
-            return false;
-        }
-        // can't upgrade if there's an intercepting belt in the middle
-        for in_btwn_pos in (ug_pos + 1)..pair_pos {
-            let world_pos = self.ray.get_position(in_btwn_pos);
-            if self
-                .world_reader
-                .get(world_pos)
-                .and_then(|e| e.as_underground_belt())
-                .is_some_and(|e| {
-                    e.tier == tier && e.direction.axis() == self.belt_direction().axis()
-                })
-            {
-                return false;
-            }
-        }
-
-        true
     }
 }

@@ -150,9 +150,9 @@
     _ _ _  _  v
     2>i < <o <i < 2>o
 
-- name: Integrating backwards belt segment without curve
-  before: _  < <o <i <
-  after: 2> 2> 2>i 2>o 2>
+- name: Integrating backwards belt segment
+  before: _ <o <i <
+  after: 2> 2>i 2>o 2>
 
 - name: If can't belt weave, is error
   before: |
