@@ -20,32 +20,8 @@
         devShells.default = pkgs.mkShell rec {
           nativeBuildInputs = [pkgs.pkg-config];
           buildInputs = with pkgs; [
-            stdenv.cc.cc.lib
             clang
-            libGL
-            libGLU
-            mesa
-            xorg.libX11
-            xorg.libXi
-            xorg.libXcursor
-            xorg.libXrandr
-            xorg.libXinerama
-            xorg.libXxf86vm
-            xorg.libXext
-            llvmPackages.bintools
             rustup
-            SDL2
-            SDL2_image
-            SDL2_mixer
-            SDL2_ttf
-            freetype
-            python3Packages.pygame-gui
-            python3Packages.pygame
-            (python3Full.withPackages (ps: with ps; [
-              setuptools
-              numpy
-              pygame
-            ]))
           ];
           RUSTC_VERSION = overrides.toolchain.channel;
 
@@ -55,9 +31,6 @@
           shellHook = ''
             export PATH=$PATH:''${CARGO_HOME:-~/.cargo}/bin
             export PATH=$PATH:''${RUSTUP_HOME:-~/.rustup}/toolchains/$RUSTC_VERSION-x86_64-unknown-linux-gnu/bin/
-            if [ -f .venv/bin/activate ]; then
-              source .venv/bin/activate
-            fi
           '';
 
           # Add precompiled library to rustc search path
