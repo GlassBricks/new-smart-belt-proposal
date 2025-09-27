@@ -1,6 +1,5 @@
 use std::any::Any;
 
-use crate::BeltConnectable;
 use crate::Impassable;
 use crate::RelativeDirection::*;
 use crate::belts::BeltTier;
@@ -61,16 +60,12 @@ impl<'a> TileClassifier<'a> {
         }
     }
 
-    fn is_forward(&self) -> bool {
-        self.world_view.is_forward
+    fn next_position(&self) -> i32 {
+        self.last_position + self.world_view.reverse_multiplier()
     }
 
-    fn next_position(&self) -> i32 {
-        if self.is_forward() {
-            self.last_position + 1
-        } else {
-            self.last_position - 1
-        }
+    fn is_forward(&self) -> bool {
+        self.world_view.is_forward
     }
 
     /// most things are simple to classify. The tricky cases are in existing belt-like-entities.
@@ -243,14 +238,16 @@ impl<'a> TileClassifier<'a> {
             // if we can't underground over it, default to including, it even if we may error.
             return false;
         };
-        let backwards_dir = self.world_view.belt_direction().opposite();
+        let belt_backwards = self.world_view.belt_direction().opposite();
+        let drag_backwards = self.world_view.drag_direction().opposite();
+        let rev_multiplier = self.world_view.reverse_multiplier();
 
         // iterate over belt segment, check for bad entities.
         // Only check up to _before_ the max underground position, to avoid long-distance
         // dependencies. If there is a bad entity _past_ the max underground position, we
         // can't underground over this anyways; so we just pick one error.
         let mut position = self.next_position();
-        while position < max_underground_position {
+        while position * rev_multiplier < max_underground_position * rev_multiplier {
             let Some(belt_connectable) = self
                 .world_view
                 .get_entity_at_position(position)
@@ -260,8 +257,8 @@ impl<'a> TileClassifier<'a> {
             };
             match belt_connectable {
                 BeltConnectableEnum::Belt(belt) => {
-                    if belt.direction != backwards_dir {
-                        not_yet_impl!("Forwards absolute direction, backwards relative direction");
+                    if self.world_view.directional_output_position(position, belt) != belt_backwards
+                    {
                         break;
                     }
                     if self.world_view.belt_was_curved(position, belt) {
@@ -269,7 +266,7 @@ impl<'a> TileClassifier<'a> {
                     }
                 }
                 BeltConnectableEnum::UndergroundBelt(ug) => {
-                    if ug.shape_direction() != backwards_dir || !ug.has_output() {
+                    if ug.shape_direction() != drag_backwards || ug.is_input == self.is_forward() {
                         // not part of belt segment
                         break;
                     }
@@ -287,14 +284,14 @@ impl<'a> TileClassifier<'a> {
                 BeltConnectableEnum::Splitter(splitter) => {
                     // if the splitter is backwards, it connects to this belt segment, and makes
                     // the whole thing an obstacle
-                    return splitter.direction == backwards_dir;
+                    return splitter.direction == belt_backwards;
                 }
                 BeltConnectableEnum::LoaderLike(_) => {
                     // end of belt segment
                     break;
                 }
             }
-            position += 1;
+            position += rev_multiplier;
         }
         // default: integrate this belt segment
         false
@@ -327,11 +324,12 @@ impl<'a> TileClassifier<'a> {
         let Some(max_underground_position) = self.max_underground_position() else {
             return false;
         };
+        let rev_multiplier = self.world_view.reverse_multiplier();
         let belt_direction = self.world_view.belt_direction();
 
         let mut pos = self.next_position();
         let get_entity = |pos| {
-            if pos >= max_underground_position {
+            if pos * rev_multiplier >= max_underground_position * rev_multiplier {
                 return None;
             }
             self.world_view
@@ -347,7 +345,7 @@ impl<'a> TileClassifier<'a> {
                 if *direction == belt_direction,
             )
         {
-            pos += 1;
+            pos += rev_multiplier;
         }
 
         // Process remaining belt segment
@@ -356,7 +354,9 @@ impl<'a> TileClassifier<'a> {
                 BeltConnectableEnum::Belt(belt) => {
                     if self.world_view.belt_was_curved(pos, belt) {
                         // curved belt: this segment is an obstacle if it's connected to this curved belt
-                        return self.world_view.belt_directly_connects_to_next(pos - 1);
+                        return self
+                            .world_view
+                            .belt_directly_connects_to_next(pos - rev_multiplier);
                     } else {
                         // straight belt
                         if belt.direction != self.world_view.belt_direction() {
@@ -391,7 +391,7 @@ impl<'a> TileClassifier<'a> {
                     break;
                 }
             }
-            pos += 1;
+            pos += self.world_view.reverse_multiplier();
         }
         false
     }
@@ -404,11 +404,7 @@ impl<'a> TileClassifier<'a> {
             | NormalState::TraversingAfterOutput { input_pos, .. } => Some(*input_pos),
             _ => None,
         };
-        let diff = if self.world_view.is_forward {
-            self.tier.underground_distance as i32
-        } else {
-            -(self.tier.underground_distance as i32)
-        };
+        let diff = (self.tier.underground_distance as i32) * self.world_view.reverse_multiplier();
         input_pos.map(|f| f + diff)
     }
 }

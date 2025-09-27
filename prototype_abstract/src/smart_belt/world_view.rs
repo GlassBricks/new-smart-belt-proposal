@@ -31,7 +31,7 @@ impl<'a> DragWorldView<'a> {
     }
 
     pub fn relative_direction(&self, direction: Direction) -> RelativeDirection {
-        self.drag_direction().direction_to(direction)
+        self.belt_direction().direction_to(direction)
     }
 
     pub fn belt_direction(&self) -> Direction {
@@ -45,6 +45,10 @@ impl<'a> DragWorldView<'a> {
         }
     }
 
+    pub fn reverse_multiplier(&self) -> i32 {
+        if self.is_forward { 1 } else { -1 }
+    }
+
     // World interaction methods - stubbed for implementation
     pub fn get_entity_at_position(&self, position: i32) -> Option<&dyn Entity> {
         self.world_reader.get(self.ray.get_position(position))
@@ -53,6 +57,16 @@ impl<'a> DragWorldView<'a> {
     pub fn belt_was_curved(&self, position: i32, belt: &Belt) -> bool {
         let position = self.ray.get_position(position);
         self.world_reader.belt_was_curved(position, belt)
+    }
+
+    pub fn directional_output_position(&self, position: i32, belt: &Belt) -> Direction {
+        if self.is_forward {
+            belt.direction
+        } else {
+            let position = self.ray.get_position(position);
+            self.world_reader
+                .belt_input_direction(position, belt.direction)
+        }
     }
 
     pub fn belt_directly_connects_to_next(&self, last_pos: i32) -> bool {

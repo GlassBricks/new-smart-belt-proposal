@@ -15,6 +15,7 @@ use serde::{Deserialize, Deserializer};
 pub struct DragTestCase {
     pub name: String,
     pub entities: TestCaseEntities,
+    pub after_for_reverse: Option<World>,
     pub not_reversible: bool,
     pub skip_reversible: bool,
 }
@@ -97,12 +98,7 @@ Got errors:
     Ok(())
 }
 
-pub fn check_test_case_all_variations(test: &DragTestCase, reverse: bool) -> anyhow::Result<()> {
-    if reverse && (test.not_reversible || test.skip_reversible) {
-        eprintln!("SKIPPING reverse");
-        return Ok(());
-    }
-
+pub fn check_test_case_normal(test: &DragTestCase) -> Result<()> {
     for (i, transform) in Transform::all_unique_transforms().iter().enumerate() {
         // let mut rng = StdRng::seed_from_u64(42 + i as u64);
         // let translation = euclid::vec2(rng.gen_range(-10..=10), rng.gen_range(-10..=10));
@@ -111,12 +107,27 @@ pub fn check_test_case_all_variations(test: &DragTestCase, reverse: bool) -> any
         let transformed_test = transform_test_case(&test.entities, transform);
 
         let test_name = format!("[transform {}]", i);
-        if !reverse {
-            check_test_case(&transformed_test).with_context(|| test_name.to_string())?;
-        } else {
-            let test_case = flip_test_case(&test.entities)?;
-            check_test_case(&test_case).with_context(|| format!("{} [flip]", test_name))?;
-        }
+        check_test_case(&transformed_test).with_context(|| test_name.to_string())?;
+    }
+
+    Ok(())
+}
+
+pub fn check_test_case_reverse(test: &DragTestCase) -> Result<()> {
+    if test.not_reversible || test.skip_reversible {
+        eprintln!("Skipping, not reversible");
+        return Ok(());
+    }
+    for (i, transform) in Transform::all_unique_transforms().iter().enumerate() {
+        let transformed_test = transform_test_case(&test.entities, transform);
+        let transformed_for_reverse = test
+            .after_for_reverse
+            .as_ref()
+            .map(|s| s.transform_world(transform));
+        let flipped_test = flip_test_case(&transformed_test, transformed_for_reverse.as_ref())?;
+
+        let test_name = format!("[transform {}] [flip] ", i);
+        check_test_case(&flipped_test).with_context(|| test_name.to_string())?;
     }
 
     Ok(())
@@ -138,10 +149,13 @@ fn transform_test_case(test: &TestCaseEntities, transform: &Transform) -> TestCa
     }
 }
 
-fn flip_test_case_unchecked(test: &TestCaseEntities) -> TestCaseEntities {
+fn flip_test_case_unchecked(
+    test: &TestCaseEntities,
+    after_for_reverse: Option<&World>,
+) -> TestCaseEntities {
     TestCaseEntities {
         before: test.before.flip_all_entities(),
-        after: test.after.flip_all_entities(),
+        after: (after_for_reverse.unwrap_or(&test.after)).flip_all_entities(),
         start_pos: test.start_pos,
         end_pos: test.end_pos,
         belt_direction: test.belt_direction.opposite(),
@@ -150,8 +164,11 @@ fn flip_test_case_unchecked(test: &TestCaseEntities) -> TestCaseEntities {
     }
 }
 
-fn flip_test_case(test: &TestCaseEntities) -> Result<TestCaseEntities> {
-    let flipped = flip_test_case_unchecked(test);
+fn flip_test_case(
+    test: &TestCaseEntities,
+    after_for_reverse: Option<&World>,
+) -> Result<TestCaseEntities> {
+    let flipped = flip_test_case_unchecked(test, after_for_reverse);
     let bounds = test.bounds();
     test.before
         .check_flipped_entities(&flipped.before)
@@ -194,6 +211,7 @@ struct TestCaseSerde {
     name: Option<String>,
     before: String,
     after: String,
+    after_for_reverse: Option<String>,
     #[serde(default)]
     skip_reversible: bool,
     #[serde(default)]
@@ -201,24 +219,17 @@ struct TestCaseSerde {
     #[serde(default)]
     not_reversible: bool,
 }
-fn get_entities<'de, D>(serde_case: TestCaseSerde) -> Result<TestCaseEntities, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    use serde::de::Error;
-
+fn get_entities(serde_case: &TestCaseSerde) -> Result<TestCaseEntities, String> {
     let (before, before_markers) = parse_world(&serde_case.before)
-        .map_err(|e| Error::custom(format!("Failed to parse 'before' entities: {}", e)))?;
+        .map_err(|e| format!("Failed to parse 'before' entities: {}", e))?;
 
     let (after, after_markers) = parse_world(&serde_case.after)
-        .map_err(|e| Error::custom(format!("Failed to parse 'after' entities: {}", e)))?;
+        .map_err(|e| format!("Failed to parse 'after' entities: {}", e))?;
 
-    let serde_expected_errors = serde_case.expected_errors;
+    let serde_expected_errors = serde_case.expected_errors.clone();
 
     if after_markers.len() != serde_expected_errors.len() {
-        return Err(Error::custom(
-            "Expected number of markers to match number of expected errors",
-        ));
+        return Err("Expected number of markers to match number of expected errors".to_string());
     }
 
     let expected_errors = after_markers
@@ -228,9 +239,7 @@ where
 
     let start_pos = if !before_markers.is_empty() {
         if before_markers.len() > 1 {
-            return Err(Error::custom(
-                "Expected exactly one marker for drag start position",
-            ));
+            return Err("Expected exactly one marker for drag start position".to_string());
         }
         before_markers[0]
     } else {
@@ -275,10 +284,20 @@ impl<'de> Deserialize<'de> for DragTestCase {
         let skip_reversible = serde_case.skip_reversible;
         let not_reversible = serde_case.not_reversible;
 
-        let entities = get_entities::<D>(serde_case)?;
+        let entities = get_entities(&serde_case).map_err(serde::de::Error::custom)?;
+        let after_for_reverse = serde_case
+            .after_for_reverse
+            .map(|s| {
+                let (world, _) = parse_world(s.as_str())?;
+                Ok(world)
+            })
+            .transpose()
+            .map_err(|e: anyhow::Error| serde::de::Error::custom(e.to_string()))?;
+
         Ok(DragTestCase {
             name,
             entities,
+            after_for_reverse,
             skip_reversible,
             not_reversible,
         })
