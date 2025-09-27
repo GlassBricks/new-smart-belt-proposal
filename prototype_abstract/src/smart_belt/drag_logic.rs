@@ -110,9 +110,9 @@ impl<'a> LineDrag<'a> {
             | NormalState::IntegratedOutput => {
                 self.normal_result(Action::PlaceBelt, NormalState::BeltPlaced)
             }
-            NormalState::Traversing { input_pos, .. }
-            | NormalState::TraversingAfterOutput { input_pos, .. }
-                if self.next_position(is_forward) - input_pos
+            &NormalState::Traversing { input_pos, .. }
+            | &NormalState::TraversingAfterOutput { input_pos, .. }
+                if self.next_position(is_forward).abs_diff(input_pos)
                     > self.tier.underground_distance.into() =>
             {
                 DragStep(

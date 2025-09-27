@@ -13,6 +13,7 @@
   after: |
     _ _  v _
     > >i < >o >
+  not_reversible: true
 
 - name: Forwards curved belt
   before: |
@@ -21,6 +22,7 @@
   after: |
     _ _  v _
     > >i > >o >
+  not_reversible: true
 
 - name: Forwards curved belt continuation
   before: |
@@ -32,11 +34,11 @@
 
 - name: Backwards curved belt continuation
   before: |
-    _ _ _ v
-    _ _ < <
+    _ _ v
+    _ < <
   after: |
-    _ _  _ v _
-    > >i < < >o >
+    _  _ v _
+    >i < < >o >
 
 - name: Forwards curved belt continuation, too long
   before: |

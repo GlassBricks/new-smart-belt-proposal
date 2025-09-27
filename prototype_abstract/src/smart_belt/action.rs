@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 use super::LineDrag;
 use crate::belts::{Belt, BeltTier, UndergroundBelt};
-use crate::{Direction, Splitter, TilePosition, World, not_yet_impl};
+use crate::{Direction, Splitter, TilePosition, World};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum Action {
@@ -59,13 +59,13 @@ impl<'a> LineDrag<'a> {
                 self.world.place_underground_belt(
                     input_world_pos,
                     self.ray.direction,
-                    true,
+                    is_forward,
                     self.tier,
                 );
                 self.world.place_underground_belt(
                     output_world_pos,
                     self.ray.direction,
-                    false,
+                    !is_forward,
                     self.tier,
                 );
             }
@@ -84,7 +84,7 @@ impl<'a> LineDrag<'a> {
                 self.world.place_underground_belt(
                     new_output_world_pos,
                     self.ray.direction,
-                    false,
+                    !is_forward,
                     self.tier,
                 );
             }
@@ -97,9 +97,8 @@ impl<'a> LineDrag<'a> {
                     .and_then(|e| (e as &dyn Any).downcast_ref::<UndergroundBelt>())
                     .expect("Expected UndergroundBelt at position");
                 assert!(ug.shape_direction() == self.ray.direction.opposite());
-                not_yet_impl!("Backwards drag");
                 let (is_input, tier) = (ug.is_input, ug.tier);
-                if !is_input {
+                if is_input != is_forward {
                     self.world.flip_ug(world_pos);
                 }
                 if upgrade && tier != self.tier {

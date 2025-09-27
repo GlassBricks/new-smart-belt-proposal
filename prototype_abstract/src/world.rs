@@ -250,19 +250,6 @@ impl Transform {
     }
 }
 
-pub fn flip_entity(entity: &dyn crate::Entity) -> Box<dyn crate::Entity> {
-    if let Some(belt) = entity.as_belt() {
-        Belt::new(belt.direction.opposite(), belt.tier)
-    } else if let Some(ug) = entity.as_underground_belt() {
-        UndergroundBelt::new(ug.direction.opposite(), !ug.is_input, ug.tier)
-    } else if let Some(splitter) = entity.as_splitter() {
-        Splitter::new(splitter.direction.opposite(), splitter.tier)
-    } else if let Some(loader) = entity.as_loader_like() {
-        LoaderLike::new(loader.direction.opposite(), loader.is_input, loader.tier)
-    } else {
-        clone_box(entity)
-    }
-}
 impl World {
     pub fn transform_world(&self, transform: &Transform) -> Self {
         let mut new_world = World::new();
@@ -276,33 +263,50 @@ impl World {
         new_world
     }
 
-    fn flip_all_entities(&self) -> Self {
+    pub fn flip_all_entities(&self) -> Self {
         let mut new_world = World::new();
 
         for (&pos, entity) in &self.entities {
-            let new_entity = flip_entity(entity.as_ref());
+            let entity: &dyn crate::Entity = entity.as_ref();
+            let new_entity = if let Some(belt) = entity.as_belt() {
+                let input_direction = self.belt_input_direction(pos, belt.direction);
+                Belt::new(input_direction.opposite(), belt.tier)
+            } else if let Some(ug) = entity.as_underground_belt() {
+                UndergroundBelt::new(ug.direction.opposite(), !ug.is_input, ug.tier)
+            } else if let Some(splitter) = entity.as_splitter() {
+                Splitter::new(splitter.direction.opposite(), splitter.tier)
+            } else if let Some(loader) = entity.as_loader_like() {
+                LoaderLike::new(loader.direction.opposite(), !loader.is_input, loader.tier)
+            } else {
+                clone_box(entity)
+            };
             new_world.entities.insert(pos, new_entity);
         }
 
         new_world
     }
 
-    pub fn flip_all_entities_checked(&self) -> anyhow::Result<Self> {
-        let result = self.flip_all_entities();
+    pub fn check_flipped_entities(&self, other: &Self) -> anyhow::Result<()> {
         for (&pos, entity) in &self.entities {
             let Some(this_belt) = entity.as_belt() else {
                 continue;
             };
-            let new_belt = result.get(pos).unwrap().as_belt().unwrap();
+            let new_belt = other.get(pos).unwrap().as_belt().unwrap();
+            let (this_in, this_out) = (
+                self.effective_input_direction(pos, this_belt).unwrap(),
+                self.effective_output_direction(this_belt).unwrap(),
+            );
+            let (new_in, new_out) = (
+                other.effective_input_direction(pos, new_belt).unwrap(),
+                other.effective_output_direction(new_belt).unwrap(),
+            );
+
             anyhow::ensure!(
-                self.belt_was_curved(pos, this_belt) == result.belt_was_curved(pos, new_belt),
-                "Belt at position {:?}'s curvature ({:?}) did not match flipped belt's curvature ({:?})",
-                pos,
-                self.belt_was_curved(pos, this_belt),
-                result.belt_was_curved(pos, new_belt)
+                this_in == new_out.opposite() && this_out == new_in.opposite(),
+                "Belt at {pos:?} did not flip successfully. Before:\n\t{this_in:?} -> {this_out:?}\n\t{new_in:?} -> {new_out:?}",
             );
         }
-        Ok(result)
+        Ok(())
     }
 }
 

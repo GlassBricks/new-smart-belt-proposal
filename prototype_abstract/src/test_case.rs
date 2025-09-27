@@ -1,8 +1,8 @@
 use std::any::Any;
 use std::cmp::max;
 
-use crate::Impassable;
 use crate::belts::{BELT_TIERS, Belt, BeltTier, LoaderLike, Splitter, UndergroundBelt};
+use crate::{BoundingBox, Impassable};
 use crate::{
     Colliding, Direction, Entity, TilePosition, Transform, World, pos,
     smart_belt::{LineDrag, action, action::Error},
@@ -30,6 +30,12 @@ pub struct TestCaseEntities {
     pub expected_errors: Vec<(TilePosition, action::Error)>,
 }
 
+impl TestCaseEntities {
+    fn bounds(&self) -> BoundingBox {
+        self.before.bounds().union(&self.after.bounds())
+    }
+}
+
 fn check_test_case(test: &TestCaseEntities) -> anyhow::Result<()> {
     let (result, actual_errors) = run_test_case(
         &test.before,
@@ -44,6 +50,7 @@ fn check_test_case(test: &TestCaseEntities) -> anyhow::Result<()> {
     let expected_errors = &test.expected_errors;
 
     if result != *expected_world || actual_errors != *expected_errors {
+        let bounds = test.bounds();
         let mut error_message = format!(
             r#"
 Expected:
@@ -57,6 +64,7 @@ Got:
 "#,
             print_world(
                 expected_world,
+                bounds,
                 &expected_errors
                     .iter()
                     .map(|f| f.0)
@@ -64,6 +72,7 @@ Got:
             ),
             print_world(
                 &result,
+                bounds,
                 &actual_errors
                     .iter()
                     .map(|f| f.0)
@@ -88,7 +97,12 @@ Got errors:
     Ok(())
 }
 
-pub fn check_test_case_all_variations(test: &DragTestCase) -> anyhow::Result<()> {
+pub fn check_test_case_all_variations(test: &DragTestCase, reverse: bool) -> anyhow::Result<()> {
+    if reverse && (test.not_reversible || test.skip_reversible) {
+        eprintln!("SKIPPING reverse");
+        return Ok(());
+    }
+
     for (i, transform) in Transform::all_unique_transforms().iter().enumerate() {
         // let mut rng = StdRng::seed_from_u64(42 + i as u64);
         // let translation = euclid::vec2(rng.gen_range(-10..=10), rng.gen_range(-10..=10));
@@ -96,14 +110,11 @@ pub fn check_test_case_all_variations(test: &DragTestCase) -> anyhow::Result<()>
 
         let transformed_test = transform_test_case(&test.entities, transform);
 
-        let test_name = format!("\n{} [transform {}]", test.name, i);
-        check_test_case(&transformed_test).with_context(|| test_name.to_string())?;
-        if !test.not_reversible {
-            if test.skip_reversible {
-                eprintln!("SKIPPING reverse {}", &test_name);
-                continue;
-            }
-            let test_case = flip_test_case(&test.entities).context("Failed to flip test case")?;
+        let test_name = format!("[transform {}]", i);
+        if !reverse {
+            check_test_case(&transformed_test).with_context(|| test_name.to_string())?;
+        } else {
+            let test_case = flip_test_case(&test.entities)?;
             check_test_case(&test_case).with_context(|| format!("{} [flip]", test_name))?;
         }
     }
@@ -127,16 +138,31 @@ fn transform_test_case(test: &TestCaseEntities, transform: &Transform) -> TestCa
     }
 }
 
-fn flip_test_case(test: &TestCaseEntities) -> anyhow::Result<TestCaseEntities> {
-    Ok(TestCaseEntities {
-        before: test.before.flip_all_entities_checked()?,
-        after: test.after.flip_all_entities_checked()?,
+fn flip_test_case_unchecked(test: &TestCaseEntities) -> TestCaseEntities {
+    TestCaseEntities {
+        before: test.before.flip_all_entities(),
+        after: test.after.flip_all_entities(),
         start_pos: test.start_pos,
         end_pos: test.end_pos,
         belt_direction: test.belt_direction.opposite(),
         tier: test.tier,
         expected_errors: test.expected_errors.clone(),
-    })
+    }
+}
+
+fn flip_test_case(test: &TestCaseEntities) -> Result<TestCaseEntities> {
+    let flipped = flip_test_case_unchecked(test);
+    let bounds = test.bounds();
+    test.before
+        .check_flipped_entities(&flipped.before)
+        .with_context(|| {
+            format!(
+                "Failed to flip.\nBefore entities:\n{}\nAfter entities:\n{}",
+                print_world(&test.before, bounds, &[]),
+                print_world(&flipped.before, bounds, &[])
+            )
+        })?;
+    Ok(flipped)
 }
 
 fn run_test_case(
@@ -401,9 +427,7 @@ fn print_entity(entity: &dyn Entity) -> String {
     }
 }
 
-fn print_world(world: &World, markers: &[TilePosition]) -> String {
-    let bounds = world.bounds();
-
+fn print_world(world: &World, bounds: BoundingBox, markers: &[TilePosition]) -> String {
     if bounds.is_empty() {
         return "<Empty>".to_string();
     }
@@ -659,7 +683,7 @@ after: "2>\t^\tX"
         world.set(pos(0, 1), Splitter::new(Direction::West, BELT_TIERS[0]));
         world.set(pos(2, 1), Colliding::new());
 
-        let output = print_world(&world, &[]);
+        let output = print_world(&world, world.bounds(), &[]);
         let expected = r#"
 >    2^i  _
 <s   _    X"#

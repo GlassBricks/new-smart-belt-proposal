@@ -404,6 +404,11 @@ impl<'a> TileClassifier<'a> {
             | NormalState::TraversingAfterOutput { input_pos, .. } => Some(*input_pos),
             _ => None,
         };
-        input_pos.map(|f| f + self.tier.underground_distance as i32)
+        let diff = if self.world_view.is_forward {
+            self.tier.underground_distance as i32
+        } else {
+            -(self.tier.underground_distance as i32)
+        };
+        input_pos.map(|f| f + diff)
     }
 }

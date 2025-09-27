@@ -64,7 +64,11 @@ fn main() {
                 r##"
     #[test]
     fn test_{test_name}() {{
-        crate::run_test_case(r#"{}"#);
+        crate::run_test_case(r#"{0}"#);
+    }}
+    #[test]
+    fn test_reverse_{test_name}() {{
+        crate::run_test_case_reverse(r#"{0}"#);
     }}
 "##,
                 yaml_content.trim()
