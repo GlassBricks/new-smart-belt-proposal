@@ -4,11 +4,12 @@ use std::cmp::max;
 use crate::Impassable;
 use crate::belts::{BELT_TIERS, Belt, BeltTier, LoaderLike, Splitter, UndergroundBelt};
 use crate::{
-    Colliding, Direction, Entity, TilePosition, World, pos,
+    Colliding, Direction, Entity, TilePosition, Transform, World, pos,
     smart_belt::{LineDrag, action, action::Error},
 };
 use anyhow::{Context, Result, bail};
 use itertools::Itertools;
+use rand::{Rng, SeedableRng, rngs::StdRng};
 use serde::{Deserialize, Deserializer};
 
 #[derive(Debug, Clone)]
@@ -17,6 +18,8 @@ pub struct DragTestCase {
     pub before: World,
     pub after: World,
     pub start_pos: TilePosition,
+    pub drag_direction: Direction,
+    pub end_pos: TilePosition,
     pub tier: BeltTier,
     pub expected_errors: Vec<(TilePosition, action::Error)>,
     pub skip: bool,
@@ -28,8 +31,13 @@ pub fn check_test_case(test: &DragTestCase) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let max_x = max(test.before.max_x(), test.after.max_x());
-    let (result, actual_errors) = run_test_case(&test.before, test.tier, test.start_pos, max_x);
+    let (result, actual_errors) = run_test_case(
+        &test.before,
+        test.tier,
+        test.start_pos,
+        test.end_pos,
+        test.drag_direction,
+    );
 
     let expected_world = &test.after;
 
@@ -80,15 +88,56 @@ Got errors:
     Ok(())
 }
 
+pub fn check_test_case_with_all_transforms(test: &DragTestCase) -> anyhow::Result<()> {
+    if test.skip {
+        eprintln!("SKIPPING! {}", test.name);
+        return Ok(());
+    }
+
+    for (i, transform) in Transform::all_unique_transforms().iter().enumerate() {
+        let mut rng = StdRng::seed_from_u64(42 + i as u64);
+        let translation = euclid::vec2(rng.gen_range(-10..=10), rng.gen_range(-10..=10));
+        let transform = transform.with_translation(translation);
+
+        let transformed_test = transform_test_case(test, &transform);
+        let test_name = format!("{} [transform {}]", test.name, i);
+
+        if let Err(e) = check_test_case(&transformed_test) {
+            eprintln!("Failed transformed test: {}", test_name);
+            return Err(e.context(format!("Transform {} failed", i)));
+        }
+    }
+
+    Ok(())
+}
+
+fn transform_test_case(test: &DragTestCase, transform: &Transform) -> DragTestCase {
+    DragTestCase {
+        name: format!("{} [transformed]", test.name),
+        before: transform.transform_world(&test.before),
+        after: transform.transform_world(&test.after),
+        start_pos: transform.transform_position(test.start_pos),
+        end_pos: transform.transform_position(test.end_pos),
+        drag_direction: transform.transform_direction(test.drag_direction),
+        tier: test.tier,
+        expected_errors: test
+            .expected_errors
+            .iter()
+            .map(|(pos, error)| (transform.transform_position(*pos), error.clone()))
+            .collect(),
+        skip: test.skip,
+    }
+}
+
 fn run_test_case(
     world: &World,
     tier: BeltTier,
     start_pos: TilePosition,
-    max_x: i32,
+    end_pos: TilePosition,
+    drag_direction: Direction,
 ) -> (World, Vec<(TilePosition, Error)>) {
     let mut world = world.clone();
-    let end_pos = pos(max_x, start_pos.y);
-    let mut drag = LineDrag::start_drag(&mut world, tier, start_pos, Direction::East);
+    let mut drag = LineDrag::start_drag(&mut world, tier, start_pos, drag_direction);
     drag.interpolate_to(end_pos);
     let errors = drag.get_errors();
     (world, errors)
@@ -168,12 +217,17 @@ impl<'de> Deserialize<'de> for DragTestCase {
         let skip = serde_case.skip;
         let name = serde_case.name.unwrap_or("Unnamed".to_string());
 
+        let max_x = max(before.max_x(), after.max_x());
+        let end_pos = pos(max_x, start_pos.y);
+
         Ok(DragTestCase {
             name,
             before,
             after,
             tier,
             start_pos,
+            end_pos,
+            drag_direction: Direction::East,
             expected_errors,
             skip,
         })
@@ -362,6 +416,7 @@ mod tests {
     use std::any::Any;
 
     use super::*;
+    use crate::RelativeDirection;
     use crate::entity::*;
 
     #[test]
@@ -598,5 +653,22 @@ after: ">"
         assert_eq!(output, expected);
         let (back_to_world, _) = parse_world(&output).expect("Failed to parse world");
         assert_eq!(back_to_world, world);
+    }
+
+    #[test]
+    fn test_coordinate_transformation_debug() {
+        let original_pos = pos(0, 0);
+        let transform =
+            Transform::rotation(RelativeDirection::Right).with_translation(euclid::vec2(5, 3));
+        let transformed_pos = transform.transform_position(original_pos);
+
+        // Debug: pos(0,0) with rotation 1 (90° CW) should become pos(0,0) then translate to pos(5,3)
+        assert_eq!(transformed_pos, pos(5, 3));
+
+        // Test another position
+        let original_pos2 = pos(1, 0);
+        let transformed_pos2 = transform.transform_position(original_pos2);
+        // pos(1,0) rotated 90° CW becomes pos(0,1) then translated becomes pos(5,4)
+        assert_eq!(transformed_pos2, pos(5, 4));
     }
 }

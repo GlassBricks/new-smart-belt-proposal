@@ -16,10 +16,19 @@ Rust was chosen, to allow the prototype to be mostly but not completely function
 ## Other modules
 
 - Other things in `src/prototype_abstract/src/` contain a simplified abstraction of Factorio.
-- For unit tests for these,. Keep these brief; don't test every corner case, only a few interesting cases.
+- For unit tests for these. Keep tests very BRIEF. Don't test every corner case, only a few interesting cases.
+- If there is already decent test coverage, DO NOT add new tests.
 
 ## Code style
-Strongly prefer functional programming style
+Strongly prefer functional programming style.
 
-Do NOT add additional comments, or doc comments.
-Do NOT add additional examples, readme, or explanations, etc.
+IMPORTANT: do not add additional explanations.
+Do NOT add comments.
+Do NOT add additional comments
+Do NOT add additional examples, readme, explanations, or documentation.
+Do NOT add additional examples, readme, explanations, or documentation.
+Do NOT add additional explanatory tests.
+
+## After a task
+After completing a task, evaluate if there are any unused functions (or functions only used in tests and nowhere else).
+Remove these. Keep the code focused.

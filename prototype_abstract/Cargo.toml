@@ -9,6 +9,7 @@ dyn-clone.workspace = true
 dyn-eq.workspace = true
 euclid.workspace = true
 itertools.workspace = true
+rand.workspace = true
 serde.workspace = true
 serde_yaml.workspace = true
 
