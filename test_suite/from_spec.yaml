@@ -60,8 +60,12 @@
   after: "> >i ^ >o >"
 
 - name: "13"
-  before: "_ _ ^ < _ _"
-  after: "> >i ^ < >o"
+  before: |
+    _ _ ^
+    _ _ ^ < _ _"
+  after: |
+    _ _  ^
+    > >i ^ < >o
 
 - name: "14"
   before: |
@@ -74,8 +78,12 @@
     _ ^ _ _ ^
 
 - name: "15"
-  before: "_ _ v < < < _"
-  after: "> >i v < < < >o"
+  before: |
+    _ _ v < < < _
+    _ _ v
+  after: |
+    > >i v < < < >o
+    _ _  v
 
 - name: "16"
   before: |
@@ -98,8 +106,12 @@
     _ _  ^
 
 - name: "19"
-  before: "_ _ _ >s > > v"
-  after: "> > >i >s > > v >o"
+  before: |
+    _ _ >s > > v
+    _ _ _  _ _ v
+  after: |
+    > >i >s > > v >o
+    _  _ _  _ _ v
 
 - name: "20"
   before: "_ _ >s X _"
@@ -133,6 +145,10 @@
     _ _ _ _ v _
     > v *<o <i < >
     _ v
+  after_for_reverse: |
+    _ _ _ _ v _
+    > < *<o <i < >
+    _ v
   expected_errors: [entity_in_the_way]
 
 - name: "24"
@@ -145,6 +161,7 @@
 - name: "25"
   before: " _ _  ^ > _"
   after: "> >i ^ >o > >"
+  not_reversible: true
 
 - name: "26"
   before: " _ _ > ^ < _ _"
@@ -166,10 +183,10 @@
 
 - name: "30"
   before: |
-    _  _ _ _ > _
+    _  _ _ _ ^ _
     *_ _ > > ^
   after: |
-    _ _ _ _ >
+    _ _ _ _ ^
     > > > > ^ *>  >
   expected_errors: [cannot_traverse_past_entity]
 
@@ -178,8 +195,10 @@
 # Underground over side balancer when input unused
 - name: "31"
   before: |
+    _ _ _ _  _ ^
     _ _ _ >s > ^ _
   after: |
+    _ _ _ _  _ ^
     > > >i >s > ^ >o >
 
 # Integrate splitter when output is straight
@@ -228,9 +247,9 @@
 
 # Lookahead limitation example (integrate when too long to check)
 - name: "38"
-  before: " _ _ >s > > > > > > ^"
-  after: "> > >s > > > > > > ^"
-
-- name: "39"
-  before: "> > >s > > > > > > ^"
-  after: "> > >s > > > > > > ^"
+  before: |
+    _ _  _ _ _ _ _ _ _ ^
+    _ _ >s > > > > > > ^
+  after: |
+    _ _  _ _ _ _ _ _ _ ^
+    > > >s > > > > > > ^

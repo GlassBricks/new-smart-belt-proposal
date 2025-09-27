@@ -45,8 +45,11 @@
     _ _ v
     _ _ > > > > >
   after: |
-    _ _  v   _
+    _ _ v   _
     > > > > > > > *>
+  after_for_reverse: |
+    _ _ v   _
+    > > v > > > > *>
   expected_errors: [too_far_to_connect]
 
 - name: Backwards curved belt continuation, too long to check
@@ -60,18 +63,18 @@
 
 - name: 2 backwards curved belts
   before: |
-    _ _ _ v
+    _ _ ^ v
     _ _ ^ <
   after: |
-    _ _ _  v _
+    _ _  ^ v _
     > >i ^ < >o >
 
 - name: 2 forwards curved belts
   before: |
-    _ _ v
+    _ _ v ^
     _ _ > ^
   after: |
-    _ _  v _ _
+    _ _  v ^ _
     > >i > ^ >o >
 
 - name: sideloaded belt is normal obstacle
@@ -99,22 +102,26 @@
 - name: curved belt after obstacle is obstacle
   before: |
     _ _ v
-    _ X >
+    _ X > >
   after: |
     _  _ v
-    >i X > >o >
+    >i X > > >o >
 
 - name: running into a curved belt is error
   before: |
+    _ _ ^
     _ > ^
   after: |
+    _ _ ^
     > > ^ *>
   expected_errors: [cannot_traverse_past_entity]
 
 - name: hovering over curved belt gives no error
   before: |
+    _ _ ^
     _ > ^
   after: |
+    _ _ ^
     > > ^
 
 - name: curvy
@@ -128,8 +135,12 @@
     _  _   ^ _ _ ^ _
 
 - name: first belt shouldn't change effective curvature
-  before: _ ^ <
-  after: ">i ^ < >o"
+  before: |
+    _ ^
+    _ ^ <
+  after: |
+    _  ^
+    >i ^ < >o
 
 - name: Belt weaving over backwards belt segment with curve
   before: |
@@ -139,9 +150,9 @@
     _ _ _  _  v
     2>i < <o <i < 2>o
 
-- name: Integrating backwards belt segment without curve
-  before: _ < <o <i <
-  after: 2> 2> 2>i 2>o 2>
+- name: Integrating backwards belt segment
+  before: _ <o <i <
+  after: 2> 2>i 2>o 2>
 
 - name: If can't belt weave, is error
   before: |

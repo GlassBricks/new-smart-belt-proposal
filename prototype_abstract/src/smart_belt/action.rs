@@ -96,7 +96,6 @@ impl<'a> LineDrag<'a> {
                     .get(world_pos)
                     .and_then(|e| (e as &dyn Any).downcast_ref::<UndergroundBelt>())
                     .expect("Expected UndergroundBelt at position");
-                assert!(ug.shape_direction() == self.ray.direction.opposite());
                 let (is_input, tier) = (ug.is_input, ug.tier);
                 if is_input != is_forward {
                     self.world.flip_ug(world_pos);
