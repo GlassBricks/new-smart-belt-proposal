@@ -1,6 +1,6 @@
 use dyn_clone::clone_box;
 
-use super::{DragState, DragStep, DragWorldView, Error, NormalState};
+use super::{DragState, DragStep, Error, NormalState};
 use crate::belts::BeltTier;
 use crate::smart_belt::Action;
 use crate::{Direction, Ray, TileHistory, TilePosition, World, WorldReader};
@@ -29,12 +29,12 @@ impl<'a> LineDrag<'a> {
         world: &'a mut World,
         tier: BeltTier,
         start_pos: TilePosition,
-        direction: Direction,
+        belt_direction: Direction,
     ) -> LineDrag<'a> {
         let mut errors = Vec::new();
         let (last_state, tile_history) = if world.can_place_belt_on_tile(start_pos) {
             let tile_history = Self::get_tile_history(start_pos, world);
-            world.place_belt(start_pos, direction, tier);
+            world.place_belt(start_pos, belt_direction, tier);
             (NormalState::BeltPlaced, Some(tile_history))
         } else {
             errors.push((start_pos, Error::EntityInTheWay));
@@ -43,18 +43,13 @@ impl<'a> LineDrag<'a> {
 
         LineDrag {
             world,
-            ray: Ray::new(start_pos, direction),
+            ray: Ray::new(start_pos, belt_direction),
             tier,
             last_state: last_state.into(),
             last_position: 0,
             tile_history,
             errors,
         }
-    }
-
-    #[inline]
-    pub(super) fn world_view(&self) -> DragWorldView<'_> {
-        DragWorldView::new(self.world, self.ray, self.tile_history.as_ref())
     }
 
     pub(super) fn next_position(&self) -> i32 {
@@ -78,9 +73,9 @@ impl<'a> LineDrag<'a> {
         self.tile_history = Some(Self::get_tile_history(world_position, self.world));
     }
 
-    fn step_forward(&mut self) -> DragStep {
+    fn step(&mut self, is_forward: bool) -> DragStep {
         match &self.last_state {
-            DragState::Normal(state) => self.normal_state_step(state),
+            DragState::Normal(state) => self.normal_state_step(state, is_forward),
             &DragState::PassThrough { output_pos } => {
                 let next_state = if self.next_position() == output_pos {
                     NormalState::IntegratedOutput.into()
@@ -96,12 +91,11 @@ impl<'a> LineDrag<'a> {
     pub fn interpolate_to(&mut self, new_position: TilePosition) {
         let dist = self.ray.ray_position(new_position);
         while self.last_position < dist {
-            // let pos = self.last_position;
-            // let view = self.world_view();
-            // let entity = view.get_entity_at_position(pos);
-            // dbg!(pos, entity);
-
-            let step = self.step_forward();
+            let step = self.step(true);
+            self.apply_step(step);
+        }
+        while self.last_position > dist {
+            let step = self.step(false);
             self.apply_step(step);
         }
     }

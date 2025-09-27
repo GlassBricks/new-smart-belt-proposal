@@ -1,6 +1,6 @@
 use itertools::Itertools;
 
-use crate::smart_belt::tile_classification::ObstacleKind;
+use crate::smart_belt::{DragWorldView, tile_classification::ObstacleKind};
 
 use super::{Action, LineDrag, TileClassifier, TileType, action::Error};
 
@@ -79,9 +79,11 @@ pub(super) struct DragStep(pub Action, pub Vec<Error>, pub DragState);
  * Purely functional logic for straight line dragging.
  */
 impl<'a> LineDrag<'a> {
-    pub(super) fn normal_state_step(&self, last_state: &NormalState) -> DragStep {
-        let classifier =
-            TileClassifier::new(self.world_view(), self.tier, last_state, self.last_position);
+    pub(super) fn normal_state_step(&self, last_state: &NormalState, is_forward: bool) -> DragStep {
+        let world_view =
+            DragWorldView::new(self.world, self.ray, self.tile_history.as_ref(), is_forward);
+
+        let classifier = TileClassifier::new(world_view, self.tier, last_state, self.last_position);
         match classifier.classify_next_tile() {
             TileType::Usable => self.place_belt_or_underground(last_state),
             TileType::Obstacle => self.handle_obstacle(last_state),

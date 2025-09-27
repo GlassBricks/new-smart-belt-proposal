@@ -61,8 +61,16 @@ impl<'a> TileClassifier<'a> {
         }
     }
 
+    fn is_forward(&self) -> bool {
+        self.world_view.is_forward
+    }
+
     fn next_position(&self) -> i32 {
-        self.last_position + 1
+        if self.is_forward() {
+            self.last_position + 1
+        } else {
+            self.last_position - 1
+        }
     }
 
     /// most things are simple to classify. The tricky cases are in existing belt-like-entities.
@@ -118,7 +126,7 @@ impl<'a> TileClassifier<'a> {
         if self.last_state.is_outputting_belt()
             && self
                 .world_view
-                .belt_was_directly_connected_to_previous(self.next_position())
+                .belt_directly_connects_to_next(self.last_position)
         {
             // it's impassable (smart belt is not allowed to rotate belt)
             TileType::ImpassableObstacle(ObstacleKind::CurvedBelt)
@@ -134,7 +142,7 @@ impl<'a> TileClassifier<'a> {
         // and this belt directly connects to the previous obstacle...
             && self
                 .world_view
-                .belt_was_directly_connected_to_previous(self.next_position())
+                .belt_directly_connects_to_next(self.last_position)
         // then this belt is also an obstacle.
     }
 
@@ -226,7 +234,7 @@ impl<'a> TileClassifier<'a> {
         if self.last_state.is_outputting_belt()
             && self
                 .world_view
-                .belt_was_directly_connected_to_previous(self.next_position())
+                .belt_directly_connects_to_next(self.last_position)
         {
             return false;
         }
@@ -235,7 +243,7 @@ impl<'a> TileClassifier<'a> {
             // if we can't underground over it, default to including, it even if we may error.
             return false;
         };
-        let backwards_dir = self.world_view.drag_direction().opposite();
+        let backwards_dir = self.world_view.belt_direction().opposite();
 
         // iterate over belt segment, check for bad entities.
         // Only check up to _before_ the max underground position, to avoid long-distance
@@ -298,7 +306,13 @@ impl<'a> TileClassifier<'a> {
                 .world_view
                 .get_entity_at_position(self.last_position)
                 .and_then(|e| e.as_belt_connectable_dyn())
-                .is_some_and(|b| b.has_output_going(self.world_view.drag_direction()))
+                .is_some_and(|b| {
+                    if self.world_view.is_forward {
+                        b.has_output_going(self.world_view.belt_direction())
+                    } else {
+                        b.has_input_going(self.world_view.belt_direction())
+                    }
+                })
     }
 
     /// We currently only ug over a splitter if we see:
@@ -313,7 +327,7 @@ impl<'a> TileClassifier<'a> {
         let Some(max_underground_position) = self.max_underground_position() else {
             return false;
         };
-        let belt_direction = self.world_view.drag_direction();
+        let belt_direction = self.world_view.belt_direction();
 
         let mut pos = self.next_position();
         let get_entity = |pos| {
@@ -342,10 +356,10 @@ impl<'a> TileClassifier<'a> {
                 BeltConnectableEnum::Belt(belt) => {
                     if self.world_view.belt_is_curved(pos, belt) {
                         // curved belt: this segment is an obstacle if it's connected to this curved belt
-                        return self.world_view.belt_was_directly_connected_to_previous(pos);
+                        return self.world_view.belt_directly_connects_to_next(pos - 1);
                     } else {
                         // straight belt
-                        if belt.direction != self.world_view.drag_direction() {
+                        if belt.direction != self.world_view.belt_direction() {
                             // if not part of belt segment, break
                             break;
                         }
@@ -354,9 +368,8 @@ impl<'a> TileClassifier<'a> {
                 }
                 BeltConnectableEnum::UndergroundBelt(ug) => {
                     if ug.shape_direction() != self.world_view.drag_direction().opposite()
-                        || !ug.is_input
+                        || ug.is_input != self.is_forward()
                     {
-                        not_yet_impl!("Backwards dragging");
                         // not part of belt segment, break
                         break;
                     }

@@ -223,6 +223,10 @@ impl dyn BeltConnectable {
     pub fn primary_input_direction(&self) -> Option<Direction> {
         self.has_backwards_input().then_some(self.direction())
     }
+
+    pub fn has_input_going(&self, entering_direction: Direction) -> bool {
+        self.primary_input_direction() == Some(entering_direction)
+    }
 }
 
 impl dyn Entity {
