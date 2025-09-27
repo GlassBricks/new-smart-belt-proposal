@@ -83,7 +83,7 @@ impl<'a> LineDrag<'a> {
             DragState::Normal(state) => self.normal_state_step(state),
             &DragState::PassThrough { output_pos } => {
                 let next_state = if self.next_position() == output_pos {
-                    NormalState::IntegratedOutputUnderground.into()
+                    NormalState::IntegratedOutput.into()
                 } else {
                     self.last_state.clone()
                 };

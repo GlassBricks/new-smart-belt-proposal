@@ -24,9 +24,7 @@ pub(super) enum TileType {
     /// A curved belt we directly ran into, which is an impassable obstacle.
     ImpassableObstacle(ObstacleKind),
     BlockingUnderground,
-    // An integrated splitter. Should not be replaced with underground belt.
-    // IntegratedSplitter,
-    /// An existing paired underground belt we will pass-through.
+    /// An existing paired underground belt we ill pass-through.
     PassThroughUnderground {
         /// failure if we want to upgrade this underground but we can't.
         upgrade_failure: bool,

@@ -19,8 +19,6 @@ pub(super) enum NormalState {
     BeltPlaced,
     /// We haven't placed a belt yet, and are looking for the next tile we can.
     ErrorRecovery,
-    // Passing a splitter or output underground belt. This means we can't create an underground here.
-    // IntegratedOutput,
     /// We hovered over an obstacle.
     Traversing {
         /// Last position we may place an underground belt.
@@ -39,8 +37,7 @@ pub(super) enum NormalState {
         output_pos: i32,
     },
     /// When we are hovering over the exit of an integrated output belt.
-    IntegratedOutputUnderground,
-    IntegratedSplitter,
+    IntegratedOutput,
     /// We have just encountered an impassable obstacle. However, we don't error until the user tries to _pass_ the obstacle.
     OverImpassableObstacle(ObstacleKind),
 }
@@ -56,8 +53,7 @@ impl NormalState {
         match self {
             NormalState::BeltPlaced
             | NormalState::OutputUgPlaced { .. }
-            | NormalState::IntegratedOutputUnderground
-            | NormalState::IntegratedSplitter => true,
+            | NormalState::IntegratedOutput => true,
             NormalState::Traversing { .. }
             | NormalState::TraversingAfterOutput { .. }
             | NormalState::OverImpassableObstacle(_)
@@ -72,8 +68,7 @@ impl NormalState {
             | NormalState::OutputUgPlaced { .. }
             | NormalState::OverImpassableObstacle(_)
             | NormalState::ErrorRecovery
-            | NormalState::IntegratedOutputUnderground
-            | NormalState::IntegratedSplitter => false,
+            | NormalState::IntegratedOutput => false,
         }
     }
 }
@@ -91,7 +86,7 @@ impl<'a> LineDrag<'a> {
             TileType::Usable => self.place_belt_or_underground(last_state),
             TileType::Obstacle => self.handle_obstacle(last_state),
             TileType::IntegratedSplitter => {
-                self.normal_result(Action::IntegrateSplitter, NormalState::IntegratedSplitter)
+                self.normal_result(Action::IntegrateSplitter, NormalState::IntegratedOutput)
             }
             TileType::ImpassableObstacle(obstacle) => {
                 self.handle_impassable_obstacle(last_state, obstacle)
@@ -110,8 +105,7 @@ impl<'a> LineDrag<'a> {
             | NormalState::OutputUgPlaced { .. }
             | NormalState::OverImpassableObstacle(_)
             | NormalState::ErrorRecovery
-            | NormalState::IntegratedOutputUnderground
-            | NormalState::IntegratedSplitter => {
+            | NormalState::IntegratedOutput => {
                 self.normal_result(Action::PlaceBelt, NormalState::BeltPlaced)
             }
             NormalState::Traversing { input_pos, .. }
@@ -161,7 +155,7 @@ impl<'a> LineDrag<'a> {
                 output_pos: self.last_position,
             },
             NormalState::OverImpassableObstacle(_) => NormalState::ErrorRecovery,
-            NormalState::IntegratedOutputUnderground | NormalState::IntegratedSplitter => {
+            NormalState::IntegratedOutput => {
                 return DragStep(
                     Action::None,
                     vec![Error::EntityInTheWay],
@@ -177,10 +171,11 @@ impl<'a> LineDrag<'a> {
             let action = Action::IntegrateUndergroundPair {
                 do_upgrade: !upgrade_failure,
             };
-            let mut errors = self.deferred_error().into_iter().collect_vec();
-            if upgrade_failure {
-                errors.push(Error::CannotUpgradeUnderground);
-            }
+            let errors = self
+                .deferred_error()
+                .into_iter()
+                .chain(upgrade_failure.then_some(Error::CannotUpgradeUnderground))
+                .collect_vec();
             DragStep(action, errors, DragState::PassThrough { output_pos })
         }
     }
