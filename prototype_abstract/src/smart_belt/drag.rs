@@ -74,11 +74,11 @@ impl<'a> LineDrag<'a> {
     }
 
     fn step(&mut self, is_forward: bool) -> DragStep {
-        eprintln!(
-            "STEP: forward: {}, pos: {:?}",
-            is_forward,
-            self.ray.get_position(self.next_position(is_forward))
-        );
+        // eprintln!(
+        //     "STEP: forward: {}, pos: {:?}",
+        //     is_forward,
+        //     self.ray.get_position(self.next_position(is_forward))
+        // );
         match &self.last_state {
             DragState::Normal(state) => self.normal_state_step(state, is_forward),
             &DragState::PassThrough { output_pos } => {
@@ -107,14 +107,14 @@ impl<'a> LineDrag<'a> {
 
     fn apply_step(&mut self, step: DragStep, is_forward: bool) {
         let DragStep(action, error, next_state) = step;
-        eprintln!("action: {:?}", action);
+        // eprintln!("action: {:?}", action);
         self.apply_action(action, is_forward);
         for error in error {
-            eprintln!("error: {:?}", error);
+            // eprintln!("error: {:?}", error);
             self.errors
                 .push((self.ray.get_position(self.next_position(is_forward)), error));
         }
-        eprintln!("next_state: {:?}", next_state);
+        // eprintln!("next_state: {:?}", next_state);
         self.last_state = next_state;
         self.last_position = self.next_position(is_forward);
     }
