@@ -481,7 +481,7 @@ dependencies = [
  "comrak",
  "euclid",
  "pathdiff",
- "protoype_abstract",
+ "prototype_abstract",
  "tiny-skia",
 ]
 
@@ -687,7 +687,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "protoype_abstract"
+name = "prototype_abstract"
 version = "0.1.0"
 dependencies = [
  "anyhow",

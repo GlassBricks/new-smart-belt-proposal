@@ -13,7 +13,7 @@ use comrak::{
 };
 use image_renderer::{ImageRenderer, get_tail_pos};
 
-use protoype_abstract::{Splitter, World, bounds_new, pos};
+use prototype_abstract::{Splitter, World, bounds_new, pos};
 
 #[derive(Clone)]
 struct FacImg {
@@ -26,7 +26,7 @@ impl FromStr for FacImg {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self> {
-        let (world, _) = protoype_abstract::test_case::parse_world(s)?;
+        let (world, _) = prototype_abstract::test_case::parse_world(s)?;
 
         // Calculate dimensions from the input text to preserve the original grid size
         let lines: Vec<&str> = s.lines().collect();

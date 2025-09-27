@@ -1,6 +1,6 @@
 use anyhow::Result;
 use euclid::{Point2D, Rect, Size2D, Vector2D};
-use protoype_abstract::{
+use prototype_abstract::{
     BeltConnectableEnum, BoundingBox, Direction, Entity, Splitter, TilePosition, World, WorldReader,
 };
 use std::path::Path;
@@ -116,7 +116,7 @@ impl ImageRenderer {
     ) {
         for y in bounds.min.y..bounds.max.y {
             for x in bounds.min.x..bounds.max.x {
-                let pos = protoype_abstract::pos(x, y);
+                let pos = prototype_abstract::pos(x, y);
                 if let Some(entity) = world.get(pos) {
                     self.render_entity(pixmap, entity, bounds, pos, world, layer);
                 }
@@ -379,13 +379,13 @@ pub fn get_tail_pos(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use protoype_abstract::{Belt, Splitter, UndergroundBelt, World, belts::YELLOW_BELT, pos};
+    use prototype_abstract::{Belt, Splitter, UndergroundBelt, World, belts::YELLOW_BELT, pos};
 
     #[test]
     fn test_render_empty_world() {
         let renderer = ImageRenderer::new().expect("Failed to create renderer");
         let world = World::new();
-        let bounds = protoype_abstract::bounds_new(pos(0, 0), pos(1, 1));
+        let bounds = prototype_abstract::bounds_new(pos(0, 0), pos(1, 1));
 
         let pixmap = renderer.render_world(&world, bounds);
         assert_eq!(pixmap.width(), TILE_SIZE);
@@ -400,7 +400,7 @@ mod tests {
         let belt = Belt::new(Direction::East, YELLOW_BELT);
         world.set(pos(0, 0), belt);
 
-        let bounds = protoype_abstract::bounds_new(pos(0, 0), pos(1, 1));
+        let bounds = prototype_abstract::bounds_new(pos(0, 0), pos(1, 1));
         let pixmap = renderer.render_world(&world, bounds);
 
         assert_eq!(pixmap.width(), TILE_SIZE);
@@ -424,7 +424,7 @@ mod tests {
         let splitter = Splitter::new(Direction::East, YELLOW_BELT);
         world.set(pos(0, 1), splitter);
 
-        let bounds = protoype_abstract::bounds_new(pos(0, 0), pos(4, 2));
+        let bounds = prototype_abstract::bounds_new(pos(0, 0), pos(4, 2));
         let pixmap = renderer.render_world(&world, bounds);
 
         assert_eq!(pixmap.width(), 4 * TILE_SIZE);

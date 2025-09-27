@@ -1,4 +1,6 @@
-use protoype_abstract::test_case::{DragTestCase, check_test_case_normal, check_test_case_reverse};
+use prototype_abstract::test_case::{
+    DragTestCase, check_test_case_normal, check_test_case_reverse,
+};
 
 /// Run a single test case from YAML content
 pub fn run_test_case(content: &str) {
