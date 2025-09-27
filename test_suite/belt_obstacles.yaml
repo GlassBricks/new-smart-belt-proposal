@@ -107,6 +107,14 @@
     _  _ v
     >i X > > >o >
 
+- name: backwards curved belt after obstacle is obstacle
+  before: |
+    _ _ _ v
+    _ X < <
+  after: |
+    _  _ _ v
+    >i X < < >o >
+
 - name: running into a curved belt is error
   before: |
     _ _ ^
@@ -162,3 +170,51 @@
     _  _ _  _   v
     > > >i >o *< >
   expected_errors: [entity_in_the_way]
+
+- name: backwards segment ending in ug belt
+  before: |
+    _ < < <o _
+  after: |
+    > > > > >
+
+- name: backwards segment ending in loader
+  before: |
+    _ < < <O
+  after: |
+    >i < < <O >o
+
+- name: backwards segment ending in unconnected loader 1
+  before: |
+    _ < < <I
+  after: |
+    > > >i <I >o
+
+- name: backwards segment ending in unconnected loader 2
+  before: |
+    _ < < >O >
+  after: |
+    > > >i >O > >o
+
+- name: backwards segment ending in unrelated belt
+  before: |
+    _ _ _ v
+    _ < < v >
+  after: |
+    _ _ _  v
+    > > >i v >o
+
+- name: obstacle extension over backwards segment
+  before: |
+    _ _ _ _ v
+    _ X _ < <
+  after: |
+    _  _ _ _ v
+    >i X _ < < >o
+
+- name: obstacle extension2 over backwards segment
+  before: |
+    _ _ _ _ _ v
+    _ X _ X < <
+  after: |
+    _   _ _ _ _ v
+    2>i X _ X < < 2>o

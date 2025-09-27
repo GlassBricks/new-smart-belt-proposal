@@ -191,8 +191,7 @@ impl<'a> TileClassifier<'a> {
 
     fn classify_splitter(&self, splitter: &Splitter) -> TileType {
         if self.world_view.belt_relative_direction(splitter.direction) == Forward // same direction...
-            && !self.last_state.is_traversing_obstacle() // can enter
-            && !self.should_ug_over_splitter_segment(splitter)
+            && !self.should_ug_over_splitter_segment()
         // not special splitter case
         {
             TileType::IntegratedSplitter
@@ -280,9 +279,16 @@ impl<'a> TileClassifier<'a> {
                     // the whole thing an obstacle
                     return splitter.direction == belt_backwards;
                 }
-                BeltConnectableEnum::LoaderLike(_) => {
-                    // end of belt segment
-                    break;
+                BeltConnectableEnum::LoaderLike(loader) => {
+                    if loader.shape_direction() != drag_backwards
+                        || loader.is_input == self.is_forward()
+                    {
+                        // not part of belt segment
+                        break;
+                    } else {
+                        // this _backwards_ belt segment ends in a loader. Try to ug over it
+                        return true;
+                    }
                 }
             }
             position += rev_multiplier;
@@ -308,16 +314,18 @@ impl<'a> TileClassifier<'a> {
 
     /// We currently only ug over a splitter if we see:
     /// splitter* (straight_belt*) curved_belt
-    fn should_ug_over_splitter_segment(&self, _splitter: &Splitter) -> bool {
+    fn should_ug_over_splitter_segment(&self) -> bool {
+        // If we can't enter the splitter, treat it as an obstacle
+        if !self.last_state.is_outputting_belt() {
+            return true;
+        }
         // if the last tile directly connects to this splitter, don't try
         if self.last_output_already_exists() {
             return false;
         }
 
-        // if we can't underground over this at all, don't try
-        let Some(max_underground_position) = self.max_underground_position() else {
-            return false;
-        };
+        // if we can't underground over this at all, don't try.
+        let max_underground_position = self.max_underground_position().unwrap(); // ok due to is_outputting_belt check
         let rev_multiplier = self.world_view.direction_multiplier();
         let belt_direction = self.world_view.belt_direction();
 
@@ -378,10 +386,10 @@ impl<'a> TileClassifier<'a> {
                     // scan after pair's output
                     pos = pair_pos;
                 }
-                BeltConnectableEnum::Splitter(_splitter) => {
+                BeltConnectableEnum::Splitter(_) => {
                     break; // if we see another splitter, defer decision to until we reach it
                 }
-                BeltConnectableEnum::LoaderLike(_loader_like) => {
+                BeltConnectableEnum::LoaderLike(_) => {
                     break;
                 }
             }

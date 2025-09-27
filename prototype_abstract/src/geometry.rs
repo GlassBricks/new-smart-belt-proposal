@@ -118,13 +118,6 @@ impl RelativeDirection {
     }
 }
 
-impl Direction {
-    pub fn rotate(self, direction: RelativeDirection) -> Direction {
-        let new_ordinal = (self as u8 + direction.to_ordinal()) % 4;
-        Direction::from_ordinal(new_ordinal).unwrap()
-    }
-}
-
 #[derive(Debug, Clone, Copy)]
 pub struct Ray {
     pub start_position: TilePosition,
@@ -137,10 +130,6 @@ impl Ray {
             start_position: position,
             direction,
         }
-    }
-
-    pub fn relative_directon(&self, direction: Direction) -> RelativeDirection {
-        self.direction.direction_to(direction)
     }
 
     pub fn ray_position(&self, position: TilePosition) -> i32 {
@@ -280,21 +269,6 @@ impl Transform {
         self
     }
 }
-
-pub trait PositionIteratorExt: Iterator<Item = TilePosition> + Sized {
-    fn bounds(mut self) -> Option<BoundingBox> {
-        let first = self.next()?;
-        let (min, max) = self.fold((first, first), |(min, max), next_pos| {
-            (
-                pos(min.x.min(next_pos.x), min.y.min(next_pos.y)),
-                pos(max.x.max(next_pos.x), max.y.max(next_pos.y)),
-            )
-        });
-        Some(BoundingBox::new(min, max))
-    }
-}
-
-impl<T: Iterator<Item = TilePosition>> PositionIteratorExt for T {}
 
 #[cfg(test)]
 mod tests {

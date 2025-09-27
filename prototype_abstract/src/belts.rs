@@ -54,11 +54,6 @@ pub trait BeltConnectable: Entity {
 
     fn has_output(&self) -> bool;
     fn has_backwards_input(&self) -> bool;
-
-    /// Does not include underground side-loading
-    fn accepts_sideways_input(&self) -> bool {
-        false
-    }
 }
 dyn_clone::clone_trait_object!(BeltConnectable);
 
@@ -85,9 +80,6 @@ impl BeltConnectable for Belt {
         true
     }
     fn has_backwards_input(&self) -> bool {
-        true
-    }
-    fn accepts_sideways_input(&self) -> bool {
         true
     }
 }
@@ -260,14 +252,6 @@ impl<'a> BeltConnectableEnum<'a> {
             BeltConnectableEnum::Splitter(splitter) => splitter,
             BeltConnectableEnum::LoaderLike(loader) => loader,
         }
-    }
-}
-
-impl Deref for BeltConnectableEnum<'_> {
-    type Target = dyn BeltConnectable;
-
-    fn deref(&self) -> &Self::Target {
-        self.as_dyn()
     }
 }
 
