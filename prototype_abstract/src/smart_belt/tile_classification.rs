@@ -241,11 +241,7 @@ impl<'a> TileClassifier<'a> {
         // can't underground over this anyways; so we just pick one error.
         let mut position = self.next_position();
         while position * rev_multiplier < max_underground_position * rev_multiplier {
-            let Some(belt_connectable) = self
-                .world_view
-                .get_entity_at_position(position)
-                .and_then(|f| f.as_belt_connectable())
-            else {
+            let Some(belt_connectable) = self.world_view.get_belt_at_position(position) else {
                 break;
             };
             match belt_connectable {
@@ -301,8 +297,7 @@ impl<'a> TileClassifier<'a> {
         self.last_state.is_outputting_belt()
             && self
                 .world_view
-                .get_entity_at_position(self.last_position)
-                .and_then(|e| e.as_belt_connectable_dyn())
+                .get_belt_dyn_at_position(self.last_position)
                 .is_some_and(|b| {
                     if self.world_view.is_forward {
                         b.has_output_going(self.world_view.belt_direction())
@@ -334,9 +329,7 @@ impl<'a> TileClassifier<'a> {
             if pos * rev_multiplier >= max_underground_position * rev_multiplier {
                 return None;
             }
-            self.world_view
-                .get_entity_at_position(pos)
-                .and_then(|e| e.as_belt_connectable())
+            self.world_view.get_belt_at_position(pos)
         };
 
         // Skip splitter*

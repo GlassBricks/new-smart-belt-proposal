@@ -57,10 +57,7 @@ impl<'a> LineDrag<'a> {
     }
 
     pub(super) fn get_tile_history(position: TilePosition, world: &World) -> TileHistory {
-        let entity = world
-            .get(position)
-            .and_then(|e| e.as_belt_connectable_dyn())
-            .map(clone_box);
+        let entity = world.get_belt_dyn(position).map(clone_box);
         (position, entity)
     }
 

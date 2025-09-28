@@ -4,8 +4,8 @@ use dyn_clone::clone_box;
 use euclid::vec2;
 
 use crate::{
-    Belt, BeltConnectable, BeltTier, BoundingBox, Direction, Entity, LoaderLike, Splitter,
-    TilePosition, Transform, UndergroundBelt,
+    Belt, BeltConnectable, BeltConnectableEnum, BeltTier, BoundingBox, Direction, Entity,
+    LoaderLike, Splitter, TilePosition, Transform, UndergroundBelt,
 };
 
 #[derive(Debug, Default, PartialEq, Clone)]
@@ -125,6 +125,14 @@ impl WorldReader for World {
 pub trait WorldReader {
     fn get(&self, position: TilePosition) -> Option<&dyn Entity>;
 
+    fn get_belt_dyn(&self, position: TilePosition) -> Option<&dyn BeltConnectable> {
+        self.get(position).and_then(|e| e.as_belt_connectable_dyn())
+    }
+
+    fn get_belt(&self, position: TilePosition) -> Option<BeltConnectableEnum<'_>> {
+        self.get(position).and_then(|e| e.as_belt_connectable())
+    }
+
     fn get_ug_pair(
         &self,
         position: TilePosition,
@@ -153,8 +161,7 @@ pub trait WorldReader {
         let has_input_in = |direction: Direction| {
             let query_pos = position - direction.to_vector();
 
-            self.get(query_pos)
-                .and_then(|e| e.as_belt_connectable_dyn())
+            self.get_belt_dyn(query_pos)
                 .and_then(|b| b.output_direction())
                 == Some(direction)
         };
