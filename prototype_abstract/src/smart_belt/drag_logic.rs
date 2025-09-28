@@ -161,7 +161,7 @@ impl<'a> LineDrag<'a> {
             self.last_position
         };
         let check_pos = |pos| {
-            let Some(entity) = world_view.get_entity_at_position(pos) else {
+            let Some(entity) = world_view.get_entity(pos) else {
                 return Ok(());
             };
             if entity.as_any().is::<Impassable>() {

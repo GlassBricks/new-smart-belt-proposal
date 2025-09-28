@@ -121,3 +121,11 @@
   after: |
     _  _ _ _  ^
     >i X _ >s ^ >o
+
+- name: curved input behind splitter
+  before: |
+    _ <s ^ <
+  after: |
+    < <s *^ < <
+  expected_errors: [entity_in_the_way]
+  not_reversible: true

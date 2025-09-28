@@ -1,0 +1,14 @@
+- name: To empty tile
+  before: X _
+  after: "*X >"
+  expected_errors: [entity_in_the_way]
+
+- name: To underground
+  before: X 2>i 2>o
+  after: "*X >i >o "
+  expected_errors: [entity_in_the_way]
+
+- name: To splitter
+  before: X 2>s >
+  after: "*X >s >"
+  expected_errors: [entity_in_the_way]

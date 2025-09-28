@@ -41,26 +41,19 @@ impl<'a> DragWorldView<'a> {
         }
     }
 
-    pub fn belt_relative_direction(&self, direction: Direction) -> RelativeDirection {
-        self.belt_direction().direction_to(direction)
-    }
-    pub fn drag_relative_direction(&self, direction: Direction) -> RelativeDirection {
-        self.drag_direction().direction_to(direction)
-    }
-
     pub fn direction_multiplier(&self) -> i32 {
         if self.is_forward { 1 } else { -1 }
     }
 
     // World interaction methods - stubbed for implementation
-    pub fn get_entity_at_position(&self, position: i32) -> Option<&dyn Entity> {
+    pub fn get_entity(&self, position: i32) -> Option<&dyn Entity> {
         self.world_reader.get(self.ray.get_position(position))
     }
 
-    pub fn get_belt_at_position(&self, position: i32) -> Option<BeltConnectableEnum<'_>> {
+    pub fn get_belt(&self, position: i32) -> Option<BeltConnectableEnum<'_>> {
         self.world_reader.get_belt(self.ray.get_position(position))
     }
-    pub fn get_belt_dyn_at_position(&self, position: i32) -> Option<&dyn BeltConnectable> {
+    pub fn et_belt_dyn(&self, position: i32) -> Option<&dyn BeltConnectable> {
         self.world_reader
             .get_belt_dyn(self.ray.get_position(position))
     }
@@ -70,14 +63,10 @@ impl<'a> DragWorldView<'a> {
         self.world_reader.belt_was_curved(position, belt)
     }
 
-    pub fn directional_output_position(&self, position: i32, belt: &Belt) -> Direction {
-        if self.is_forward {
-            belt.direction
-        } else {
-            let position = self.ray.get_position(position);
-            self.world_reader
-                .belt_input_direction(position, belt.direction)
-        }
+    pub fn belt_input_direction(&self, position: i32, belt: &Belt) -> Direction {
+        let position = self.ray.get_position(position);
+        self.world_reader
+            .belt_input_direction(position, belt.direction)
     }
 
     pub fn belt_directly_connects_to_next(&self, last_pos: i32) -> bool {
