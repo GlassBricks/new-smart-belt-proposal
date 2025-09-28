@@ -78,7 +78,7 @@ impl<'a> LineDrag<'a> {
         eprintln!("Entity: {next_entity:?}");
         match &self.last_state {
             DragState::Normal(state) => self.normal_state_step(state, is_forward),
-            &DragState::PassThrough { output_pos } => {
+            &DragState::PassThrough { output_pos, .. } => {
                 let next_state = if self.next_position(is_forward) == output_pos {
                     NormalState::IntegratedOutput.into()
                 } else {

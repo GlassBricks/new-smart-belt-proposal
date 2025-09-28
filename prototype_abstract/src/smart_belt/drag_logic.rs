@@ -8,7 +8,7 @@ use super::{Action, LineDrag, TileClassifier, TileType, action::Error};
 #[non_exhaustive]
 pub(super) enum DragState {
     Normal(NormalState),
-    PassThrough { output_pos: i32 },
+    PassThrough { input_pos: i32, output_pos: i32 },
 }
 
 /// Most states here.
@@ -36,7 +36,7 @@ pub(super) enum NormalState {
         /// Last position we placed an underground belt.
         output_pos: i32,
     },
-    /// When we are hovering over the exit of an integrated output belt.
+    /// When we are hovering over the exit of a splitter or output underground.
     IntegratedOutput,
     /// We have just encountered an impassable obstacle. However, we don't error until the user tries to _pass_ the obstacle.
     OverImpassableObstacle,
@@ -227,7 +227,14 @@ impl<'a> LineDrag<'a> {
                 .into_iter()
                 .chain(upgrade_failure.then_some(Error::CannotUpgradeUnderground))
                 .collect_vec();
-            DragStep(action, errors, DragState::PassThrough { output_pos })
+            DragStep(
+                action,
+                errors,
+                DragState::PassThrough {
+                    input_pos: self.last_position,
+                    output_pos,
+                },
+            )
         }
     }
 
