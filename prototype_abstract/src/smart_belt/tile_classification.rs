@@ -1,6 +1,3 @@
-use std::any::Any;
-
-use crate::Impassable;
 use crate::RelativeDirection::*;
 use crate::belts::BeltTier;
 use crate::belts::LoaderLike;
@@ -33,7 +30,6 @@ pub(super) enum TileType {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ObstacleKind {
     CurvedBelt,
-    Tile,
     Loader,
 }
 
@@ -76,13 +72,7 @@ impl<'a> TileClassifier<'a> {
                 Some(BeltConnectableEnum::UndergroundBelt(ug)) => self.classify_underground(ug),
                 Some(BeltConnectableEnum::Splitter(splitter)) => self.classify_splitter(splitter),
                 Some(BeltConnectableEnum::LoaderLike(loader)) => self.classify_loader(loader),
-                None => {
-                    if (entity as &dyn Any).is::<Impassable>() {
-                        TileType::ImpassableObstacle(ObstacleKind::Tile)
-                    } else {
-                        TileType::Obstacle
-                    }
-                }
+                None => TileType::Obstacle,
             }
         } else {
             TileType::Usable

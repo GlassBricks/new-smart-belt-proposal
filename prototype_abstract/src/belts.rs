@@ -1,5 +1,4 @@
 use crate::{Direction, Entity};
-use std::any::Any;
 use std::fmt::Debug;
 use std::ops::Deref;
 
@@ -223,16 +222,16 @@ impl dyn BeltConnectable {
 
 impl dyn Entity {
     pub fn as_belt(&self) -> Option<&Belt> {
-        (self as &dyn Any).downcast_ref::<Belt>()
+        self.as_any().downcast_ref::<Belt>()
     }
     pub fn as_underground_belt(&self) -> Option<&UndergroundBelt> {
-        (self as &dyn Any).downcast_ref::<UndergroundBelt>()
+        self.as_any().downcast_ref::<UndergroundBelt>()
     }
     pub fn as_splitter(&self) -> Option<&Splitter> {
-        (self as &dyn Any).downcast_ref::<Splitter>()
+        self.as_any().downcast_ref::<Splitter>()
     }
     pub fn as_loader_like(&self) -> Option<&LoaderLike> {
-        (self as &dyn Any).downcast_ref::<LoaderLike>()
+        self.as_any().downcast_ref::<LoaderLike>()
     }
 }
 

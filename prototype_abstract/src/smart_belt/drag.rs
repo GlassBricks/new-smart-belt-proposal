@@ -111,7 +111,7 @@ impl<'a> LineDrag<'a> {
             self.errors
                 .push((self.ray.get_position(self.next_position(is_forward)), error));
         }
-        eprintln!("next_state: {:?}", next_state);
+        eprintln!("Next state: {:?}\n", next_state);
         self.last_state = next_state;
         self.last_position = self.next_position(is_forward);
     }

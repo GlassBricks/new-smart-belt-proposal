@@ -1,6 +1,9 @@
 use itertools::Itertools;
 
-use crate::smart_belt::{DragWorldView, tile_classification::ObstacleKind};
+use crate::{
+    Impassable,
+    smart_belt::{DragWorldView, tile_classification::ObstacleKind},
+};
 
 use super::{Action, LineDrag, TileClassifier, TileType, action::Error};
 
@@ -83,8 +86,10 @@ impl<'a> LineDrag<'a> {
         let world_view =
             DragWorldView::new(self.world, self.ray, self.tile_history.as_ref(), is_forward);
 
-        let classifier = TileClassifier::new(world_view, self.tier, last_state, self.last_position);
-        match classifier.classify_next_tile() {
+        let next_tile = TileClassifier::new(world_view, self.tier, last_state, self.last_position)
+            .classify_next_tile();
+        eprintln!("Tile type: {:?}", next_tile);
+        match next_tile {
             TileType::Usable => self.place_belt_or_underground(last_state, is_forward),
             TileType::Obstacle => self.handle_obstacle(last_state),
             TileType::IntegratedSplitter => {
@@ -110,36 +115,78 @@ impl<'a> LineDrag<'a> {
             | NormalState::IntegratedOutput => {
                 self.normal_result(Action::PlaceBelt, NormalState::BeltPlaced)
             }
-            &NormalState::Traversing { input_pos, .. }
-            | &NormalState::TraversingAfterOutput { input_pos, .. }
-                if self.next_position(is_forward).abs_diff(input_pos)
-                    > self.tier.underground_distance.into() =>
-            {
-                DragStep(
-                    Action::PlaceBelt,
-                    vec![Error::TooFarToConnect],
-                    NormalState::BeltPlaced.into(),
-                )
+            &NormalState::Traversing { input_pos, .. } => {
+                if let Err(errors) = self.check_can_underground(input_pos, is_forward, false) {
+                    DragStep(Action::PlaceBelt, errors, NormalState::BeltPlaced.into())
+                } else {
+                    self.normal_result(
+                        Action::CreateUnderground {
+                            input_pos,
+                            output_pos: self.next_position(is_forward),
+                        },
+                        NormalState::OutputUgPlaced { input_pos },
+                    )
+                }
             }
-            &NormalState::Traversing { input_pos, .. } => self.normal_result(
-                Action::CreateUnderground {
-                    input_pos,
-                    output_pos: self.next_position(is_forward),
-                },
-                NormalState::OutputUgPlaced { input_pos },
-            ),
             &NormalState::TraversingAfterOutput {
                 input_pos,
                 output_pos,
-                ..
-            } => self.normal_result(
-                Action::ExtendUnderground {
-                    previous_output_pos: output_pos,
-                    new_output_pos: self.next_position(is_forward),
-                },
-                NormalState::OutputUgPlaced { input_pos },
-            ),
+            } => {
+                if let Err(errors) = self.check_can_underground(input_pos, is_forward, true) {
+                    DragStep(Action::PlaceBelt, errors, NormalState::BeltPlaced.into())
+                } else {
+                    self.normal_result(
+                        Action::ExtendUnderground {
+                            previous_output_pos: output_pos,
+                            new_output_pos: self.next_position(is_forward),
+                        },
+                        NormalState::OutputUgPlaced { input_pos },
+                    )
+                }
+            }
         }
+    }
+
+    fn check_can_underground(
+        &self,
+        input_pos: i32,
+        is_forward: bool,
+        is_extension: bool,
+    ) -> Result<(), Vec<Error>> {
+        let distance = self.next_position(is_forward).abs_diff(input_pos);
+        if distance > self.tier.underground_distance.into() {
+            return Err(vec![Error::TooFarToConnect]);
+        }
+        let world_view =
+            DragWorldView::new(self.world, self.ray, self.tile_history.as_ref(), is_forward);
+        // check all tiles
+        let output_pos = self.next_position(is_forward);
+        let start_pos = if !is_extension {
+            input_pos
+        } else {
+            self.last_position
+        };
+        let check_pos = |pos| {
+            let Some(entity) = world_view.get_entity_at_position(pos) else {
+                return Ok(());
+            };
+            if entity.as_any().is::<Impassable>() {
+                return Err(vec![Error::CannotTraversePastTile]);
+            }
+            Ok(())
+        };
+        if is_forward {
+            for pos in start_pos + 1..=output_pos - 1 {
+                check_pos(pos)?;
+            }
+        } else {
+            // start: 0  output: -2
+            for pos in (output_pos + 1..=start_pos).rev() {
+                check_pos(pos)?;
+            }
+        }
+
+        Ok(())
     }
 
     fn handle_obstacle(&self, last_state: &NormalState) -> DragStep {
@@ -220,7 +267,6 @@ impl<'a> LineDrag<'a> {
                     ObstacleKind::CurvedBelt | ObstacleKind::Loader => {
                         Error::CannotTraversePastEntity
                     }
-                    ObstacleKind::Tile => Error::CannotTraversePastTile,
                 })
             }
             _ => None,

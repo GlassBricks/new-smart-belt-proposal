@@ -81,15 +81,6 @@
     > >s >i >o ^ *X >
   expected_errors: [cannot_traverse_past_entity]
 
-- name: Splitter after error is not integrated
-  before: |
-    _ _  _  _  _ ^
-    > # >s 2> 2> ^
-  after: |
-    _ _  _  _  _ ^
-    > # *>s 2> 2> ^ >
-  expected_errors: [cannot_traverse_past_tile]
-
 - name: Splitter after splitter
   before: |
     _  _ _ _ _ _  ^

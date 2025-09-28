@@ -26,6 +26,6 @@ impl Entity for Impassable {}
 
 impl dyn Entity {
     pub fn as_colliding(&self) -> Option<&Colliding> {
-        (self as &dyn Any).downcast_ref::<Colliding>()
+        self.as_any().downcast_ref::<Colliding>()
     }
 }
