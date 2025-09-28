@@ -131,9 +131,8 @@
 
 - name: unenterable underground of same tier is impassable
   before: "_ X >i >o _"
-  after: "> X *>i >o >"
-  expected_errors:
-    - entity_in_the_way
+  after: "> X >i >o *>"
+  expected_errors: [cannot_traverse_past_entity]
 
 - name: backwards paired underground of different tier is obstacle
   before: "2<o *_ 2<i < <"
@@ -141,5 +140,5 @@
 
 - name: backwards paired underground of same tier is impassable, and doesn't override later belt
   before: "<o *_ <i < <"
-  after: "<o > *<i < < >"
-  expected_errors: [entity_in_the_way]
+  after: "<o > <i < < *>"
+  expected_errors: [cannot_traverse_past_entity]

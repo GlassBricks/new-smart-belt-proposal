@@ -143,13 +143,13 @@
     _ v
   after: |
     _ _ _ _ v _
-    > v *<o <i < >
+    > v <o <i < *>
     _ v
   after_for_reverse: |
     _ _ _ _ v _
     > < *<o <i < >
     _ v
-  expected_errors: [entity_in_the_way]
+  expected_errors: [cannot_traverse_past_entity]
 
 - name: "24"
   before: " _ >i _ >o >s X"

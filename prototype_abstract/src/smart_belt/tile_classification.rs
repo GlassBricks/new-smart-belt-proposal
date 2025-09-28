@@ -16,21 +16,14 @@ pub(super) enum TileType {
     Obstacle,
     /// A splitter that we will use
     IntegratedSplitter,
-    /// A curved belt we directly ran into, which is an impassable obstacle.
-    ImpassableObstacle(ObstacleKind),
-    BlockingUnderground,
-    /// An existing paired underground belt we ill pass-through.
+    /// An existing paired underground belt we will pass-through.
     PassThroughUnderground {
-        /// failure if we want to upgrade this underground but we can't.
+        /// failure if we wanted to upgrade this underground but we can't.
         upgrade_failure: bool,
         output_pos: i32,
     },
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum ObstacleKind {
-    CurvedBelt,
-    Loader,
+    /// An entity that ends the belt segment: a curved belt, or a loader. We can't underground over this.
+    ImpassableObstacle,
 }
 
 pub(super) struct TileClassifier<'a> {
@@ -113,7 +106,7 @@ impl<'a> TileClassifier<'a> {
                 .belt_directly_connects_to_next(self.last_position)
         {
             // it's impassable (smart belt is not allowed to rotate belt)
-            TileType::ImpassableObstacle(ObstacleKind::CurvedBelt)
+            TileType::ImpassableObstacle
         } else {
             // Any other curved belt is a normal obstacle
             TileType::Obstacle
@@ -145,18 +138,12 @@ impl<'a> TileClassifier<'a> {
                 };
                 if self.last_state.is_traversing_obstacle() {
                     // we can't use an input underground if we're already traversing an obstacle!
-                    if ug.tier == self.tier {
-                        // impassable!
-                        TileType::BlockingUnderground
-                    } else {
-                        // can belt weave
-                        TileType::Obstacle
-                    }
+                    TileType::Obstacle
                 } else if relative_dir == Forward {
                     // running into underground, use it!
                     self.try_integrate_underground(ug, pair_pos)
                 } else {
-                    self.try_skip_underground(ug)
+                    TileType::Obstacle
                 }
             }
         }
@@ -168,14 +155,6 @@ impl<'a> TileClassifier<'a> {
         TileType::PassThroughUnderground {
             output_pos: pair_pos,
             upgrade_failure,
-        }
-    }
-
-    fn try_skip_underground(&self, ug: &UndergroundBelt) -> TileType {
-        if self.tier == ug.tier {
-            TileType::BlockingUnderground
-        } else {
-            TileType::Obstacle
         }
     }
 
@@ -192,7 +171,7 @@ impl<'a> TileClassifier<'a> {
 
     fn classify_loader(&self, loader: &LoaderLike) -> TileType {
         if self.belt_connects_into_loader(loader) {
-            TileType::ImpassableObstacle(ObstacleKind::Loader)
+            TileType::ImpassableObstacle
         } else {
             TileType::Obstacle
         }
