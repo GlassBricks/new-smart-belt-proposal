@@ -80,11 +80,13 @@ pub(super) struct DragStep(pub Action, pub Vec<Error>, pub DragState);
  */
 impl<'a> LineDrag<'a> {
     pub(super) fn normal_state_step(&self, last_state: &NormalState, is_forward: bool) -> DragStep {
-        let world_view =
-            DragWorldView::new(self.world, self.ray, self.tile_history.as_ref(), is_forward);
-
-        let next_tile = TileClassifier::new(world_view, self.tier, last_state, self.last_position)
-            .classify_next_tile();
+        let next_tile = TileClassifier::new(
+            self.world_view(is_forward),
+            self.tier,
+            last_state,
+            self.last_position,
+        )
+        .classify_next_tile();
         eprintln!("Tile type: {:?}", next_tile);
         match next_tile {
             TileType::Usable => self.place_belt_or_underground(last_state, is_forward),
@@ -93,11 +95,14 @@ impl<'a> LineDrag<'a> {
                 self.normal_result(Action::IntegrateSplitter, NormalState::IntegratedOutput)
             }
             TileType::ImpassableObstacle => self.handle_impassable_obstacle(last_state),
-            TileType::PassThroughUnderground {
-                output_pos,
-                upgrade_failure,
-            } => self.integrate_underground_pair(output_pos, upgrade_failure),
+            TileType::IntegratedUnderground { output_pos } => {
+                self.integrate_underground_pair(is_forward, output_pos)
+            }
         }
+    }
+
+    fn world_view(&self, is_forward: bool) -> DragWorldView<'_> {
+        DragWorldView::new(self.world, self.ray, self.tile_history.as_ref(), is_forward)
     }
 
     fn place_belt_or_underground(&self, last_state: &NormalState, is_forward: bool) -> DragStep {
@@ -151,8 +156,7 @@ impl<'a> LineDrag<'a> {
         if distance > self.tier.underground_distance.into() {
             return Err(vec![Error::TooFarToConnect]);
         }
-        let world_view =
-            DragWorldView::new(self.world, self.ray, self.tile_history.as_ref(), is_forward);
+        let world_view = self.world_view(is_forward);
         // check all tiles
         let output_pos = self.next_position(is_forward);
         let start_pos = if !is_extension {
@@ -217,18 +221,41 @@ impl<'a> LineDrag<'a> {
         self.normal_result(Action::None, new_state)
     }
 
-    fn integrate_underground_pair(&self, output_pos: i32, upgrade_failure: bool) -> DragStep {
-        {
-            let action = Action::IntegrateUndergroundPair {
-                do_upgrade: !upgrade_failure,
-            };
-            let errors = self
-                .deferred_error()
-                .into_iter()
-                .chain(upgrade_failure.then_some(Error::CannotUpgradeUnderground))
-                .collect_vec();
-            DragStep(action, errors, DragState::PassThrough { output_pos })
+    fn integrate_underground_pair(&self, is_forward: bool, output_pos: i32) -> DragStep {
+        let can_upgrade = self.can_upgrade_underground(is_forward, output_pos);
+        let action = Action::IntegrateUndergroundPair {
+            do_upgrade: can_upgrade,
+        };
+        let errors = self
+            .deferred_error()
+            .into_iter()
+            .chain((!can_upgrade).then_some(Error::CannotUpgradeUnderground))
+            .collect_vec();
+        DragStep(action, errors, DragState::PassThrough { output_pos })
+    }
+
+    fn can_upgrade_underground(&self, is_forward: bool, output_pos: i32) -> bool {
+        let input_pos = self.next_position(is_forward);
+        if output_pos.abs_diff(input_pos) > self.tier.underground_distance as u32 {
+            // Upgrading would make the pair too short
+            return false;
         }
+
+        // Check if there are any existing underground belts in between that would cut this belt segment.
+        let between_range = if is_forward {
+            input_pos + 1..=output_pos - 1
+        } else {
+            output_pos + 1..=input_pos - 1
+        };
+
+        !between_range.into_iter().any(|pos| {
+            self.world_view(is_forward)
+                .get_entity(pos)
+                .and_then(|e| e.as_underground_belt())
+                .is_some_and(|e| {
+                    e.tier == self.tier && e.direction.axis() == self.ray.direction.axis()
+                })
+        })
     }
 
     fn handle_impassable_obstacle(&self, last_state: &NormalState) -> DragStep {

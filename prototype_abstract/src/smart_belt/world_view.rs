@@ -1,4 +1,3 @@
-use crate::geometry::RelativeDirection;
 use crate::{
     Belt, BeltConnectable, BeltConnectableEnum, Direction, Entity, Ray, TileHistory,
     TileHistoryView, UndergroundBelt, World, WorldReader,
@@ -106,17 +105,10 @@ impl<'a> DragWorldView<'a> {
             && self.world_reader.effective_output_direction(cur_entity) == Some(opposite_direction)
     }
 
-    pub(crate) fn get_ug_pair(
-        &self,
-        index: i32,
-        ug: &UndergroundBelt,
-    ) -> Option<(i32, &UndergroundBelt)> {
+    pub fn get_ug_pair_pos(&self, index: i32, ug: &UndergroundBelt) -> Option<i32> {
         let world_position = self.ray.get_position(index);
         self.world_reader
             .get_ug_pair(world_position, ug)
-            .map(|(other_pos, other)| {
-                let other_ray_pos = self.ray.ray_position(other_pos);
-                (other_ray_pos, other)
-            })
+            .map(|(other_pos, _)| self.ray.ray_position(other_pos))
     }
 }

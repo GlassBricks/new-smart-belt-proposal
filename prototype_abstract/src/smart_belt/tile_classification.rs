@@ -1,9 +1,6 @@
+use crate::Direction;
 use crate::RelativeDirection::*;
-use crate::belts::BeltTier;
-use crate::belts::LoaderLike;
-use crate::belts::Splitter;
-use crate::belts::UndergroundBelt;
-use crate::belts::{Belt, BeltConnectableEnum};
+use crate::belts::{Belt, BeltConnectableEnum, BeltTier, LoaderLike, Splitter, UndergroundBelt};
 
 use super::DragWorldView;
 use super::NormalState;
@@ -17,12 +14,8 @@ pub(super) enum TileType {
     /// A splitter that we will use
     IntegratedSplitter,
     /// An existing paired underground belt we will pass-through.
-    PassThroughUnderground {
-        /// failure if we wanted to upgrade this underground but we can't.
-        upgrade_failure: bool,
-        output_pos: i32,
-    },
-    /// An entity that ends the belt segment: a curved belt, or a loader. We can't underground over this.
+    IntegratedUnderground { output_pos: i32 },
+    /// An entity that ends the current drag: a curved belt or a loader. We can't underground over this.
     ImpassableObstacle,
 }
 
@@ -51,14 +44,20 @@ impl<'a> TileClassifier<'a> {
     fn next_position(&self) -> i32 {
         self.last_position + self.world_view.direction_multiplier()
     }
-
     fn is_forward(&self) -> bool {
         self.world_view.is_forward
     }
+    fn drag_direction(&self) -> Direction {
+        self.world_view.drag_direction()
+    }
+    fn belt_direction(&self) -> Direction {
+        self.world_view.belt_direction()
+    }
+    fn is_perpendicular(&self, direction: Direction) -> bool {
+        direction.axis() != self.drag_direction().axis()
+    }
 
-    /// most things are simple to classify. The tricky cases are in existing belt-like-entities.
     pub(super) fn classify_next_tile(&self) -> TileType {
-        // note: we're faking impassable tiles with entities
         if let Some(entity) = self.world_view.get_entity(self.next_position()) {
             match entity.as_belt_connectable() {
                 Some(BeltConnectableEnum::Belt(belt)) => self.classify_belt(belt),
@@ -81,24 +80,13 @@ impl<'a> TileClassifier<'a> {
     }
 
     fn classify_straight_belt(&self, belt: &Belt) -> TileType {
-        match self
-            .world_view
-            .belt_direction()
-            .direction_to(belt.direction)
+        if self.is_perpendicular(belt.direction)
+            || self.is_connected_to_previous_belt_obstacle()
+            || (belt.direction != self.belt_direction() && self.should_ug_over_backwards_segment())
         {
-            // perpendicular belt
-            Left | Right => TileType::Obstacle,
-            // if the previous tile is an obstacle and directly connects to this belt, it's an obstacle.
-            Forward | Backward if self.aligned_belt_is_obstacle() => TileType::Obstacle,
-            // Forwards straight belt is always usable!
-            Forward => TileType::Usable,
-            Backward => {
-                if self.should_ug_over_backwards_segment() {
-                    TileType::Obstacle
-                } else {
-                    TileType::Usable
-                }
-            }
+            TileType::Obstacle
+        } else {
+            TileType::Usable
         }
     }
 
@@ -109,7 +97,7 @@ impl<'a> TileClassifier<'a> {
                 .world_view
                 .belt_directly_connects_to_next(self.last_position)
         {
-            // it's impassable (smart belt is not allowed to rotate belt)
+            // it's impassable, since we're not allowed to rotate existing belt.
             TileType::ImpassableObstacle
         } else {
             // Any other curved belt is a normal obstacle
@@ -117,50 +105,26 @@ impl<'a> TileClassifier<'a> {
         }
     }
 
-    fn aligned_belt_is_obstacle(&self) -> bool {
-        // If we don't connect to this belt (obstacle or error)...
-        !self.last_state.is_outputting_belt()
-        // and this belt directly connects to the previous obstacle...
-            && self
-                .world_view
-                .belt_directly_connects_to_next(self.last_position)
-        // then this belt is also an obstacle.
-    }
-
     fn classify_underground(&self, ug: &UndergroundBelt) -> TileType {
-        let relative_dir = self
-            .world_view
-            .drag_direction()
-            .direction_to(ug.shape_direction());
-
-        match relative_dir {
-            Left | Right => TileType::Obstacle,
-            Forward | Backward => {
-                let Some((pair_pos, _)) = self.world_view.get_ug_pair(self.next_position(), ug)
-                else {
-                    // unpaired undergrounds are always usable
-                    return TileType::Usable;
-                };
-                if self.last_state.is_traversing_obstacle() {
-                    // If the input of the underground is an obstacle, we can't use it
-                    TileType::Obstacle
-                } else if relative_dir == Backward {
-                    // Backwards shape direction relative to drag direction is the "correct" orientation
-                    self.try_integrate_underground(ug, pair_pos)
-                } else {
-                    TileType::Obstacle
-                }
+        if self.is_perpendicular(ug.direction) || self.is_connected_to_previous_belt_obstacle() {
+            TileType::Obstacle
+        } else if let Some(output_pos) = self.world_view.get_ug_pair_pos(self.next_position(), ug) {
+            if self.last_state.is_traversing_obstacle() // if the belt before is an obstacle, we can't enter this
+                || !self.ug_is_enterable(ug)
+            {
+                TileType::Obstacle
+            } else {
+                // The correct orientation to use this underground belt.
+                TileType::IntegratedUnderground { output_pos }
             }
+        } else {
+            // Unpaired undergrounds are always usable.
+            TileType::Usable
         }
     }
 
-    fn try_integrate_underground(&self, ug: &UndergroundBelt, pair_pos: i32) -> TileType {
-        let upgrade_failure =
-            self.tier != ug.tier && !self.can_upgrade_underground(self.next_position(), pair_pos);
-        TileType::PassThroughUnderground {
-            output_pos: pair_pos,
-            upgrade_failure,
-        }
+    fn ug_is_enterable(&self, ug: &UndergroundBelt) -> bool {
+        self.drag_direction() == ug.shape_direction().opposite()
     }
 
     fn classify_splitter(&self, splitter: &Splitter) -> TileType {
@@ -186,33 +150,15 @@ impl<'a> TileClassifier<'a> {
     }
 
     fn belt_connects_into_loader(&self, loader: &LoaderLike) -> bool {
-        loader.shape_direction() == self.world_view.drag_direction().opposite()
+        loader.shape_direction() == self.drag_direction().opposite()
             && loader.is_input == self.is_forward()
     }
 
-    /// Check the belt segment.
-    /// We ug over a backwards belt segment if:
-    /// it consists only of straight backwards belt segments and underground belts, at least
-    /// as far as the current underground might reach.
-    fn should_ug_over_backwards_segment(&self) -> bool {
-        // If we already integrated the last tile that connects to this one, continue to integrate.
-        if self.last_state.is_outputting_belt()
+    fn is_connected_to_previous_belt_obstacle(&self) -> bool {
+        self.last_state.is_traversing_obstacle()
             && self
                 .world_view
                 .belt_directly_connects_to_next(self.last_position)
-        {
-            return false;
-        }
-
-        self.scan_belt_segment(
-            self.next_position(),
-            true,
-            |splitter| splitter.direction == self.world_view.belt_direction().opposite(),
-            |loader| {
-                loader.shape_direction() == self.world_view.drag_direction().opposite()
-                    && loader.is_input != self.is_forward()
-            },
-        )
     }
 
     /// We currently only ug over a splitter if we see:
@@ -238,9 +184,9 @@ impl<'a> TileClassifier<'a> {
             .et_belt_dyn(self.last_position)
             .is_some_and(|b| {
                 if self.world_view.is_forward {
-                    b.has_output_going(self.world_view.belt_direction())
+                    b.has_output_going(self.belt_direction())
                 } else {
-                    b.has_input_going(self.world_view.belt_direction())
+                    b.has_input_going(self.belt_direction())
                 }
             })
     }
@@ -257,7 +203,7 @@ impl<'a> TileClassifier<'a> {
         while scan_pos * rev_multiplier < max_underground_position * rev_multiplier
             && let Some(belt_connectable) = self.world_view.get_belt(scan_pos)
             && let BeltConnectableEnum::Splitter(Splitter { direction, .. }) = belt_connectable
-            && *direction == self.world_view.belt_direction()
+            && *direction == self.belt_direction()
         {
             scan_pos += rev_multiplier;
         }
@@ -265,11 +211,37 @@ impl<'a> TileClassifier<'a> {
         self.scan_belt_segment(scan_pos, false, |_| false, |_| false)
     }
 
+    /// Check the belt segment.
+    /// We ug over a backwards belt segment if:
+    /// it consists only of straight backwards belt segments and underground belts, at least
+    /// as far as the current underground might reach.
+    fn should_ug_over_backwards_segment(&self) -> bool {
+        // If we already integrated the last tile that was part of this belt segment, continue to integrate.
+        if self.last_state.is_outputting_belt()
+            && self
+                .world_view
+                .belt_directly_connects_to_next(self.last_position)
+        {
+            return false;
+        }
+
+        self.scan_belt_segment(
+            self.next_position(),
+            true,
+            |splitter| splitter.direction == self.belt_direction().opposite(),
+            |loader| {
+                loader.shape_direction() == self.drag_direction().opposite()
+                    && loader.is_input != self.is_forward()
+            },
+        )
+    }
+
     /// Scans belt segment, returns if we should underground over it.
     /// If the belt segment:
     /// - Ends in a curved belt, returns true.
     /// - Ends in a splitter/loader; then returns result of splitter_check and loader_check.
-    /// Else, returns false.
+    ///
+    /// else, returns false.
     fn scan_belt_segment<FS, FL>(
         &self,
         start_pos: i32,
@@ -303,9 +275,9 @@ impl<'a> TileClassifier<'a> {
                             belt.direction
                         };
                     let target_dir = if reverse_belt_direction {
-                        self.world_view.belt_direction().opposite()
+                        self.belt_direction().opposite()
                     } else {
-                        self.world_view.belt_direction()
+                        self.belt_direction()
                     };
                     if segment_connecting_dir != target_dir {
                         // Not part of this belt segment.
@@ -321,13 +293,13 @@ impl<'a> TileClassifier<'a> {
                         // We can't underground over this.
                         break;
                     }
-                    if ug.shape_direction() != self.world_view.drag_direction().opposite()
+                    if !self.ug_is_enterable(ug)
                         || ug.is_input != self.is_forward() ^ reverse_belt_direction
                     {
                         // Not part of belt segment.
                         break;
                     }
-                    let Some((pair_pos, _)) = self.world_view.get_ug_pair(scan_pos, ug) else {
+                    let Some(pair_pos) = self.world_view.get_ug_pair_pos(scan_pos, ug) else {
                         // Unpaired underground belt, treated as normal belt. Ends belt segment
                         break;
                     };
@@ -355,30 +327,5 @@ impl<'a> TileClassifier<'a> {
         };
         let diff = (self.tier.underground_distance as i32) * self.world_view.direction_multiplier();
         input_pos.map(|f| f + diff)
-    }
-
-    /// Todo: this may be moved to drag_logic
-    fn can_upgrade_underground(&self, ug_pos: i32, pair_pos: i32) -> bool {
-        if pair_pos.abs_diff(ug_pos) > self.tier.underground_distance as u32 {
-            // Can't upgrade if if upgrading would make the pair too short
-            return false;
-        }
-
-        // Check if there are any existing underground belts in between that would cut this belt segment.
-        let between_range = if self.is_forward() {
-            ug_pos + 1..=pair_pos - 1
-        } else {
-            pair_pos + 1..=ug_pos - 1
-        };
-
-        !between_range.into_iter().any(|pos| {
-            self.world_view
-                .get_entity(pos)
-                .and_then(|e| e.as_underground_belt())
-                .is_some_and(|e| {
-                    e.tier == self.tier
-                        && e.direction.axis() == self.world_view.drag_direction().axis()
-                })
-        })
     }
 }
