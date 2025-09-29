@@ -1,6 +1,6 @@
 use crate::{
-    Belt, BeltConnectable, BeltConnectableEnum, Direction, Entity, Ray, TileHistory,
-    TileHistoryView, UndergroundBelt, World, WorldReader,
+    Belt, BeltConnectableEnum, Direction, Entity, Ray, TileHistory, TileHistoryView,
+    UndergroundBelt, World, WorldReader,
 };
 
 /**
@@ -52,10 +52,6 @@ impl<'a> DragWorldView<'a> {
     pub fn get_belt(&self, position: i32) -> Option<BeltConnectableEnum<'_>> {
         self.world_reader.get_belt(self.ray.get_position(position))
     }
-    pub fn get_belt_dyn(&self, position: i32) -> Option<&dyn BeltConnectable> {
-        self.world_reader
-            .get_belt_dyn(self.ray.get_position(position))
-    }
 
     pub fn belt_was_curved(&self, position: i32, belt: &Belt) -> bool {
         let position = self.ray.get_position(position);
@@ -83,6 +79,7 @@ impl<'a> DragWorldView<'a> {
         let Some(cur_entity) = self.world_reader.get_belt_dyn(cur_pos) else {
             return false;
         };
+        dbg!(last_entity, cur_entity);
 
         let connects_forward = self.world_reader.effective_output_direction(last_entity)
             == Some(self.belt_direction())

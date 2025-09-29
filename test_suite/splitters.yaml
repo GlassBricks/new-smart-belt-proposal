@@ -129,3 +129,18 @@
     < <s *^ < <
   expected_errors: [entity_in_the_way]
   not_reversible: true
+
+- name: breaking backwards splitter segment
+  before: |
+    _ < < < < <s
+  after: |
+    > > > > > <s *>
+  expected_errors: [cannot_traverse_past_entity]
+
+- name: always enter splitter after error
+  before: |
+    _ > ^ 2>s > ^
+  after: |
+    > > ^ *>s > ^
+  expected_errors: [cannot_traverse_past_entity]
+  not_reversible: true

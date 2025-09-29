@@ -49,26 +49,16 @@ impl From<NormalState> for DragState {
 }
 
 impl NormalState {
-    pub(super) fn is_outputting_belt(&self) -> bool {
+    pub(super) fn can_enter_next_tile(&self) -> bool {
+        // For error states (OverImpassableObstacle, ErrorRecovery), we allow entering.
+        // This allows e.g. entering a splitter to upgrade it, starting from hovering over an obstacle.
         match self {
+            NormalState::Traversing { .. } | NormalState::TraversingAfterOutput { .. } => false,
             NormalState::BeltPlaced
             | NormalState::OutputUgPlaced { .. }
-            | NormalState::IntegratedOutput => true,
-            NormalState::Traversing { .. }
-            | NormalState::TraversingAfterOutput { .. }
+            | NormalState::IntegratedOutput
             | NormalState::OverImpassableObstacle
-            | NormalState::ErrorRecovery => false,
-        }
-    }
-
-    pub(super) fn is_traversing_obstacle(&self) -> bool {
-        match self {
-            NormalState::Traversing { .. } | NormalState::TraversingAfterOutput { .. } => true,
-            NormalState::BeltPlaced
-            | NormalState::OutputUgPlaced { .. }
-            | NormalState::OverImpassableObstacle
-            | NormalState::ErrorRecovery
-            | NormalState::IntegratedOutput => false,
+            | NormalState::ErrorRecovery => true,
         }
     }
 }
