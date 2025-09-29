@@ -1,5 +1,3 @@
-use itertools::Itertools;
-
 use crate::{Impassable, smart_belt::DragWorldView};
 
 use super::{Action, LineDrag, TileClassifier, TileType, action::Error};
@@ -18,7 +16,7 @@ pub(super) enum NormalState {
     /// After placing a belt. This belt may become an underground
     BeltPlaced,
     /// We haven't placed a belt yet, and are looking for the next tile we can.
-    ErrorRecovery,
+    ErrorState { over_impassable: bool },
     /// We hovered over an obstacle.
     Traversing {
         /// Last position we may place an underground belt.
@@ -38,8 +36,6 @@ pub(super) enum NormalState {
     },
     /// When we are hovering over the exit of an integrated output belt.
     IntegratedOutput,
-    /// We have just encountered an impassable obstacle. However, we don't error until the user tries to _pass_ the obstacle.
-    OverImpassableObstacle,
 }
 
 impl From<NormalState> for DragState {
@@ -50,20 +46,19 @@ impl From<NormalState> for DragState {
 
 impl NormalState {
     pub(super) fn can_enter_next_tile(&self) -> bool {
-        // For error states (OverImpassableObstacle, ErrorRecovery), we allow entering.
+        // For error states, we allow entering.
         // This allows e.g. entering a splitter to upgrade it, starting from hovering over an obstacle.
         match self {
             NormalState::Traversing { .. } | NormalState::TraversingAfterOutput { .. } => false,
             NormalState::BeltPlaced
             | NormalState::OutputUgPlaced { .. }
             | NormalState::IntegratedOutput
-            | NormalState::OverImpassableObstacle
-            | NormalState::ErrorRecovery => true,
+            | NormalState::ErrorState { .. } => true,
         }
     }
 }
 
-pub(super) struct DragStep(pub Action, pub Vec<Error>, pub DragState);
+pub(super) struct DragStep(pub Action, pub Option<Error>, pub DragState);
 
 /**
  * Purely functional logic for straight line dragging.
@@ -81,9 +76,11 @@ impl<'a> LineDrag<'a> {
         match next_tile {
             TileType::Usable => self.place_belt_or_underground(last_state, is_forward),
             TileType::Obstacle => self.handle_obstacle(last_state),
-            TileType::IntegratedSplitter => {
-                self.normal_result(Action::IntegrateSplitter, NormalState::IntegratedOutput)
-            }
+            TileType::IntegratedSplitter => DragStep(
+                Action::IntegrateSplitter,
+                None,
+                NormalState::IntegratedOutput.into(),
+            ),
             TileType::ImpassableObstacle => self.handle_impassable_obstacle(last_state),
             TileType::IntegratedUnderground { output_pos } => {
                 self.integrate_underground_pair(is_forward, output_pos)
@@ -99,21 +96,25 @@ impl<'a> LineDrag<'a> {
         match last_state {
             NormalState::BeltPlaced
             | NormalState::OutputUgPlaced { .. }
-            | NormalState::OverImpassableObstacle
-            | NormalState::ErrorRecovery
+            | NormalState::ErrorState { .. }
             | NormalState::IntegratedOutput => {
-                self.normal_result(Action::PlaceBelt, NormalState::BeltPlaced)
+                DragStep(Action::PlaceBelt, None, NormalState::BeltPlaced.into())
             }
             &NormalState::Traversing { input_pos, .. } => {
-                if let Err(errors) = self.check_can_underground(input_pos, is_forward, false) {
-                    DragStep(Action::PlaceBelt, errors, NormalState::BeltPlaced.into())
+                if let Err(error) = self.check_can_underground(input_pos, is_forward, false) {
+                    DragStep(
+                        Action::PlaceBelt,
+                        Some(error),
+                        NormalState::BeltPlaced.into(),
+                    )
                 } else {
-                    self.normal_result(
+                    DragStep(
                         Action::CreateUnderground {
                             input_pos,
                             output_pos: self.next_position(is_forward),
                         },
-                        NormalState::OutputUgPlaced { input_pos },
+                        None,
+                        NormalState::OutputUgPlaced { input_pos }.into(),
                     )
                 }
             }
@@ -121,15 +122,20 @@ impl<'a> LineDrag<'a> {
                 input_pos,
                 output_pos,
             } => {
-                if let Err(errors) = self.check_can_underground(input_pos, is_forward, true) {
-                    DragStep(Action::PlaceBelt, errors, NormalState::BeltPlaced.into())
+                if let Err(error) = self.check_can_underground(input_pos, is_forward, true) {
+                    DragStep(
+                        Action::PlaceBelt,
+                        Some(error),
+                        NormalState::BeltPlaced.into(),
+                    )
                 } else {
-                    self.normal_result(
+                    DragStep(
                         Action::ExtendUnderground {
                             previous_output_pos: output_pos,
                             new_output_pos: self.next_position(is_forward),
                         },
-                        NormalState::OutputUgPlaced { input_pos },
+                        None,
+                        NormalState::OutputUgPlaced { input_pos }.into(),
                     )
                 }
             }
@@ -141,10 +147,10 @@ impl<'a> LineDrag<'a> {
         input_pos: i32,
         is_forward: bool,
         is_extension: bool,
-    ) -> Result<(), Vec<Error>> {
+    ) -> Result<(), Error> {
         let distance = self.next_position(is_forward).abs_diff(input_pos);
         if distance > self.tier.underground_distance.into() {
-            return Err(vec![Error::TooFarToConnect]);
+            return Err(Error::TooFarToConnect);
         }
         let world_view = self.world_view(is_forward);
         // check all tiles
@@ -159,14 +165,14 @@ impl<'a> LineDrag<'a> {
                 return Ok(());
             };
             if entity.as_any().is::<Impassable>() {
-                return Err(vec![Error::CannotTraversePastTile]);
+                return Err(Error::CannotTraversePastTile);
             }
             if let Some(ug) = entity.as_underground_belt()
                 && ug.direction.axis() == self.ray.direction.axis()
                 && ug.tier == self.tier
             {
                 // can't ug over this underground
-                return Err(vec![Error::CannotTraversePastEntity]);
+                return Err(Error::CannotTraversePastEntity);
             }
             Ok(())
         };
@@ -192,23 +198,28 @@ impl<'a> LineDrag<'a> {
             NormalState::Traversing { .. } | NormalState::TraversingAfterOutput { .. } => {
                 last_state.clone()
             }
-            NormalState::ErrorRecovery => NormalState::ErrorRecovery,
+            NormalState::ErrorState { .. } => NormalState::ErrorState {
+                over_impassable: false,
+            },
             &NormalState::OutputUgPlaced {
                 input_pos: entrance_position,
             } => NormalState::TraversingAfterOutput {
                 input_pos: entrance_position,
                 output_pos: self.last_position,
             },
-            NormalState::OverImpassableObstacle => NormalState::ErrorRecovery,
+
             NormalState::IntegratedOutput => {
                 return DragStep(
                     Action::None,
-                    vec![Error::EntityInTheWay],
-                    NormalState::ErrorRecovery.into(),
+                    Some(Error::EntityInTheWay),
+                    NormalState::ErrorState {
+                        over_impassable: false,
+                    }
+                    .into(),
                 );
             }
         };
-        self.normal_result(Action::None, new_state)
+        DragStep(Action::None, None, new_state.into())
     }
 
     fn integrate_underground_pair(&self, is_forward: bool, output_pos: i32) -> DragStep {
@@ -216,12 +227,12 @@ impl<'a> LineDrag<'a> {
         let action = Action::IntegrateUndergroundPair {
             do_upgrade: can_upgrade,
         };
-        let errors = self
-            .deferred_error()
-            .into_iter()
-            .chain((!can_upgrade).then_some(Error::CannotUpgradeUnderground))
-            .collect_vec();
-        DragStep(action, errors, DragState::PassThrough { output_pos })
+        let error = if !can_upgrade {
+            Some(Error::CannotUpgradeUnderground)
+        } else {
+            None
+        };
+        DragStep(action, error, DragState::PassThrough { output_pos })
     }
 
     fn can_upgrade_underground(&self, is_forward: bool, output_pos: i32) -> bool {
@@ -251,31 +262,13 @@ impl<'a> LineDrag<'a> {
     fn handle_impassable_obstacle(&self, last_state: &NormalState) -> DragStep {
         let next_state = match last_state {
             // if already in error state, ignore further errors
-            NormalState::ErrorRecovery | NormalState::OverImpassableObstacle => {
-                NormalState::ErrorRecovery
-            }
-            _ => NormalState::OverImpassableObstacle,
+            NormalState::ErrorState { .. } => NormalState::ErrorState {
+                over_impassable: false,
+            },
+            _ => NormalState::ErrorState {
+                over_impassable: true,
+            },
         };
-        self.normal_result(Action::None, next_state)
-    }
-
-    /// Returns an result with no errors.
-    /// However, if the last state has a deferred error, it will be returned here.
-    fn normal_result(&self, action: Action, new_state: impl Into<DragState>) -> DragStep {
-        DragStep(
-            action,
-            self.deferred_error().into_iter().collect(),
-            new_state.into(),
-        )
-    }
-
-    /// When traversing an impassable obstacle, we give an error only when you pass it.
-    fn deferred_error(&self) -> Option<Error> {
-        match &self.last_state {
-            DragState::Normal(NormalState::OverImpassableObstacle) => {
-                Some(Error::CannotTraversePastEntity)
-            }
-            _ => None,
-        }
+        DragStep(Action::None, None, next_state.into())
     }
 }

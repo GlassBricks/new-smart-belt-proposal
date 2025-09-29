@@ -38,7 +38,12 @@ impl<'a> LineDrag<'a> {
             (NormalState::BeltPlaced, Some(tile_history))
         } else {
             errors.push((start_pos, Error::EntityInTheWay));
-            (NormalState::ErrorRecovery, None)
+            (
+                NormalState::ErrorState {
+                    over_impassable: false,
+                },
+                None,
+            )
         };
 
         LineDrag {
@@ -84,7 +89,7 @@ impl<'a> LineDrag<'a> {
                 } else {
                     self.last_state.clone()
                 };
-                DragStep(Action::None, vec![], next_state)
+                DragStep(Action::None, None, next_state)
             }
         }
     }
@@ -102,17 +107,35 @@ impl<'a> LineDrag<'a> {
         }
     }
 
+    fn has_impassable_error(&self) -> bool {
+        matches!(
+            &self.last_state,
+            DragState::Normal(NormalState::ErrorState {
+                over_impassable: true,
+            })
+        )
+    }
+
     fn apply_step(&mut self, step: DragStep, is_forward: bool) {
         let DragStep(action, error, next_state) = step;
         eprintln!("action: {:?}", action);
         self.apply_action(action, is_forward);
-        for error in error {
-            eprintln!("error: {:?}", error);
-            self.errors
-                .push((self.ray.get_position(self.next_position(is_forward)), error));
+
+        if self.has_impassable_error() {
+            self.add_error(Error::CannotTraversePastEntity, is_forward);
         }
+        if let Some(error) = error {
+            self.add_error(error, is_forward);
+        }
+
         eprintln!("Next state: {:?}\n", next_state);
         self.last_state = next_state;
         self.last_position = self.next_position(is_forward);
+    }
+
+    fn add_error(&mut self, error: Error, is_forward: bool) {
+        eprintln!("error: {:?}", error);
+        self.errors
+            .push((self.ray.get_position(self.next_position(is_forward)), error));
     }
 }
