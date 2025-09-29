@@ -52,7 +52,7 @@ impl<'a> DragWorldView<'a> {
     pub fn get_belt(&self, position: i32) -> Option<BeltConnectableEnum<'_>> {
         self.world_reader.get_belt(self.ray.get_position(position))
     }
-    pub fn et_belt_dyn(&self, position: i32) -> Option<&dyn BeltConnectable> {
+    pub fn get_belt_dyn(&self, position: i32) -> Option<&dyn BeltConnectable> {
         self.world_reader
             .get_belt_dyn(self.ray.get_position(position))
     }
@@ -62,22 +62,17 @@ impl<'a> DragWorldView<'a> {
         self.world_reader.belt_was_curved(position, belt)
     }
 
-    pub fn belt_input_direction(&self, position: i32, belt: &Belt) -> Direction {
-        let position = self.ray.get_position(position);
-        self.world_reader
-            .belt_input_direction(position, belt.direction)
-    }
-
-    pub fn belt_directly_connects_to_next(&self, last_pos: i32) -> bool {
+    // If this entity belt-connects to the previous entity, forming part of the same belt segment.
+    pub fn is_belt_connected_to_previous_tile(&self, next_pos: i32) -> bool {
         let (last_pos, cur_pos) = if self.is_forward {
             (
-                self.ray.get_position(last_pos),
-                self.ray.get_position(last_pos + 1),
+                self.ray.get_position(next_pos - 1),
+                self.ray.get_position(next_pos),
             )
         } else {
             (
-                self.ray.get_position(last_pos - 1),
-                self.ray.get_position(last_pos),
+                self.ray.get_position(next_pos),
+                self.ray.get_position(next_pos + 1),
             )
         };
 

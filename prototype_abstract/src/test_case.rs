@@ -53,6 +53,10 @@ fn check_test_case(test: &TestCaseEntities) -> anyhow::Result<()> {
         let bounds = test.bounds();
         let mut error_message = format!(
             r#"
+Before:
+
+{}
+
 Expected:
 
 {}
@@ -62,6 +66,7 @@ Got:
 {}
 
 "#,
+            print_world(&test.before, bounds, &[]),
             print_world(
                 expected_world,
                 bounds,

@@ -1,0 +1,44 @@
+## Miscellaneous belt segment tests.
+- name: output underground -> curved belt segment
+  before: |
+    _ _  _  ^
+    _ 2>o > ^
+  after: |
+    _  _   _ ^
+    >i 2>o > ^ >o
+
+- name: output underground -> curved belt segment, 2
+  before: |
+    _ _  _  v
+    _ 2<i < <
+  after: |
+    _  _   _ v
+    >i 2<i < < >o
+
+- name: output underground -> segment with underground -> curved belt segment, 1
+  before: |
+    _ _   _   _   v
+    _ 2<i 2<o 2<i <
+  after: |
+    _  _   _   _   v
+    >i 2<i 2<o 2<i < >o
+
+- name: output underground -> segment with underground -> curved belt segment, 2
+  before: |
+    _ _   _   _   ^
+    _ 2>o 2>i 2>o ^
+  after: |
+    _  _   _   _   ^
+    >i 2>o 2>i 2>o ^ >o
+
+- name: output underground -> backwards splitter
+  before: |
+    _ 2<i < <s
+  after: |
+    >i 2<i < <s >o
+
+- name: output underground -> backwards loader
+  before: |
+    _ 2<i < <O
+  after: |
+    >i 2<i < <O >o
