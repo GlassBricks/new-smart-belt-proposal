@@ -75,6 +75,19 @@ impl<'a> LineDrag<'a> {
         self.last_position + if is_forward { 1 } else { -1 }
     }
 
+    /// the only mutable functions are here!
+    pub fn interpolate_to(&mut self, new_position: TilePosition) {
+        let target_pos = self.ray.ray_position(new_position);
+        while self.last_position < target_pos {
+            let step = self.step(true);
+            self.apply_step(step, true);
+        }
+        while self.last_position > target_pos {
+            let step = self.step(false);
+            self.apply_step(step, false);
+        }
+    }
+
     fn step(&mut self, is_forward: bool) -> DragStep {
         let pos = self.next_position(is_forward);
         let world_pos = self.ray.get_position(pos);
@@ -94,28 +107,6 @@ impl<'a> LineDrag<'a> {
         }
     }
 
-    /// the only mutable functions are here!
-    pub fn interpolate_to(&mut self, new_position: TilePosition) {
-        let target_pos = self.ray.ray_position(new_position);
-        while self.last_position < target_pos {
-            let step = self.step(true);
-            self.apply_step(step, true);
-        }
-        while self.last_position > target_pos {
-            let step = self.step(false);
-            self.apply_step(step, false);
-        }
-    }
-
-    fn has_impassable_error(&self) -> bool {
-        matches!(
-            &self.last_state,
-            DragState::Normal(NormalState::ErrorState {
-                over_impassable: true,
-            })
-        )
-    }
-
     fn apply_step(&mut self, step: DragStep, is_forward: bool) {
         let DragStep(action, error, next_state) = step;
         eprintln!("action: {:?}", action);
@@ -131,6 +122,15 @@ impl<'a> LineDrag<'a> {
         eprintln!("Next state: {:?}\n", next_state);
         self.last_state = next_state;
         self.last_position = self.next_position(is_forward);
+    }
+
+    fn has_impassable_error(&self) -> bool {
+        matches!(
+            &self.last_state,
+            DragState::Normal(NormalState::ErrorState {
+                over_impassable: true,
+            })
+        )
     }
 
     fn add_error(&mut self, error: Error, is_forward: bool) {

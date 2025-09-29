@@ -227,7 +227,7 @@ Never affect non-integrated entities.
 
 ### Formally
 
-See [drag\_logic.rs](prototype_abstract/src/smart_belt/drag_logic.rs), which aims to be self-documenting code.
+See [drag\_step.rs](prototype_abstract/src/smart_belt/drag_step.rs), which aims to be self-documenting code.
 
 ### Placing entities
 

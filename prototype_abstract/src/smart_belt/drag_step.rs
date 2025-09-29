@@ -1,10 +1,13 @@
-use crate::{Impassable, smart_belt::DragWorldView};
+use crate::{
+    Impassable,
+    smart_belt::{DragWorldView, TileClassifierState},
+};
 
 use super::{Action, LineDrag, TileClassifier, TileType, action::Error};
 
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub(super) enum DragState {
+pub enum DragState {
     Normal(NormalState),
     PassThrough { output_pos: i32 },
 }
@@ -12,7 +15,7 @@ pub(super) enum DragState {
 /// Most states here.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub(super) enum NormalState {
+pub enum NormalState {
     /// After placing a belt. This belt may become an underground
     BeltPlaced,
     /// We haven't placed a belt yet, and are looking for the next tile we can.
@@ -44,8 +47,8 @@ impl From<NormalState> for DragState {
     }
 }
 
-impl NormalState {
-    pub(super) fn can_enter_next_tile(&self) -> bool {
+impl TileClassifierState for NormalState {
+    fn can_enter_next_tile(&self) -> bool {
         // For error states, we allow entering.
         // This allows e.g. entering a splitter to upgrade it, starting from hovering over an obstacle.
         match self {
@@ -54,6 +57,15 @@ impl NormalState {
             | NormalState::OutputUgPlaced { .. }
             | NormalState::IntegratedOutput
             | NormalState::ErrorState { .. } => true,
+        }
+    }
+    fn underground_input_pos(&self, last_position: i32) -> Option<i32> {
+        match *self {
+            NormalState::BeltPlaced => Some(last_position),
+            NormalState::Traversing { input_pos, .. }
+            | NormalState::OutputUgPlaced { input_pos, .. }
+            | NormalState::TraversingAfterOutput { input_pos, .. } => Some(input_pos),
+            _ => None,
         }
     }
 }

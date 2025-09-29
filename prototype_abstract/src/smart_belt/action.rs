@@ -7,7 +7,7 @@ use crate::belts::{Belt, BeltTier, UndergroundBelt};
 use crate::{Direction, Splitter, TilePosition, World};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) enum Action {
+pub enum Action {
     PlaceBelt,
     CreateUnderground {
         input_pos: i32,
@@ -35,7 +35,7 @@ pub enum Error {
 }
 
 impl<'a> LineDrag<'a> {
-    pub(super) fn apply_action(&mut self, action: Action, is_forward: bool) {
+    pub fn apply_action(&mut self, action: Action, is_forward: bool) {
         let position = self.next_position(is_forward);
         let world_pos = self.ray.get_position(position);
         match action {
@@ -118,16 +118,11 @@ impl<'a> LineDrag<'a> {
     }
 }
 impl World {
-    pub(super) fn place_belt(
-        &mut self,
-        position: TilePosition,
-        direction: Direction,
-        tier: BeltTier,
-    ) {
+    pub fn place_belt(&mut self, position: TilePosition, direction: Direction, tier: BeltTier) {
         self.set(position, Belt::new(direction, tier));
     }
 
-    pub(super) fn place_underground_belt(
+    pub fn place_underground_belt(
         &mut self,
         position: TilePosition,
         direction: Direction,

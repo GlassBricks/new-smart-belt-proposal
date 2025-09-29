@@ -1,8 +1,8 @@
 use crate::Direction;
 use crate::belts::{Belt, BeltConnectableEnum, BeltTier, LoaderLike, Splitter, UndergroundBelt};
+use std::fmt::Debug;
 
 use super::DragWorldView;
-use super::NormalState;
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum TileType {
@@ -18,18 +18,24 @@ pub(super) enum TileType {
     ImpassableObstacle,
 }
 
-pub(super) struct TileClassifier<'a> {
+// The only info the tile classifier needs to know about the previous state.
+pub(super) trait TileClassifierState: Debug {
+    fn can_enter_next_tile(&self) -> bool;
+    fn underground_input_pos(&self, last_position: i32) -> Option<i32>;
+}
+
+pub(super) struct TileClassifier<'a, S: TileClassifierState> {
     world_view: DragWorldView<'a>,
     tier: BeltTier,
-    last_state: &'a NormalState,
+    last_state: &'a S,
     last_position: i32,
 }
 
-impl<'a> TileClassifier<'a> {
+impl<'a, S: TileClassifierState> TileClassifier<'a, S> {
     pub(super) fn new(
         world_view: DragWorldView<'a>,
         tier: BeltTier,
-        last_state: &'a NormalState,
+        last_state: &'a S,
         last_position: i32,
     ) -> Self {
         Self {
@@ -294,14 +300,11 @@ impl<'a> TileClassifier<'a> {
     }
 
     fn max_underground_position(&self) -> Option<i32> {
-        let input_pos = match self.last_state {
-            NormalState::BeltPlaced => Some(self.last_position),
-            NormalState::Traversing { input_pos, .. }
-            | NormalState::OutputUgPlaced { input_pos, .. }
-            | NormalState::TraversingAfterOutput { input_pos, .. } => Some(*input_pos),
-            _ => None,
-        };
-        let diff = (self.tier.underground_distance as i32) * self.world_view.direction_multiplier();
-        input_pos.map(|f| f + diff)
+        self.last_state
+            .underground_input_pos(self.last_position)
+            .map(|pos| {
+                pos + (self.tier.underground_distance as i32)
+                    * self.world_view.direction_multiplier()
+            })
     }
 }

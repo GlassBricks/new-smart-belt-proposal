@@ -358,7 +358,7 @@ If encountering an impassable obstacle, or underground belt would be too long, g
 Never affect non-integrated entities.
 
 ### Formally
-See [drag_logic.rs](prototype_abstract/src/smart_belt/drag_logic.rs), which aims to be self-documenting code.
+See [drag_step.rs](prototype_abstract/src/smart_belt/drag_step.rs), which aims to be self-documenting code.
 
 ### Placing entities
 
