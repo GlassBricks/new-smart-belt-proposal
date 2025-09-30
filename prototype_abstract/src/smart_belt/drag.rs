@@ -1,8 +1,9 @@
 use dyn_clone::clone_box;
 
-use super::{DragState, DragStep, Error, NormalState};
+use super::{DragStateImpl, Error};
 use crate::TilePosition;
 use crate::belts::BeltTier;
+use crate::smart_belt::DragState;
 use crate::smart_belt::belt_curving::TileHistory;
 use crate::{Direction, Ray, World, smart_belt::Action};
 
@@ -10,11 +11,11 @@ use crate::{Direction, Ray, World, smart_belt::Action};
  * Handles line dragging; includes mutable methods
  */
 #[derive(Debug)]
-pub struct LineDrag<'a> {
+pub struct LineDrag<'a, S: DragState = DragStateImpl> {
     pub(super) world: &'a mut World,
     pub(super) ray: Ray,
     pub(super) tier: BeltTier,
-    pub(super) last_state: DragState,
+    pub(super) last_state: S,
     pub(super) last_position: i32,
     // Some tiles we just placed may change other belt's curvature; however we
     // want the logic to be independent of what we've placed. As such, we track
@@ -25,33 +26,32 @@ pub struct LineDrag<'a> {
     pub(super) errors: Vec<(TilePosition, Error)>,
 }
 
-impl<'a> LineDrag<'a> {
+pub struct DragStepResult<S: DragState>(pub Action, pub Option<Error>, pub S);
+
+impl<'a, S: DragState> LineDrag<'a, S> {
     pub fn start_drag(
         world: &'a mut World,
         tier: BeltTier,
         start_pos: TilePosition,
         belt_direction: Direction,
-    ) -> LineDrag<'a> {
+    ) -> LineDrag<'a, S> {
         let mut errors = Vec::new();
-        let (last_state, tile_history) = if world.can_place_belt_on_tile(start_pos) {
-            let tile_history = Self::get_tile_history(start_pos, world);
+        let can_place = world.can_place_belt_on_tile(start_pos);
+        let tile_history = can_place.then(|| Self::get_tile_history(start_pos, world));
+
+        if can_place {
             world.place_belt(start_pos, belt_direction, tier);
-            (NormalState::BeltPlaced, Some(tile_history))
         } else {
             errors.push((start_pos, Error::EntityInTheWay));
-            (
-                NormalState::ErrorState {
-                    over_impassable: false,
-                },
-                None,
-            )
-        };
+        }
+
+        let initial_state = S::initial_state(can_place);
 
         LineDrag {
             world,
             ray: Ray::new(start_pos, belt_direction),
             tier,
-            last_state: last_state.into(),
+            last_state: initial_state,
             last_position: 0,
             tile_history,
             errors,
@@ -62,7 +62,7 @@ impl<'a> LineDrag<'a> {
         self.errors
     }
 
-    pub(super) fn get_tile_history(position: TilePosition, world: &World) -> TileHistory {
+    fn get_tile_history(position: TilePosition, world: &World) -> TileHistory {
         let entity = world.get_belt_dyn(position).map(clone_box);
         (position, entity)
     }
@@ -80,41 +80,21 @@ impl<'a> LineDrag<'a> {
     pub fn interpolate_to(&mut self, new_position: TilePosition) {
         let target_pos = self.ray.ray_position(new_position);
         while self.last_position < target_pos {
-            let step = self.step(true);
-            self.apply_step(step, true);
+            let result = self.last_state.step(self, true);
+            self.apply_step(result, true);
         }
         while self.last_position > target_pos {
-            let step = self.step(false);
-            self.apply_step(step, false);
+            let result = self.last_state.step(self, false);
+            self.apply_step(result, false);
         }
     }
-
-    fn step(&mut self, is_forward: bool) -> DragStep {
-        let pos = self.next_position(is_forward);
-        let world_pos = self.ray.get_position(pos);
-        eprintln!("STEP: forward: {}, pos: {:?}", is_forward, world_pos);
-        let next_entity = self.world.get(world_pos);
-        eprintln!("Entity: {next_entity:?}");
-        match &self.last_state {
-            DragState::Normal(state) => self.normal_state_step(state, is_forward),
-            &DragState::PassThrough { output_pos } => {
-                let next_state = if self.next_position(is_forward) == output_pos {
-                    NormalState::IntegratedOutput.into()
-                } else {
-                    self.last_state.clone()
-                };
-                DragStep(Action::None, None, next_state)
-            }
-        }
-    }
-
-    fn apply_step(&mut self, step: DragStep, is_forward: bool) {
-        let DragStep(action, error, next_state) = step;
+    fn apply_step(&mut self, step: DragStepResult<S>, is_forward: bool) {
+        let DragStepResult(action, error, next_state) = step;
         eprintln!("action: {:?}", action);
         self.apply_action(action, is_forward);
 
-        if self.has_impassable_error() {
-            self.add_error(Error::CannotTraversePastEntity, is_forward);
+        if let Some(error) = self.last_state.deferred_error() {
+            self.add_error(error, is_forward);
         }
         if let Some(error) = error {
             self.add_error(error, is_forward);
@@ -123,15 +103,6 @@ impl<'a> LineDrag<'a> {
         eprintln!("Next state: {:?}\n", next_state);
         self.last_state = next_state;
         self.last_position = self.next_position(is_forward);
-    }
-
-    fn has_impassable_error(&self) -> bool {
-        matches!(
-            &self.last_state,
-            DragState::Normal(NormalState::ErrorState {
-                over_impassable: true,
-            })
-        )
     }
 
     fn add_error(&mut self, error: Error, is_forward: bool) {

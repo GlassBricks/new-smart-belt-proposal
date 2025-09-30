@@ -43,11 +43,14 @@ impl<'a> TileClassifier<'a> {
         }
     }
 
-    fn next_position(&self) -> i32 {
-        self.last_position + self.world_view.direction_multiplier()
-    }
     fn is_forward(&self) -> bool {
         self.world_view.is_forward
+    }
+    pub fn direction_multiplier(&self) -> i32 {
+        if self.is_forward() { 1 } else { -1 }
+    }
+    fn next_position(&self) -> i32 {
+        self.last_position + self.direction_multiplier()
     }
     fn drag_direction(&self) -> Direction {
         self.world_view.drag_direction()
@@ -242,7 +245,7 @@ impl<'a> TileClassifier<'a> {
             return true;
         };
 
-        let direction_multiplier = self.world_view.direction_multiplier();
+        let direction_multiplier = self.direction_multiplier();
         let start_pos = self.next_position();
         // Start at the tile in front of the next one.
         let mut scan_pos = start_pos + direction_multiplier;
@@ -295,8 +298,7 @@ impl<'a> TileClassifier<'a> {
     }
 
     fn max_underground_position(&self) -> Option<i32> {
-        self.underground_input_pos.map(|pos| {
-            pos + (self.tier.underground_distance as i32) * self.world_view.direction_multiplier()
-        })
+        self.underground_input_pos
+            .map(|pos| pos + (self.tier.underground_distance as i32) * self.direction_multiplier())
     }
 }

@@ -4,9 +4,9 @@ use crate::{
 };
 
 /**
-World view for LineDragLogic.
+World view for TileClassifier.
 
-Handles geometric transformations, belt shapes, and abstracting over forwards/backwards logic.
+Handles geometric transformations, and belt shapes.
 */
 #[derive(Debug)]
 pub(super) struct DragWorldView<'a> {
@@ -40,10 +40,6 @@ impl<'a> DragWorldView<'a> {
         }
     }
 
-    pub fn direction_multiplier(&self) -> i32 {
-        if self.is_forward { 1 } else { -1 }
-    }
-
     // World interaction methods - stubbed for implementation
     pub fn get_entity(&self, position: i32) -> Option<&dyn Entity> {
         self.world_reader
@@ -60,7 +56,7 @@ impl<'a> DragWorldView<'a> {
         self.world_reader.belt_is_curved_at(position, belt)
     }
 
-    // If this entity belt-connects to the previous entity, forming part of the same belt segment.
+    /// If this entity belt-connects to the previous entity, forming part of the same belt segment.
     pub fn is_belt_connected_to_previous_tile(&self, next_pos: i32) -> bool {
         let (last_pos, cur_pos) = if self.is_forward {
             (
