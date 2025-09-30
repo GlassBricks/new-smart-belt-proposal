@@ -1,9 +1,10 @@
 use dyn_clone::clone_box;
 
 use super::{DragState, DragStep, Error, NormalState};
+use crate::TilePosition;
 use crate::belts::BeltTier;
-use crate::smart_belt::Action;
-use crate::{Direction, Ray, TileHistory, TilePosition, World, WorldReader};
+use crate::smart_belt::belt_curving::TileHistory;
+use crate::{Direction, Ray, World, smart_belt::Action};
 
 /**
  * Handles line dragging; includes mutable methods

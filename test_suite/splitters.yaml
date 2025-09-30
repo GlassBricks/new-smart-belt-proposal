@@ -31,7 +31,7 @@
   before: _ 2>s _
   after: "> >s >"
 
-- name: Splitter with belt curved belt after it is not integrated
+- name: Splitter with curved belt after it is not integrated
   before: |
     _  _ _ _  ^
     _ >s > 2> ^
@@ -39,7 +39,7 @@
     _ _ _ _ ^
     >i >s > 2> ^ >o
 
-- name: Splitter with belt curved belt after is integrated if too long to check
+- name: Splitter with curved belt after is integrated if too long to check
   before: |
     _  _  _  _  _  _  _ _ ^
     _ 2>s 2> 2> 2> 2> > > ^

@@ -4,8 +4,8 @@ use dyn_clone::clone_box;
 use euclid::vec2;
 
 use crate::{
-    Belt, BeltConnectable, BeltConnectableEnum, BeltTier, BoundingBox, Direction, Entity,
-    LoaderLike, Splitter, TilePosition, Transform, UndergroundBelt,
+    Belt, BeltConnectable, BeltConnectableEnum, BeltTier, BoundingBox, Entity, LoaderLike,
+    Splitter, TilePosition, Transform, UndergroundBelt, smart_belt::belt_curving::BeltCurveView,
 };
 
 #[derive(Debug, Default, PartialEq, Clone)]
@@ -114,26 +114,16 @@ impl World {
         let basic_bb = BoundingBox::from_points(self.entities.keys());
         BoundingBox::new(basic_bb.min, basic_bb.max + vec2(1, 1))
     }
-}
 
-impl WorldReader for World {
-    fn get(&self, position: TilePosition) -> Option<&dyn Entity> {
-        self.get(position)
-    }
-}
-
-pub trait WorldReader {
-    fn get(&self, position: TilePosition) -> Option<&dyn Entity>;
-
-    fn get_belt_dyn(&self, position: TilePosition) -> Option<&dyn BeltConnectable> {
+    pub fn get_belt_dyn(&self, position: TilePosition) -> Option<&dyn BeltConnectable> {
         self.get(position).and_then(|e| e.as_belt_connectable_dyn())
     }
 
-    fn get_belt(&self, position: TilePosition) -> Option<BeltConnectableEnum<'_>> {
+    pub fn get_belt(&self, position: TilePosition) -> Option<BeltConnectableEnum<'_>> {
         self.get(position).and_then(|e| e.as_belt_connectable())
     }
 
-    fn get_ug_pair(
+    pub fn get_ug_pair(
         &self,
         position: TilePosition,
         underground: &UndergroundBelt,
@@ -157,82 +147,11 @@ pub trait WorldReader {
         None
     }
 
-    fn belt_input_direction(&self, position: TilePosition, belt_direction: Direction) -> Direction {
-        let has_input_in = |direction: Direction| {
-            let query_pos = position - direction.to_vector();
-
-            self.get_belt_dyn(query_pos)
-                .and_then(|b| b.output_direction())
-                == Some(direction)
-        };
-
-        if has_input_in(belt_direction) {
-            return belt_direction;
-        }
-        match (
-            has_input_in(belt_direction.rotate_cw()),
-            has_input_in(belt_direction.rotate_ccw()),
-        ) {
-            (true, false) => belt_direction.rotate_cw(),
-            (false, true) => belt_direction.rotate_ccw(),
-            _ => belt_direction,
-        }
-    }
-
-    fn effective_input_direction(
-        &self,
-        position: TilePosition,
-        connectable: &dyn BeltConnectable,
-    ) -> Option<Direction> {
-        if let Some(belt) = (connectable as &dyn Entity).as_belt() {
-            Some(self.belt_input_direction(position, belt.direction))
-        } else {
-            connectable.primary_input_direction()
-        }
-    }
-
-    fn belt_was_curved(&self, position: TilePosition, belt: &Belt) -> bool {
-        self.effective_input_direction(position, belt) != Some(belt.direction)
-    }
-
-    fn effective_output_direction(&self, connectable: &dyn BeltConnectable) -> Option<Direction> {
-        connectable.output_direction()
-    }
-
-    fn can_place_belt_on_tile(&self, position: TilePosition) -> bool {
+    pub fn can_place_belt_on_tile(&self, position: TilePosition) -> bool {
         if let Some(entity) = self.get(position) {
             entity.as_colliding().is_none()
         } else {
             true
-        }
-    }
-}
-
-pub type TileHistory = (TilePosition, Option<Box<dyn BeltConnectable>>);
-
-#[derive(Debug)]
-pub struct TileHistoryView<'a> {
-    world: &'a World,
-    tile_history: Option<&'a TileHistory>,
-}
-
-impl<'a> TileHistoryView<'a> {
-    pub fn new(world: &'a World, tile_history: Option<&'a TileHistory>) -> Self {
-        Self {
-            world,
-            tile_history,
-        }
-    }
-}
-
-impl<'a> WorldReader for TileHistoryView<'a> {
-    fn get(&self, position: TilePosition) -> Option<&dyn Entity> {
-        if let Some((history_position, entity_opt)) = self.tile_history
-            && *history_position == position
-        {
-            entity_opt.as_ref().map(|e| e.as_ref() as &dyn Entity)
-        } else {
-            self.world.get(position)
         }
     }
 }
@@ -276,7 +195,7 @@ impl World {
         for (&pos, entity) in &self.entities {
             let entity: &dyn crate::Entity = entity.as_ref();
             let new_entity = if let Some(belt) = entity.as_belt() {
-                let input_direction = self.belt_input_direction(pos, belt.direction);
+                let input_direction = self.belt_curved_input_direction(pos, belt.direction);
                 Belt::new(input_direction.opposite(), belt.tier)
             } else if let Some(ug) = entity.as_underground_belt() {
                 UndergroundBelt::new(ug.direction.opposite(), !ug.is_input, ug.tier)
@@ -295,17 +214,16 @@ impl World {
 
     pub fn check_flipped_entities(&self, other: &Self) -> anyhow::Result<()> {
         for (&pos, entity) in &self.entities {
-            let Some(this_belt) = entity.as_belt() else {
+            if entity.as_belt().is_none() {
                 continue;
             };
-            let new_belt = other.get(pos).unwrap().as_belt().unwrap();
             let (this_in, this_out) = (
-                self.effective_input_direction(pos, this_belt).unwrap(),
-                self.effective_output_direction(this_belt).unwrap(),
+                self.input_direction_at(pos).unwrap(),
+                self.output_direction_at(pos).unwrap(),
             );
             let (new_in, new_out) = (
-                other.effective_input_direction(pos, new_belt).unwrap(),
-                other.effective_output_direction(new_belt).unwrap(),
+                other.input_direction_at(pos).unwrap(),
+                other.output_direction_at(pos).unwrap(),
             );
 
             anyhow::ensure!(
@@ -321,7 +239,10 @@ impl World {
 mod tests {
     use super::*;
     use crate::belts::{BLUE_BELT, Belt, BeltTier, RED_BELT, UndergroundBelt, YELLOW_BELT};
-    use crate::{Direction::*, pos};
+    use crate::{
+        Direction::{self, *},
+        pos,
+    };
 
     #[test]
     fn test_belt_input_direction_no_relative_belt() {
@@ -383,31 +304,6 @@ mod tests {
             .assert_belt_input_direction(pos(1, 1), East, East);
     }
 
-    #[test]
-    fn test_tile_history_view_override() {
-        let world = World::new();
-        let position = pos(1, 1);
-        let override_belt = Belt::new(North, YELLOW_BELT);
-        let tile_history: TileHistory = (position, Some(override_belt));
-        let view = TileHistoryView::new(&world, Some(&tile_history));
-
-        let entity = view.get(position);
-        assert!(entity.is_some());
-        assert!(entity.unwrap().as_belt_connectable().is_some());
-    }
-
-    #[test]
-    fn test_tile_history_view_fallback() {
-        World::new()
-            .belt_at(pos(1, 1), East, YELLOW_BELT)
-            .with_world(|world| {
-                let view = TileHistoryView::new(world, None);
-                let entity = view.get(pos(1, 1));
-                assert!(entity.is_some());
-                assert!(entity.unwrap().as_belt_connectable().is_some());
-            });
-    }
-
     impl World {
         fn belt_at(mut self, pos: TilePosition, direction: Direction, tier: BeltTier) -> Self {
             self.set(pos, Belt::new(direction, tier));
@@ -441,7 +337,7 @@ mod tests {
             belt_direction: Direction,
             expected: Direction,
         ) -> Self {
-            let actual = self.belt_input_direction(pos, belt_direction);
+            let actual = self.belt_curved_input_direction(pos, belt_direction);
             assert_eq!(
                 actual, expected,
                 "Expected belt input direction {:?}, got {:?} at position {:?}",

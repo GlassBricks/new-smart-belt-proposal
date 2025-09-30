@@ -249,7 +249,7 @@ impl<'a> TileClassifier<'a> {
 
         if skip_initial_splitters {
             while scan_pos * direction_multiplier < max_underground_position * direction_multiplier
-                && let Some(belt_connectable) = self.world_view.get_belt(scan_pos)
+                && let Some(belt_connectable) = self.world_view.get_belt_entity(scan_pos)
                 && let BeltConnectableEnum::Splitter(Splitter { direction, .. }) = belt_connectable
                 && *direction == self.belt_direction()
             {
@@ -259,7 +259,7 @@ impl<'a> TileClassifier<'a> {
 
         // Scan the belt segment.
         while scan_pos * direction_multiplier < max_underground_position * direction_multiplier
-            && let Some(belt_connectable) = self.world_view.get_belt(scan_pos)
+            && let Some(belt_connectable) = self.world_view.get_belt_entity(scan_pos)
             && self.world_view.is_belt_connected_to_previous_tile(scan_pos)
         {
             match belt_connectable {

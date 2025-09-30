@@ -1,4 +1,5 @@
 pub mod action;
+pub mod belt_curving;
 pub mod drag;
 pub mod drag_step;
 pub mod tile_classification;

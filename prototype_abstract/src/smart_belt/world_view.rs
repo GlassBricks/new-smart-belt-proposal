@@ -1,6 +1,6 @@
 use crate::{
-    Belt, BeltConnectableEnum, Direction, Entity, Ray, TileHistory, TileHistoryView,
-    UndergroundBelt, World, WorldReader,
+    Belt, BeltConnectableEnum, Direction, Entity, Ray, UndergroundBelt, World,
+    smart_belt::belt_curving::{BeltCurveView, TileHistory, TileHistoryView},
 };
 
 /**
@@ -46,16 +46,18 @@ impl<'a> DragWorldView<'a> {
 
     // World interaction methods - stubbed for implementation
     pub fn get_entity(&self, position: i32) -> Option<&dyn Entity> {
-        self.world_reader.get(self.ray.get_position(position))
+        self.world_reader
+            .get_entity(self.ray.get_position(position))
     }
 
-    pub fn get_belt(&self, position: i32) -> Option<BeltConnectableEnum<'_>> {
-        self.world_reader.get_belt(self.ray.get_position(position))
+    pub fn get_belt_entity(&self, position: i32) -> Option<BeltConnectableEnum<'_>> {
+        self.get_entity(position)
+            .and_then(|entity| entity.as_belt_connectable())
     }
 
     pub fn belt_was_curved(&self, position: i32, belt: &Belt) -> bool {
         let position = self.ray.get_position(position);
-        self.world_reader.belt_was_curved(position, belt)
+        self.world_reader.belt_is_curved_at(position, belt)
     }
 
     // If this entity belt-connects to the previous entity, forming part of the same belt segment.
@@ -72,35 +74,21 @@ impl<'a> DragWorldView<'a> {
             )
         };
 
-        let Some(last_entity) = self.world_reader.get_belt_dyn(last_pos) else {
-            return false;
-        };
-
-        let Some(cur_entity) = self.world_reader.get_belt_dyn(cur_pos) else {
-            return false;
-        };
-        dbg!(last_entity, cur_entity);
-
-        let connects_forward = self.world_reader.effective_output_direction(last_entity)
+        let connects_forward = self.world_reader.output_direction_at(last_pos)
             == Some(self.belt_direction())
-            && self
-                .world_reader
-                .effective_input_direction(cur_pos, cur_entity)
-                == Some(self.belt_direction());
+            && self.world_reader.input_direction_at(cur_pos) == Some(self.belt_direction());
         if connects_forward {
             return true;
         }
         let opposite_direction = self.belt_direction().opposite();
-        self.world_reader
-            .effective_input_direction(last_pos, last_entity)
-            == Some(opposite_direction)
-            && self.world_reader.effective_output_direction(cur_entity) == Some(opposite_direction)
+        self.world_reader.input_direction_at(last_pos) == Some(opposite_direction)
+            && self.world_reader.output_direction_at(cur_pos) == Some(opposite_direction)
     }
 
     pub fn get_ug_pair_pos(&self, index: i32, ug: &UndergroundBelt) -> Option<i32> {
         let world_position = self.ray.get_position(index);
         self.world_reader
-            .get_ug_pair(world_position, ug)
-            .map(|(other_pos, _)| self.ray.ray_position(other_pos))
+            .get_ug_pair_pos(world_position, ug)
+            .map(|pair_pos| self.ray.ray_position(pair_pos))
     }
 }

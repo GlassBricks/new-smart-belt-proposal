@@ -1,7 +1,8 @@
 use anyhow::Result;
 use euclid::{Point2D, Rect, Size2D, Vector2D};
 use prototype_abstract::{
-    BeltConnectableEnum, BoundingBox, Direction, Entity, Splitter, TilePosition, World, WorldReader,
+    BeltConnectableEnum, BoundingBox, Direction, Entity, Splitter, TilePosition, World,
+    smart_belt::belt_curving::BeltCurveView as _,
 };
 use std::path::Path;
 use tiny_skia::{Pixmap, PremultipliedColorU8};
@@ -142,7 +143,7 @@ impl ImageRenderer {
                 self.render_belt(
                     canvas,
                     belt.direction,
-                    world.effective_input_direction(pos, belt),
+                    world.input_direction_at(pos),
                     pixel_pos,
                 );
             }
