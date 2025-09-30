@@ -18,30 +18,27 @@ pub(super) enum TileType {
     ImpassableObstacle,
 }
 
-// The only info the tile classifier needs to know about the previous state.
-pub(super) trait TileClassifierState: Debug {
-    fn can_enter_next_tile(&self) -> bool;
-    fn underground_input_pos(&self, last_position: i32) -> Option<i32>;
-}
-
-pub(super) struct TileClassifier<'a, S: TileClassifierState> {
+pub(super) struct TileClassifier<'a> {
     world_view: DragWorldView<'a>,
     tier: BeltTier,
-    last_state: &'a S,
+    can_enter_next_tile: bool,
+    underground_input_pos: Option<i32>,
     last_position: i32,
 }
 
-impl<'a, S: TileClassifierState> TileClassifier<'a, S> {
+impl<'a> TileClassifier<'a> {
     pub(super) fn new(
         world_view: DragWorldView<'a>,
         tier: BeltTier,
-        last_state: &'a S,
+        can_enter_next_tile: bool,
+        underground_input_pos: Option<i32>,
         last_position: i32,
     ) -> Self {
         Self {
             world_view,
             tier,
-            last_state,
+            can_enter_next_tile,
+            underground_input_pos,
             last_position,
         }
     }
@@ -137,7 +134,7 @@ impl<'a, S: TileClassifierState> TileClassifier<'a, S> {
     }
 
     fn classify_paired_underground_belt(&self, ug: &UndergroundBelt, output_pos: i32) -> TileType {
-        if self.ug_is_enterable(ug) && self.last_state.can_enter_next_tile() {
+        if self.ug_is_enterable(ug) && self.can_enter_next_tile {
             // Enter, it it has the correct shape, and we can enter it (not traversing an obstacle)
             // Note, underground upgrade checking is handled elsewhere
             TileType::IntegratedUnderground { output_pos }
@@ -182,7 +179,7 @@ impl<'a, S: TileClassifierState> TileClassifier<'a, S> {
                 // Wrong direction -- we're about to break the belt segment
                 TileType::ImpassableObstacle
             }
-        } else if !(splitter_direction_matches && self.last_state.can_enter_next_tile()) {
+        } else if !(splitter_direction_matches && self.can_enter_next_tile) {
             // - Unenterable splitters are obstacles
             TileType::Obstacle
         } else {
@@ -212,19 +209,17 @@ impl<'a, S: TileClassifierState> TileClassifier<'a, S> {
     }
 
     fn is_connected_to_previous_belt_as_obstacle(&self) -> bool {
-        !self.last_state.can_enter_next_tile()
+        !self.can_enter_next_tile
             && self
                 .world_view
                 .is_belt_connected_to_previous_tile(self.next_position())
     }
 
     fn is_connected_to_previous_integrated_belt(&self) -> bool {
-        dbg!(self.last_state);
-        dbg!(self.last_state.can_enter_next_tile())
-            && dbg!(
-                self.world_view
-                    .is_belt_connected_to_previous_tile(self.next_position())
-            )
+        self.can_enter_next_tile
+            && self
+                .world_view
+                .is_belt_connected_to_previous_tile(self.next_position())
     }
 
     /// Scans a belt segment to determine if we should integrate it.
@@ -300,11 +295,8 @@ impl<'a, S: TileClassifierState> TileClassifier<'a, S> {
     }
 
     fn max_underground_position(&self) -> Option<i32> {
-        self.last_state
-            .underground_input_pos(self.last_position)
-            .map(|pos| {
-                pos + (self.tier.underground_distance as i32)
-                    * self.world_view.direction_multiplier()
-            })
+        self.underground_input_pos.map(|pos| {
+            pos + (self.tier.underground_distance as i32) * self.world_view.direction_multiplier()
+        })
     }
 }

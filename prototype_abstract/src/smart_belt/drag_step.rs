@@ -1,7 +1,4 @@
-use crate::{
-    Impassable,
-    smart_belt::{DragWorldView, TileClassifierState},
-};
+use crate::{Impassable, smart_belt::DragWorldView};
 
 use super::{Action, LineDrag, TileClassifier, TileType, action::Error};
 
@@ -47,7 +44,7 @@ impl From<NormalState> for DragState {
     }
 }
 
-impl TileClassifierState for NormalState {
+impl NormalState {
     fn can_enter_next_tile(&self) -> bool {
         // For error states, we allow entering.
         // This allows e.g. entering a splitter to upgrade it, starting from hovering over an obstacle.
@@ -80,7 +77,8 @@ impl<'a> LineDrag<'a> {
         let next_tile = TileClassifier::new(
             self.world_view(is_forward),
             self.tier,
-            last_state,
+            last_state.can_enter_next_tile(),
+            last_state.underground_input_pos(self.last_position),
             self.last_position,
         )
         .classify_next_tile();
