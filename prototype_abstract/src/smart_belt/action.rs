@@ -4,7 +4,8 @@ use serde::Deserialize;
 
 use super::{LineDrag, drag::DragDirection};
 use crate::belts::{Belt, BeltTier, UndergroundBelt};
-use crate::{Direction, Splitter, TilePosition, World};
+use crate::smart_belt::belt_curving::{BeltCurveView, TileHistory};
+use crate::{BeltConnectable, Direction, Splitter, TilePosition, World};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Action {
@@ -24,7 +25,7 @@ pub enum Action {
     None,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Hash)]
 #[serde(rename_all = "snake_case")]
 pub enum Error {
     TooFarToConnect,
@@ -41,9 +42,12 @@ impl<'a, S: super::DragState> LineDrag<'a, S> {
         match action {
             Action::None => {}
             Action::PlaceBelt => {
-                self.record_tile_history(position);
-                self.world
-                    .place_belt(world_pos, self.ray.direction, self.tier);
+                if let Some(tile_history) =
+                    self.world
+                        .place_belt(world_pos, self.ray.direction, self.tier)
+                {
+                    self.set_tile_history(Some(tile_history));
+                }
             }
             Action::CreateUnderground {
                 input_pos,
@@ -54,20 +58,21 @@ impl<'a, S: super::DragState> LineDrag<'a, S> {
                     self.ray.get_position(output_pos),
                 );
 
-                self.record_tile_history(output_pos);
-
                 self.world.place_underground_belt(
                     input_world_pos,
                     self.ray.direction,
                     direction == DragDirection::Forward,
                     self.tier,
                 );
-                self.world.place_underground_belt(
+
+                if let Some(tile_history) = self.world.place_underground_belt(
                     output_world_pos,
                     self.ray.direction,
                     direction == DragDirection::Backward,
                     self.tier,
-                );
+                ) {
+                    self.set_tile_history(Some(tile_history));
+                }
             }
             Action::ExtendUnderground {
                 previous_output_pos,
@@ -80,13 +85,14 @@ impl<'a, S: super::DragState> LineDrag<'a, S> {
 
                 self.world.remove(previous_output_world_pos);
 
-                self.record_tile_history(new_output_pos);
-                self.world.place_underground_belt(
+                if let Some(tile_history) = self.world.place_underground_belt(
                     new_output_world_pos,
                     self.ray.direction,
                     direction == DragDirection::Backward,
                     self.tier,
-                );
+                ) {
+                    self.set_tile_history(Some(tile_history));
+                }
             }
             Action::IntegrateUndergroundPair {
                 do_upgrade: upgrade,
@@ -118,8 +124,30 @@ impl<'a, S: super::DragState> LineDrag<'a, S> {
     }
 }
 impl World {
-    pub fn place_belt(&mut self, position: TilePosition, direction: Direction, tier: BeltTier) {
-        self.set(position, Belt::new(direction, tier));
+    pub fn set_if_not_eq<T: BeltConnectable + PartialEq>(
+        &mut self,
+        position: TilePosition,
+        entity: Box<T>,
+    ) -> Option<TileHistory> {
+        if let Some(old_entity) = self.get(position)
+            && let Some(as_t) = old_entity.as_any().downcast_ref::<T>()
+            && *as_t == *entity
+        {
+            None
+        } else {
+            let connections = self.belt_connections_at(position);
+            self.set(position, entity);
+            Some((position, connections))
+        }
+    }
+
+    pub fn place_belt(
+        &mut self,
+        position: TilePosition,
+        direction: Direction,
+        tier: BeltTier,
+    ) -> Option<TileHistory> {
+        self.set_if_not_eq(position, Belt::new(direction, tier))
     }
 
     pub fn place_underground_belt(
@@ -128,7 +156,7 @@ impl World {
         direction: Direction,
         is_input: bool,
         tier: BeltTier,
-    ) {
-        self.set(position, UndergroundBelt::new(direction, is_input, tier));
+    ) -> Option<TileHistory> {
+        self.set_if_not_eq(position, UndergroundBelt::new(direction, is_input, tier))
     }
 }

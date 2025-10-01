@@ -1,5 +1,6 @@
 use std::any::Any;
 use std::cmp::max;
+use std::collections::HashSet;
 
 use crate::belts::{BELT_TIERS, Belt, BeltTier, LoaderLike, Splitter, UndergroundBelt};
 use crate::{BoundingBox, Impassable};
@@ -27,7 +28,7 @@ pub struct TestCaseEntities {
     pub belt_direction: Direction,
     pub end_pos: TilePosition,
     pub tier: BeltTier,
-    pub expected_errors: Vec<(TilePosition, action::Error)>,
+    pub expected_errors: HashSet<(TilePosition, action::Error)>,
 }
 
 impl TestCaseEntities {
@@ -53,10 +54,21 @@ fn check_test_case(test: &TestCaseEntities, reverse: bool, wiggle: bool) -> anyh
     );
 
     let expected_world = &test.after;
-
     let expected_errors = &test.expected_errors;
 
-    if result != *expected_world || actual_errors != *expected_errors {
+    let non_empty_subset_only = wiggle;
+
+    let errors_match = if non_empty_subset_only {
+        if expected_errors.is_empty() {
+            actual_errors.is_empty()
+        } else {
+            expected_errors.is_subset(&actual_errors)
+        }
+    } else {
+        actual_errors == *expected_errors
+    };
+
+    if result != *expected_world || !errors_match {
         let bounds = test.bounds();
         let mut error_message = format!(
             r#"
@@ -199,7 +211,7 @@ fn run_test_case(
     end_pos: TilePosition,
     drag_direction: Direction,
     wiggle: bool,
-) -> (World, Vec<(TilePosition, Error)>) {
+) -> (World, HashSet<(TilePosition, Error)>) {
     eprintln!("Starting test case\n");
 
     let ray = crate::geometry::Ray::new(start_pos, drag_direction);
@@ -227,7 +239,7 @@ fn run_test_case(
         drag.interpolate_to(end_pos);
     }
 
-    let errors = drag.get_errors();
+    let errors = drag.get_errors().iter().cloned().collect();
     eprintln!();
     (world, errors)
 }
@@ -290,7 +302,7 @@ fn get_entities(serde_case: &TestCaseSerde) -> Result<TestCaseEntities, String> 
     let expected_errors = after_markers
         .into_iter()
         .zip(serde_expected_errors)
-        .collect_vec();
+        .collect();
 
     let start_pos = if !before_markers.is_empty() {
         if before_markers.len() > 1 {

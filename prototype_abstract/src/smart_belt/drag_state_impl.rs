@@ -1,5 +1,5 @@
 use crate::smart_belt::{
-    DragState, DragStepResult, DragWorldView, LineDrag, TileClassifier, TileType,
+    DragState, DragStepResult, LineDrag, TileClassifier, TileType,
     action::{Action, Error},
     drag::DragDirection,
 };
@@ -92,11 +92,11 @@ impl DragStateImpl {
         let underground_input = self.underground_input_pos(ctx.last_position, direction);
         eprintln!("can_enter: {can_enter}, underground_input: {underground_input:?}");
         let next_tile = TileClassifier::new(
-            DragWorldView::new(ctx.world, ctx.ray, ctx.tile_history, direction),
-            ctx.tier,
+            ctx.drag_world_view(direction),
+            ctx.last_position,
             can_enter,
             underground_input,
-            ctx.last_position,
+            ctx.tier,
         )
         .classify_next_tile();
         eprintln!("Tile type: {:?}", next_tile);

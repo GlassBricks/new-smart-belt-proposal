@@ -18,7 +18,7 @@ pub trait BeltCurveView {
         }
     }
 
-    /// Computes what direction a belt should be inputting from. Decides belt curvature.#=
+    /// Computes what direction a belt should be inputting from. Decides belt curvature.
     fn belt_curved_input_direction(
         &self,
         position: TilePosition,
@@ -44,7 +44,7 @@ pub trait BeltCurveView {
 
     fn belt_is_curved_at(&self, position: TilePosition, belt: &Belt) -> bool {
         self.input_direction_at(position)
-            .is_some_and(|d| d != belt.direction)
+            .is_some_and(|d| d.axis() != belt.direction.axis())
     }
 }
 

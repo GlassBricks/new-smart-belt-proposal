@@ -1,8 +1,8 @@
 use super::{DragStateImpl, Error};
 use crate::TilePosition;
 use crate::belts::BeltTier;
-use crate::smart_belt::DragState;
-use crate::smart_belt::belt_curving::{BeltCurveView, TileHistory, TileHistoryView};
+use crate::smart_belt::belt_curving::{BeltCurveView, TileHistory};
+use crate::smart_belt::{DragState, DragWorldView};
 use crate::{Direction, Ray, World, smart_belt::Action};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -41,7 +41,7 @@ pub struct LineDrag<'a, S: DragState = DragStateImpl> {
     // want the logic to be independent of what we've placed. As such, we track
     // the history of tiles we've replaced. It suffices only to keep track of
     // one tile (the last placed output belt).
-    pub(super) tile_history: Option<TileHistory>,
+    tile_history: Option<TileHistory>,
     // for testing
     pub(super) errors: Vec<(TilePosition, Error)>,
 }
@@ -57,7 +57,7 @@ impl<'a, S: DragState> LineDrag<'a, S> {
     ) -> LineDrag<'a, S> {
         let mut errors = Vec::new();
         let can_place = world.can_place_belt_on_tile(start_pos);
-        let tile_history = can_place.then(|| Self::get_tile_history(world, start_pos, None));
+        let tile_history = can_place.then(|| (start_pos, world.belt_connections_at(start_pos)));
 
         if can_place {
             world.place_belt(start_pos, belt_direction, tier);
@@ -80,24 +80,6 @@ impl<'a, S: DragState> LineDrag<'a, S> {
 
     pub fn get_errors(self) -> Vec<(TilePosition, Error)> {
         self.errors
-    }
-
-    fn get_tile_history(
-        world: &World,
-        position: TilePosition,
-        prev_tile_history: Option<TileHistory>,
-    ) -> TileHistory {
-        let view = TileHistoryView::new(world, prev_tile_history);
-        (position, view.belt_connections_at(position))
-    }
-
-    pub(super) fn record_tile_history(&mut self, position: i32) {
-        let world_position = self.ray.get_position(position);
-        self.tile_history = Some(Self::get_tile_history(
-            self.world,
-            world_position,
-            self.tile_history,
-        ));
     }
 
     pub(super) fn next_position(&self, direction: DragDirection) -> i32 {
@@ -132,6 +114,15 @@ impl<'a, S: DragState> LineDrag<'a, S> {
         eprintln!("Next state: {:?}\n", next_state);
         self.last_state = next_state;
         self.last_position = self.next_position(direction);
+    }
+
+    pub(super) fn set_tile_history(&mut self, tile_history: Option<TileHistory>) {
+        eprintln!("New tile history: {:?}", tile_history);
+        self.tile_history = tile_history;
+    }
+
+    pub(super) fn drag_world_view(&self, direction: DragDirection) -> DragWorldView<'_> {
+        DragWorldView::new(self.world, self.ray, self.tile_history, direction)
     }
 
     fn add_error(&mut self, error: Error, direction: DragDirection) {

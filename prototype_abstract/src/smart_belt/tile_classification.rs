@@ -29,10 +29,10 @@ pub(super) struct TileClassifier<'a> {
 impl<'a> TileClassifier<'a> {
     pub(super) fn new(
         world_view: DragWorldView<'a>,
-        tier: BeltTier,
+        last_position: i32,
         can_enter_next_tile: bool,
         underground_input_pos: Option<i32>,
-        last_position: i32,
+        tier: BeltTier,
     ) -> Self {
         Self {
             world_view,
