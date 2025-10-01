@@ -1,0 +1,34 @@
+- name: Empty world
+  before: _ _ _ _
+  after: "> > > >"
+  forward_back: true
+
+- name: Back over obstacle
+  before: _ X *_ _
+  after: ">i X >o >"
+  forward_back: true
+
+- name: Back over obstacle later
+  before: _ X _ *_ _
+  after: ">i X >o > >"
+  forward_back: true
+
+- name: Back from obstactle
+  before: _ _ *_ X _
+  after: "> > >i X >o >"
+  forward_back: true
+
+- name: Back from untraversed obstactle
+  before: _ *_ X X X
+  after: "> > X X X"
+  forward_back: true
+
+- name: Back from obstactle later
+  before: _ *_ _ X _
+  after: "> > >i X >o >"
+  forward_back: true
+
+- name: Back over splitter
+  before: _ >s *_ _ _
+  after: "> >s > > >"
+  forward_back: true

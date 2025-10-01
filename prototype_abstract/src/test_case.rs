@@ -3,6 +3,7 @@ use std::cmp::max;
 use std::collections::HashSet;
 
 use crate::belts::{BELT_TIERS, Belt, BeltTier, LoaderLike, Splitter, UndergroundBelt};
+use crate::geometry::Ray;
 use crate::{BoundingBox, Impassable};
 use crate::{
     Colliding, Direction, Entity, TilePosition, Transform, World, pos,
@@ -18,12 +19,14 @@ pub struct DragTestCase {
     pub entities: TestCaseEntities,
     pub after_for_reverse: Option<World>,
     pub not_reversible: bool,
+    pub forward_back: bool,
 }
 
 #[derive(Debug, Clone)]
 pub struct TestCaseEntities {
     pub before: World,
     pub after: World,
+    pub leftmost_pos: TilePosition,
     pub start_pos: TilePosition,
     pub belt_direction: Direction,
     pub end_pos: TilePosition,
@@ -37,21 +40,19 @@ impl TestCaseEntities {
     }
 }
 
-fn check_test_case(test: &TestCaseEntities, reverse: bool, wiggle: bool) -> anyhow::Result<()> {
+fn check_test_case(
+    test: &TestCaseEntities,
+    reverse: bool,
+    wiggle: bool,
+    forward_back: bool,
+) -> anyhow::Result<()> {
     let test = if reverse {
         flip_test_case(test, None)?
     } else {
         test.clone()
     };
 
-    let (result, actual_errors) = run_test_case(
-        &test.before,
-        test.tier,
-        test.start_pos,
-        test.end_pos,
-        test.belt_direction,
-        wiggle,
-    );
+    let (result, actual_errors) = run_test_case(&test, wiggle, forward_back);
 
     let expected_world = &test.after;
     let expected_errors = &test.expected_errors;
@@ -121,16 +122,11 @@ Got errors:
     Ok(())
 }
 
-pub fn check_test_case_with_options(
+pub fn check_test_case_all_transforms(
     test: &DragTestCase,
     reverse: bool,
     wiggle: bool,
 ) -> Result<()> {
-    if reverse && test.not_reversible {
-        eprintln!("Skipping, not reversible");
-        return Ok(());
-    }
-
     for (i, transform) in Transform::all_unique_transforms().iter().enumerate() {
         let transformed_test = transform_test_case(&test.entities, transform);
 
@@ -144,13 +140,16 @@ pub fn check_test_case_with_options(
             transformed_test
         };
 
-        let test_name = match (reverse, wiggle) {
-            (true, true) => format!("[transform {}] [flip] [wiggle]", i),
-            (true, false) => format!("[transform {}] [flip]", i),
-            (false, true) => format!("[transform {}] [wiggle]", i),
-            (false, false) => format!("[transform {}]", i),
+        let test_name = match (reverse, wiggle, test.forward_back) {
+            (true, true, _) => format!("[transform {}] [flip] [wiggle]", i),
+            (true, false, _) => format!("[transform {}] [flip]", i),
+            (false, true, false) => format!("[transform {}] [wiggle]", i),
+            (false, false, true) => format!("[transform {}] [forward_back]", i),
+            (false, false, false) => format!("[transform {}]", i),
+            _ => unreachable!(),
         };
-        check_test_case(&test_to_check, false, wiggle).with_context(|| test_name)?;
+        check_test_case(&test_to_check, false, wiggle, test.forward_back)
+            .with_context(|| test_name)?;
     }
 
     Ok(())
@@ -160,6 +159,7 @@ fn transform_test_case(test: &TestCaseEntities, transform: &Transform) -> TestCa
     TestCaseEntities {
         before: test.before.transform_world(transform),
         after: test.after.transform_world(transform),
+        leftmost_pos: transform.transform_position(test.leftmost_pos),
         start_pos: transform.transform_position(test.start_pos),
         end_pos: transform.transform_position(test.end_pos),
         belt_direction: transform.transform_direction(test.belt_direction),
@@ -179,11 +179,9 @@ fn flip_test_case_unchecked(
     TestCaseEntities {
         before: test.before.flip_all_entities(),
         after: (after_for_reverse.unwrap_or(&test.after)).flip_all_entities(),
-        start_pos: test.start_pos,
-        end_pos: test.end_pos,
         belt_direction: test.belt_direction.opposite(),
-        tier: test.tier,
         expected_errors: test.expected_errors.clone(),
+        ..*test
     }
 }
 
@@ -205,16 +203,22 @@ fn flip_test_case(
     Ok(flipped)
 }
 fn run_test_case(
-    world: &World,
-    tier: BeltTier,
-    start_pos: TilePosition,
-    end_pos: TilePosition,
-    drag_direction: Direction,
+    test: &TestCaseEntities,
     wiggle: bool,
+    forward_back: bool,
 ) -> (World, HashSet<(TilePosition, Error)>) {
     eprintln!("Starting test case\n");
 
-    let ray = crate::geometry::Ray::new(start_pos, drag_direction);
+    let TestCaseEntities {
+        leftmost_pos,
+        start_pos,
+        belt_direction,
+        end_pos,
+        tier,
+        ..
+    } = *test;
+
+    let ray = Ray::new(start_pos, belt_direction);
     let end_pos_ray = ray.ray_position(end_pos);
     assert_eq!(
         ray.snap(end_pos),
@@ -222,25 +226,27 @@ fn run_test_case(
         "end_pos must be on the same line as start_pos in drag_direction"
     );
 
-    let mut world = world.clone();
-    let mut drag = LineDrag::start_drag(&mut world, tier, start_pos, drag_direction);
+    let mut result = test.before.clone();
+    let mut drag = LineDrag::start_drag(&mut result, tier, start_pos, belt_direction);
 
     if wiggle {
         run_wiggle(
             &mut drag,
             start_pos,
             end_pos,
-            drag_direction,
+            belt_direction,
             &ray,
             end_pos_ray,
         );
+    } else if forward_back {
+        run_forward_back(&mut drag, leftmost_pos, end_pos);
     } else {
         drag.interpolate_to(end_pos);
     }
 
     let errors = drag.get_errors().iter().cloned().collect();
     eprintln!();
-    (world, errors)
+    (result, errors)
 }
 
 fn run_wiggle(
@@ -248,7 +254,7 @@ fn run_wiggle(
     start_pos: TilePosition,
     end_pos: TilePosition,
     drag_direction: Direction,
-    ray: &crate::geometry::Ray,
+    ray: &Ray,
     end_pos_ray: i32,
 ) {
     let dir_vec = drag_direction.to_vector();
@@ -264,6 +270,11 @@ fn run_wiggle(
     if ray.ray_position(current_pos) != end_pos_ray {
         drag.interpolate_to(end_pos);
     }
+}
+
+fn run_forward_back(drag: &mut LineDrag, leftmost_pos: TilePosition, end_pos: TilePosition) {
+    drag.interpolate_to(end_pos);
+    drag.interpolate_to(leftmost_pos);
 }
 
 impl World {
@@ -284,6 +295,8 @@ struct TestCaseSerde {
     expected_errors: Vec<action::Error>,
     #[serde(default)]
     not_reversible: bool,
+    #[serde(default)]
+    forward_back: bool,
 }
 fn get_entities(serde_case: &TestCaseSerde) -> Result<TestCaseEntities, String> {
     let (before, before_markers) = parse_world(&serde_case.before)
@@ -327,12 +340,16 @@ fn get_entities(serde_case: &TestCaseSerde) -> Result<TestCaseEntities, String> 
 
     let max_x = max(before.max_x(), after.max_x());
     let end_pos = pos(max_x, start_pos.y);
+
+    let leftmost_pos = pos(0, start_pos.y);
+
     let direction = first_ent.direction();
 
     Ok(TestCaseEntities {
         before,
         after,
         tier,
+        leftmost_pos,
         start_pos,
         end_pos,
         belt_direction: direction,
@@ -349,6 +366,7 @@ impl<'de> Deserialize<'de> for DragTestCase {
 
         let name = serde_case.name.as_deref().unwrap_or("Unnamed").to_string();
         let not_reversible = serde_case.not_reversible;
+        let forward_back = serde_case.forward_back;
 
         let entities = get_entities(&serde_case).map_err(serde::de::Error::custom)?;
         let after_for_reverse = serde_case
@@ -365,6 +383,7 @@ impl<'de> Deserialize<'de> for DragTestCase {
             entities,
             after_for_reverse,
             not_reversible,
+            forward_back,
         })
     }
 }

@@ -1,7 +1,16 @@
+use serde::Deserialize;
 use std::env;
 use std::fs;
-
 use std::path::PathBuf;
+
+#[derive(Deserialize)]
+#[serde(rename_all = "snake_case")]
+struct TestCaseFlags {
+    #[serde(default)]
+    not_reversible: bool,
+    #[serde(default)]
+    forward_back: bool,
+}
 
 fn main() {
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
@@ -60,12 +69,25 @@ fn main() {
 
             let yaml_content = serde_yaml::to_string(&test_case).unwrap();
 
-            let test_fns = &[
-                ("run_test_case", ""),
-                ("run_test_case_reverse", "_reverse"),
-                ("run_test_case_wiggle", "_wiggle"),
-                ("run_test_case_wiggle_reverse", "_wiggle_reverse"),
-            ];
+            // Parse flags to determine which variants to generate
+            let flags: TestCaseFlags =
+                serde_yaml::from_value(test_case.clone()).unwrap_or(TestCaseFlags {
+                    not_reversible: false,
+                    forward_back: false,
+                });
+
+            // Build list of test variants to generate based on flags
+            let mut test_fns = vec![("run_test_case", "")];
+
+            if !flags.not_reversible {
+                test_fns.push(("run_test_case_reverse", "_reverse"));
+            }
+            if !flags.forward_back {
+                test_fns.push(("run_test_case_wiggle", "_wiggle"));
+                if !flags.not_reversible {
+                    test_fns.push(("run_test_case_wiggle_reverse", "_wiggle_reverse"));
+                }
+            }
 
             for (fn_name, suffix) in test_fns {
                 generated_code.push_str(&format!(

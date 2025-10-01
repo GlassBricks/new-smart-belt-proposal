@@ -30,6 +30,7 @@ pub enum DragState {
 }
 
 /// The view of the end of the belt line, after factoring in direction.
+#[derive(Debug, Clone)]
 enum DragEndShape {
     /// A belt that may become an underground belt.
     Belt,
@@ -58,26 +59,27 @@ impl DragState {
 
     pub fn step(&self, ctx: &LineDrag, direction: DragDirection) -> DragStepResult {
         print_debug_info(ctx, direction);
-        let Some(belt_shape) = self.get_drag_end(ctx.last_position, direction) else {
+        let Some(drag_end) = self.get_drag_end(ctx.last_position, direction) else {
             eprintln!("Do nothing");
             return DragStepResult(Action::None, None, self.clone());
         };
+        eprintln!("drag_end: {drag_end:?}");
         let next_tile = TileClassifier::new(
             ctx.drag_world_view(direction),
             ctx.last_position,
-            belt_shape.can_enter_next_tile(),
-            belt_shape.underground_input_pos(ctx.last_position),
+            drag_end.can_enter_next_tile(),
+            drag_end.underground_input_pos(ctx.last_position),
             ctx.tier,
         )
         .classify_next_tile();
         eprintln!("Tile type: {:?}", next_tile);
         match next_tile {
-            TileType::Usable => belt_shape.place_belt_or_underground(ctx, direction),
-            TileType::Obstacle => belt_shape.handle_obstacle(ctx, direction),
+            TileType::Usable => drag_end.place_belt_or_underground(ctx, direction),
+            TileType::Obstacle => drag_end.handle_obstacle(ctx, direction),
             TileType::IntegratedSplitter => {
                 DragStepResult(Action::IntegrateSplitter, None, DragState::OverSplitter)
             }
-            TileType::ImpassableObstacle => belt_shape.handle_impassable_obstacle(direction),
+            TileType::ImpassableObstacle => drag_end.handle_impassable_obstacle(direction),
             TileType::IntegratedUnderground { output_pos } => {
                 integrate_underground_pair(ctx, direction, output_pos)
             }
@@ -109,15 +111,13 @@ impl DragState {
             } => {
                 if direction != last_dir {
                     // Direction doesn't match, we are "un" dragging
-                    if last_position != input_pos {
-                        // We haven't touched the input underground yet
-                        None
-                    } else if output_pos.is_none() {
-                        // The input underground position is a belt
-                        Some(DragEndShape::Belt)
+                    if output_pos.is_some() {
+                        // The input underground position is a underground; check if we exit it
+                        (last_position == input_pos).then_some(DragEndShape::IntegratedOutput)
                     } else {
-                        // We placed an output belt, the input underground position is an underground
-                        Some(DragEndShape::IntegratedOutput)
+                        // The input underground position is a belt; check if we re-overlap ip
+                        let next_position = last_position + direction.direction_multiplier();
+                        (next_position == input_pos).then_some(DragEndShape::Belt)
                     }
                 } else if output_pos == Some(last_position) {
                     // We just placed an underground belt.

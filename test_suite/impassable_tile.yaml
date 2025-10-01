@@ -17,3 +17,10 @@
   before: "_ # # #"
   after: "> # # # *>"
   expected_errors: [cannot_traverse_past_tile]
+
+- name: Impassable after error
+  before: |
+    *X # # > >
+  after: |
+    *X # # > >
+  expected_errors: [entity_in_the_way]
