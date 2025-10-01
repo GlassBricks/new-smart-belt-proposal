@@ -1,5 +1,5 @@
 {
-  description = "Rust development environment";
+  description = "Rust and Bun development environment";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -22,6 +22,7 @@
           buildInputs = with pkgs; [
             clang
             rustup
+            bun
           ];
           RUSTC_VERSION = overrides.toolchain.channel;
 

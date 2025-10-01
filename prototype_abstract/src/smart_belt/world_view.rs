@@ -12,7 +12,7 @@ Handles geometric transformations, and belt shapes.
 */
 #[derive(Debug)]
 pub(super) struct DragWorldView<'a> {
-    world_reader: TileHistoryView<'a>,
+    history_view: TileHistoryView<'a>,
     ray: Ray,
     pub(crate) direction: DragDirection,
 }
@@ -25,7 +25,7 @@ impl<'a> DragWorldView<'a> {
         direction: DragDirection,
     ) -> Self {
         Self {
-            world_reader: TileHistoryView::new(world, tile_history),
+            history_view: TileHistoryView::new(world, tile_history),
             ray,
             direction,
         }
@@ -44,7 +44,7 @@ impl<'a> DragWorldView<'a> {
 
     // World interaction methods - stubbed for implementation
     pub fn get_entity(&self, position: i32) -> Option<&dyn Entity> {
-        self.world_reader
+        self.history_view
             .get_entity(self.ray.get_position(position))
     }
 
@@ -55,7 +55,7 @@ impl<'a> DragWorldView<'a> {
 
     pub fn belt_was_curved(&self, position: i32, belt: &Belt) -> bool {
         let position = self.ray.get_position(position);
-        self.world_reader.belt_is_curved_at(position, belt)
+        self.history_view.belt_is_curved_at(position, belt)
     }
 
     /// If this entity belt-connects to the previous entity, forming part of the same belt segment.
@@ -72,20 +72,20 @@ impl<'a> DragWorldView<'a> {
             )
         };
 
-        let connects_forward = self.world_reader.output_direction_at(last_pos)
+        let connects_forward = self.history_view.output_direction_at(last_pos)
             == Some(self.belt_direction())
-            && self.world_reader.input_direction_at(cur_pos) == Some(self.belt_direction());
+            && self.history_view.input_direction_at(cur_pos) == Some(self.belt_direction());
         if connects_forward {
             return true;
         }
         let opposite_direction = self.belt_direction().opposite();
-        self.world_reader.input_direction_at(last_pos) == Some(opposite_direction)
-            && self.world_reader.output_direction_at(cur_pos) == Some(opposite_direction)
+        self.history_view.input_direction_at(last_pos) == Some(opposite_direction)
+            && self.history_view.output_direction_at(cur_pos) == Some(opposite_direction)
     }
 
     pub fn get_ug_pair_pos(&self, index: i32, ug: &UndergroundBelt) -> Option<i32> {
         let world_position = self.ray.get_position(index);
-        self.world_reader
+        self.history_view
             .get_ug_pair_pos(world_position, ug)
             .map(|pair_pos| self.ray.ray_position(pair_pos))
     }

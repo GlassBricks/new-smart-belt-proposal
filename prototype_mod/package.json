@@ -1,0 +1,23 @@
+{
+  "name": "prototype_mod",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "bun test",
+    "generate-tests": "bun run generate-tests.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/js-yaml": "^4.0.9"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0"
+  },
+  "prettier": {
+    "semi": false
+  }
+}
