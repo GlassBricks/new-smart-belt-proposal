@@ -43,20 +43,23 @@ impl<'a> TileClassifier<'a> {
         }
     }
 
-    fn direction(&self) -> DragDirection {
+    fn drag_direction(&self) -> DragDirection {
         self.world_view.direction
     }
-    fn next_position(&self) -> i32 {
-        self.last_position + self.direction().direction_multiplier()
+    pub fn direction_multiplier(&self) -> i32 {
+        self.drag_direction().direction_multiplier()
     }
-    fn drag_direction(&self) -> Direction {
-        self.world_view.drag_direction()
+    fn next_position(&self) -> i32 {
+        self.last_position + self.direction_multiplier()
+    }
+    fn ray_direction(&self) -> Direction {
+        self.world_view.ray_direction()
     }
     fn belt_direction(&self) -> Direction {
         self.world_view.belt_direction()
     }
     fn is_perpendicular(&self, direction: Direction) -> bool {
-        direction.axis() != self.drag_direction().axis()
+        direction.axis() != self.ray_direction().axis()
     }
 
     /// A few principles this follows:
@@ -165,7 +168,7 @@ impl<'a> TileClassifier<'a> {
     }
 
     fn ug_is_enterable(&self, ug: &UndergroundBelt) -> bool {
-        self.drag_direction() == ug.shape_direction().opposite()
+        self.ray_direction() == ug.shape_direction().opposite()
     }
 
     fn classify_splitter(&self, splitter: &Splitter) -> TileType {
@@ -204,8 +207,8 @@ impl<'a> TileClassifier<'a> {
     }
 
     fn belt_connects_into_loader(&self, loader: &LoaderLike) -> bool {
-        loader.shape_direction() == self.drag_direction().opposite()
-            && loader.is_input == (self.direction() == DragDirection::Forward)
+        loader.shape_direction() == self.ray_direction().opposite()
+            && loader.is_input == (self.drag_direction() == DragDirection::Forward)
     }
 
     fn is_connected_to_previous_belt_as_obstacle(&self) -> bool {
@@ -242,7 +245,7 @@ impl<'a> TileClassifier<'a> {
             return true;
         };
 
-        let direction_multiplier = self.direction().direction_multiplier();
+        let direction_multiplier = self.direction_multiplier();
         let start_pos = self.next_position();
         // Start at the tile in front of the next one.
         let mut scan_pos = start_pos + direction_multiplier;
@@ -295,8 +298,7 @@ impl<'a> TileClassifier<'a> {
     }
 
     fn max_underground_position(&self) -> Option<i32> {
-        self.underground_input_pos.map(|pos| {
-            pos + (self.tier.underground_distance as i32) * self.direction().direction_multiplier()
-        })
+        self.underground_input_pos
+            .map(|pos| pos + (self.tier.underground_distance as i32) * self.direction_multiplier())
     }
 }

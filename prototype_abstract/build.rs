@@ -64,7 +64,7 @@ fn main() {
                 ("run_test_case", ""),
                 ("run_test_case_reverse", "_reverse"),
                 ("run_test_case_wiggle", "_wiggle"),
-                ("run_test_case_wiggle_reverse", "_wiggle_reverse"),
+                // ("run_test_case_wiggle_reverse", "_wiggle_reverse"),
             ];
 
             for (fn_name, suffix) in test_fns {

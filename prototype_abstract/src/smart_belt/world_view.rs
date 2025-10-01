@@ -34,7 +34,7 @@ impl<'a> DragWorldView<'a> {
     pub fn belt_direction(&self) -> Direction {
         self.ray.direction
     }
-    pub fn drag_direction(&self) -> Direction {
+    pub fn ray_direction(&self) -> Direction {
         if self.direction == DragDirection::Forward {
             self.ray.direction
         } else {

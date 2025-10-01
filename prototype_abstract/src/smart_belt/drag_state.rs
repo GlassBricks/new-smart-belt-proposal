@@ -6,7 +6,7 @@ use super::{LineDrag, action::Error, drag::DragDirection};
 pub trait DragState: Clone + std::fmt::Debug {
     fn initial_state(successful_placement: bool) -> Self;
     fn step(&self, ctx: &LineDrag<Self>, direction: DragDirection) -> DragStepResult<Self>;
-    fn deferred_error(&self) -> Option<Error>;
+    fn deferred_error(&self, direction: DragDirection) -> Option<Error>;
 }
 
 impl<'a, S: DragState> LineDrag<'a, S> {

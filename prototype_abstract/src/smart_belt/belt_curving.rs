@@ -30,7 +30,8 @@ pub trait BeltCurveView {
     }
 
     fn belt_is_curved_at(&self, position: TilePosition, belt: &Belt) -> bool {
-        self.input_direction_at(position) != Some(belt.direction)
+        self.input_direction_at(position)
+            .is_some_and(|d| d != belt.direction)
     }
 }
 

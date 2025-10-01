@@ -20,6 +20,13 @@ impl DragDirection {
             DragDirection::Backward => -1,
         }
     }
+
+    pub fn swap_if_backwards<T>(&self, a: T, b: T) -> (T, T) {
+        match self {
+            DragDirection::Forward => (a, b),
+            DragDirection::Backward => (b, a),
+        }
+    }
 }
 
 /**
@@ -109,7 +116,7 @@ impl<'a, S: DragState> LineDrag<'a, S> {
         eprintln!("action: {:?}", action);
         self.apply_action(action, direction);
 
-        if let Some(error) = self.last_state.deferred_error() {
+        if let Some(error) = self.last_state.deferred_error(direction) {
             self.add_error(error, direction);
         }
         if let Some(error) = error {
