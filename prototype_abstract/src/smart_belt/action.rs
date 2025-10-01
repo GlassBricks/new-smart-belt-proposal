@@ -15,7 +15,7 @@ pub enum Action {
         output_pos: i32,
     },
     ExtendUnderground {
-        previous_output_pos: i32,
+        last_output_pos: i32,
         new_output_pos: i32,
     },
     IntegrateUndergroundPair {
@@ -75,7 +75,7 @@ impl<'a, S: super::DragState> LineDrag<'a, S> {
                 }
             }
             Action::ExtendUnderground {
-                previous_output_pos,
+                last_output_pos: previous_output_pos,
                 new_output_pos,
             } => {
                 let (previous_output_world_pos, new_output_world_pos) = (
