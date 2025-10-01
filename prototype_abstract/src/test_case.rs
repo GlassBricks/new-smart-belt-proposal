@@ -6,7 +6,7 @@ use crate::belts::{BELT_TIERS, Belt, BeltTier, LoaderLike, Splitter, Underground
 use crate::{BoundingBox, Impassable};
 use crate::{
     Colliding, Direction, Entity, TilePosition, Transform, World, pos,
-    smart_belt::{DragStateImpl, LineDrag, action, action::Error},
+    smart_belt::{LineDrag, action, action::Error},
 };
 use anyhow::{Context, Result, bail};
 use itertools::Itertools;
@@ -223,8 +223,7 @@ fn run_test_case(
     );
 
     let mut world = world.clone();
-    let mut drag =
-        LineDrag::<DragStateImpl>::start_drag(&mut world, tier, start_pos, drag_direction);
+    let mut drag = LineDrag::start_drag(&mut world, tier, start_pos, drag_direction);
 
     if wiggle {
         run_wiggle(
@@ -245,7 +244,7 @@ fn run_test_case(
 }
 
 fn run_wiggle(
-    drag: &mut LineDrag<DragStateImpl>,
+    drag: &mut LineDrag,
     start_pos: TilePosition,
     end_pos: TilePosition,
     drag_direction: Direction,

@@ -22,12 +22,8 @@ Rust was chosen, to allow the prototype to be mostly but not completely function
 ## Code style
 Strongly prefer functional programming style.
 
-IMPORTANT: do not add additional explanations.
-Do NOT add comments.
-Do NOT add additional comments
-Do NOT add additional examples, readme, explanations, or documentation.
-Do NOT add additional examples, readme, explanations, or documentation.
-Do NOT add additional explanatory tests.
+Do not add additional explanatory tests, readme.md, examples, doc comments, etc.
+Instead, opt toward refactoring to more self-documenting code.
 
 ## After a task
 After completing a task, evaluate if there are any unused functions (or functions only used in tests and nowhere else).

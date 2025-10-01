@@ -27,7 +27,7 @@ pub(super) struct TileClassifier<'a> {
 }
 
 impl<'a> TileClassifier<'a> {
-    pub(super) fn new(
+    pub fn new(
         world_view: DragWorldView<'a>,
         last_position: i32,
         can_enter_next_tile: bool,
@@ -46,7 +46,7 @@ impl<'a> TileClassifier<'a> {
     fn drag_direction(&self) -> DragDirection {
         self.world_view.direction
     }
-    pub fn direction_multiplier(&self) -> i32 {
+    fn direction_multiplier(&self) -> i32 {
         self.drag_direction().direction_multiplier()
     }
     fn next_position(&self) -> i32 {
@@ -69,7 +69,7 @@ impl<'a> TileClassifier<'a> {
     ///    - Note: underground belt creation checking (for too-long, bad entities) is handled elsewhere
     /// - In cases we have a choice if we integrate or not; scan the belt segment ahead (if appropriate)
     ///   - Entering a splitter that wasn't previously entered is currently treated as a decision point.
-    pub(super) fn classify_next_tile(&self) -> TileType {
+    pub fn classify_next_tile(&self) -> TileType {
         if let Some(entity) = self.world_view.get_entity(self.next_position()) {
             match entity.as_belt_connectable() {
                 Some(BeltConnectableEnum::Belt(belt)) => self.classify_belt(belt),

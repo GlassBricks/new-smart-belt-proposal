@@ -1,8 +1,8 @@
-use super::{DragStateImpl, Error};
+use super::{DragState, Error};
 use crate::TilePosition;
 use crate::belts::BeltTier;
+use crate::smart_belt::DragWorldView;
 use crate::smart_belt::belt_curving::{BeltCurveView, TileHistory};
-use crate::smart_belt::{DragState, DragWorldView};
 use crate::{Direction, Ray, World, smart_belt::Action};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -31,11 +31,11 @@ impl DragDirection {
  * Handles line dragging; includes mutable methods
  */
 #[derive(Debug)]
-pub struct LineDrag<'a, S: DragState = DragStateImpl> {
+pub struct LineDrag<'a> {
     pub(super) world: &'a mut World,
     pub(super) ray: Ray,
     pub(super) tier: BeltTier,
-    pub(super) last_state: S,
+    pub(super) last_state: DragState,
     pub(super) last_position: i32,
     // Some tiles we just placed may change other belt's curvature; however we
     // want the logic to be independent of what we've placed. As such, we track
@@ -46,15 +46,15 @@ pub struct LineDrag<'a, S: DragState = DragStateImpl> {
     pub(super) errors: Vec<(TilePosition, Error)>,
 }
 
-pub struct DragStepResult<S: DragState>(pub Action, pub Option<Error>, pub S);
+pub struct DragStepResult(pub Action, pub Option<Error>, pub DragState);
 
-impl<'a, S: DragState> LineDrag<'a, S> {
+impl<'a> LineDrag<'a> {
     pub fn start_drag(
         world: &'a mut World,
         tier: BeltTier,
         start_pos: TilePosition,
         belt_direction: Direction,
-    ) -> LineDrag<'a, S> {
+    ) -> LineDrag<'a> {
         let mut errors = Vec::new();
         let can_place = world.can_place_belt_on_tile(start_pos);
         let tile_history = can_place.then(|| (start_pos, world.belt_connections_at(start_pos)));
@@ -65,7 +65,7 @@ impl<'a, S: DragState> LineDrag<'a, S> {
             errors.push((start_pos, Error::EntityInTheWay));
         }
 
-        let initial_state = S::initial_state(can_place);
+        let initial_state = DragState::initial_state(can_place);
 
         LineDrag {
             world,
@@ -82,7 +82,7 @@ impl<'a, S: DragState> LineDrag<'a, S> {
         self.errors
     }
 
-    pub(super) fn next_position(&self, direction: DragDirection) -> i32 {
+    pub fn next_position(&self, direction: DragDirection) -> i32 {
         self.last_position + direction.direction_multiplier()
     }
 
@@ -99,7 +99,7 @@ impl<'a, S: DragState> LineDrag<'a, S> {
         }
     }
 
-    fn apply_step(&mut self, step: DragStepResult<S>, direction: DragDirection) {
+    fn apply_step(&mut self, step: DragStepResult, direction: DragDirection) {
         let DragStepResult(action, error, next_state) = step;
         eprintln!("action: {:?}", action);
         self.apply_action(action, direction);

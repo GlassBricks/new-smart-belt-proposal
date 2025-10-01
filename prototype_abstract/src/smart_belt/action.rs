@@ -35,7 +35,7 @@ pub enum Error {
     CannotTraversePastTile,
 }
 
-impl<'a, S: super::DragState> LineDrag<'a, S> {
+impl<'a> LineDrag<'a> {
     pub fn apply_action(&mut self, action: Action, direction: DragDirection) {
         let position = self.next_position(direction);
         let world_pos = self.ray.get_position(position);
