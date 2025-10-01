@@ -88,6 +88,7 @@ impl<'a, S: DragState> LineDrag<'a, S> {
             self.apply_step(result, false);
         }
     }
+    
     fn apply_step(&mut self, step: DragStepResult<S>, is_forward: bool) {
         let DragStepResult(action, error, next_state) = step;
         eprintln!("action: {:?}", action);

@@ -60,19 +60,24 @@ fn main() {
 
             let yaml_content = serde_yaml::to_string(&test_case).unwrap();
 
-            generated_code.push_str(&format!(
-                r##"
+            let test_fns = &[
+                ("run_test_case", ""),
+                ("run_test_case_reverse", "_reverse"),
+                ("run_test_case_wiggle", "_wiggle"),
+                ("run_test_case_wiggle_reverse", "_wiggle_reverse"),
+            ];
+
+            for (fn_name, suffix) in test_fns {
+                generated_code.push_str(&format!(
+                    r##"
     #[test]
-    fn test_{test_name}() {{
-        crate::run_test_case(r#"{0}"#);
-    }}
-    #[test]
-    fn test_reverse_{test_name}() {{
-        crate::run_test_case_reverse(r#"{0}"#);
+    fn test_{test_name}{suffix}() {{
+        crate::{fn_name}(r#"{0}"#);
     }}
 "##,
-                yaml_content.trim()
-            ));
+                    yaml_content.trim()
+                ));
+            }
         }
 
         generated_code.push_str("}\n");

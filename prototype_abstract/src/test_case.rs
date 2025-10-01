@@ -36,13 +36,20 @@ impl TestCaseEntities {
     }
 }
 
-fn check_test_case(test: &TestCaseEntities) -> anyhow::Result<()> {
+fn check_test_case(test: &TestCaseEntities, reverse: bool, wiggle: bool) -> anyhow::Result<()> {
+    let test = if reverse {
+        flip_test_case(test, None)?
+    } else {
+        test.clone()
+    };
+
     let (result, actual_errors) = run_test_case(
         &test.before,
         test.tier,
         test.start_pos,
         test.end_pos,
         test.belt_direction,
+        wiggle,
     );
 
     let expected_world = &test.after;
@@ -102,36 +109,36 @@ Got errors:
     Ok(())
 }
 
-pub fn check_test_case_normal(test: &DragTestCase) -> Result<()> {
-    for (i, transform) in Transform::all_unique_transforms().iter().enumerate() {
-        // let mut rng = StdRng::seed_from_u64(42 + i as u64);
-        // let translation = euclid::vec2(rng.gen_range(-10..=10), rng.gen_range(-10..=10));
-        // let transform = transform.with_translation(translation);
-
-        let transformed_test = transform_test_case(&test.entities, transform);
-
-        let test_name = format!("[transform {}]", i);
-        check_test_case(&transformed_test).with_context(|| test_name.to_string())?;
-    }
-
-    Ok(())
-}
-
-pub fn check_test_case_reverse(test: &DragTestCase) -> Result<()> {
-    if test.not_reversible {
+pub fn check_test_case_with_options(
+    test: &DragTestCase,
+    reverse: bool,
+    wiggle: bool,
+) -> Result<()> {
+    if reverse && test.not_reversible {
         eprintln!("Skipping, not reversible");
         return Ok(());
     }
+
     for (i, transform) in Transform::all_unique_transforms().iter().enumerate() {
         let transformed_test = transform_test_case(&test.entities, transform);
-        let transformed_for_reverse = test
-            .after_for_reverse
-            .as_ref()
-            .map(|s| s.transform_world(transform));
-        let flipped_test = flip_test_case(&transformed_test, transformed_for_reverse.as_ref())?;
 
-        let test_name = format!("[transform {}] [flip] ", i);
-        check_test_case(&flipped_test).with_context(|| test_name.to_string())?;
+        let test_to_check = if reverse {
+            let transformed_for_reverse = test
+                .after_for_reverse
+                .as_ref()
+                .map(|s| s.transform_world(transform));
+            flip_test_case(&transformed_test, transformed_for_reverse.as_ref())?
+        } else {
+            transformed_test
+        };
+
+        let test_name = match (reverse, wiggle) {
+            (true, true) => format!("[transform {}] [flip] [wiggle]", i),
+            (true, false) => format!("[transform {}] [flip]", i),
+            (false, true) => format!("[transform {}] [wiggle]", i),
+            (false, false) => format!("[transform {}]", i),
+        };
+        check_test_case(&test_to_check, false, wiggle).with_context(|| test_name)?;
     }
 
     Ok(())
@@ -185,22 +192,67 @@ fn flip_test_case(
         })?;
     Ok(flipped)
 }
-
 fn run_test_case(
     world: &World,
     tier: BeltTier,
     start_pos: TilePosition,
     end_pos: TilePosition,
     drag_direction: Direction,
+    wiggle: bool,
 ) -> (World, Vec<(TilePosition, Error)>) {
     eprintln!("Starting test case\n");
+
+    let ray = crate::geometry::Ray::new(start_pos, drag_direction);
+    let end_pos_ray = ray.ray_position(end_pos);
+    assert_eq!(
+        ray.snap(end_pos),
+        end_pos,
+        "end_pos must be on the same line as start_pos in drag_direction"
+    );
+
     let mut world = world.clone();
     let mut drag =
         LineDrag::<DragStateImpl>::start_drag(&mut world, tier, start_pos, drag_direction);
-    drag.interpolate_to(end_pos);
+
+    if wiggle {
+        run_wiggle(
+            &mut drag,
+            start_pos,
+            end_pos,
+            drag_direction,
+            &ray,
+            end_pos_ray,
+        );
+    } else {
+        drag.interpolate_to(end_pos);
+    }
+
     let errors = drag.get_errors();
     eprintln!();
     (world, errors)
+}
+
+fn run_wiggle(
+    drag: &mut LineDrag<DragStateImpl>,
+    start_pos: TilePosition,
+    end_pos: TilePosition,
+    drag_direction: Direction,
+    ray: &crate::geometry::Ray,
+    end_pos_ray: i32,
+) {
+    let dir_vec = drag_direction.to_vector();
+    let mut current_pos = start_pos;
+
+    while ray.ray_position(current_pos) + 2 < end_pos_ray {
+        let forward_2 = current_pos + dir_vec * 2;
+        drag.interpolate_to(forward_2);
+        let back_1 = current_pos + dir_vec;
+        drag.interpolate_to(back_1);
+        current_pos = back_1
+    }
+    if ray.ray_position(current_pos) != end_pos_ray {
+        drag.interpolate_to(end_pos);
+    }
 }
 
 impl World {

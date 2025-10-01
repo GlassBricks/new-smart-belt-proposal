@@ -8,18 +8,16 @@ use crate::smart_belt::{
 #[non_exhaustive]
 pub enum DragStateImpl {
     Normal(NormalState),
-    PassThrough { output_pos: i32 },
+    PassThrough { input_pos: i32, output_pos: i32 },
 }
 
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum NormalState {
-    BeltPlaced,
+    OverBelt { can_replace: bool },
     ErrorState { over_impassable: bool },
-    Traversing { input_pos: i32 },
-    OutputUgPlaced { input_pos: i32 },
-    TraversingAfterOutput { input_pos: i32, output_pos: i32 },
-    IntegratedOutput,
+    Traversing { input_pos: i32, is_forward: bool },
+    UgPlaced { input_pos: i32, output_pos: i32 },
 }
 
 impl From<NormalState> for DragStateImpl {
@@ -29,21 +27,19 @@ impl From<NormalState> for DragStateImpl {
 }
 
 impl NormalState {
-    fn can_enter_next_tile(&self) -> bool {
+    fn can_enter_next_tile(&self, last_position: i32) -> bool {
         match self {
-            NormalState::Traversing { .. } | NormalState::TraversingAfterOutput { .. } => false,
-            NormalState::BeltPlaced
-            | NormalState::OutputUgPlaced { .. }
-            | NormalState::IntegratedOutput
-            | NormalState::ErrorState { .. } => true,
+            NormalState::Traversing { .. } => false,
+            &NormalState::UgPlaced { output_pos, .. } => output_pos == last_position,
+            NormalState::OverBelt { .. } | NormalState::ErrorState { .. } => true,
         }
     }
     fn underground_input_pos(&self, last_position: i32) -> Option<i32> {
         match *self {
-            NormalState::BeltPlaced => Some(last_position),
-            NormalState::Traversing { input_pos, .. }
-            | NormalState::OutputUgPlaced { input_pos, .. }
-            | NormalState::TraversingAfterOutput { input_pos, .. } => Some(input_pos),
+            NormalState::OverBelt { can_replace: true } => Some(last_position),
+            NormalState::Traversing { input_pos, .. } | NormalState::UgPlaced { input_pos, .. } => {
+                Some(input_pos)
+            }
             _ => None,
         }
     }
@@ -56,7 +52,7 @@ impl NormalState {
         let next_tile = TileClassifier::new(
             DragWorldView::new(ctx.world, ctx.ray, ctx.tile_history.as_ref(), is_forward),
             ctx.tier,
-            self.can_enter_next_tile(),
+            self.can_enter_next_tile(ctx.last_position),
             self.underground_input_pos(ctx.last_position),
             ctx.last_position,
         )
@@ -64,11 +60,11 @@ impl NormalState {
         eprintln!("Tile type: {:?}", next_tile);
         match next_tile {
             TileType::Usable => self.place_belt_or_underground(ctx, is_forward),
-            TileType::Obstacle => self.handle_obstacle(ctx),
+            TileType::Obstacle => self.handle_obstacle(ctx, is_forward),
             TileType::IntegratedSplitter => DragStepResult(
                 Action::IntegrateSplitter,
                 None,
-                NormalState::IntegratedOutput.into(),
+                NormalState::OverBelt { can_replace: false }.into(),
             ),
             TileType::ImpassableObstacle => self.handle_impassable_obstacle(),
             TileType::IntegratedUnderground { output_pos } => {
@@ -83,18 +79,28 @@ impl NormalState {
         is_forward: bool,
     ) -> DragStepResult<DragStateImpl> {
         match self {
-            NormalState::BeltPlaced
-            | NormalState::OutputUgPlaced { .. }
-            | NormalState::ErrorState { .. }
-            | NormalState::IntegratedOutput => {
-                DragStepResult(Action::PlaceBelt, None, NormalState::BeltPlaced.into())
+            NormalState::OverBelt { .. } | NormalState::ErrorState { .. } => DragStepResult(
+                Action::PlaceBelt,
+                None,
+                NormalState::OverBelt { can_replace: true }.into(),
+            ),
+            &NormalState::UgPlaced { output_pos, .. } if output_pos == ctx.last_position => {
+                DragStepResult(
+                    Action::PlaceBelt,
+                    None,
+                    NormalState::OverBelt { can_replace: true }.into(),
+                )
             }
-            &NormalState::Traversing { input_pos, .. } => {
-                if let Err(error) = ctx.can_build_underground(input_pos, is_forward, false) {
+            &NormalState::Traversing {
+                input_pos,
+                is_forward: traversing_forward,
+            } => {
+                if let Err(error) = ctx.can_build_underground(input_pos, traversing_forward, false)
+                {
                     DragStepResult(
                         Action::PlaceBelt,
                         Some(error),
-                        NormalState::BeltPlaced.into(),
+                        NormalState::OverBelt { can_replace: true }.into(),
                     )
                 } else {
                     DragStepResult(
@@ -103,11 +109,15 @@ impl NormalState {
                             output_pos: ctx.next_position(is_forward),
                         },
                         None,
-                        NormalState::OutputUgPlaced { input_pos }.into(),
+                        NormalState::UgPlaced {
+                            input_pos,
+                            output_pos: ctx.next_position(is_forward),
+                        }
+                        .into(),
                     )
                 }
             }
-            &NormalState::TraversingAfterOutput {
+            &NormalState::UgPlaced {
                 input_pos,
                 output_pos,
             } => {
@@ -115,7 +125,7 @@ impl NormalState {
                     DragStepResult(
                         Action::PlaceBelt,
                         Some(error),
-                        NormalState::BeltPlaced.into(),
+                        NormalState::OverBelt { can_replace: true }.into(),
                     )
                 } else {
                     DragStepResult(
@@ -124,32 +134,33 @@ impl NormalState {
                             new_output_pos: ctx.next_position(is_forward),
                         },
                         None,
-                        NormalState::OutputUgPlaced { input_pos }.into(),
+                        NormalState::UgPlaced {
+                            input_pos,
+                            output_pos: ctx.next_position(is_forward),
+                        }
+                        .into(),
                     )
                 }
             }
         }
     }
 
-    fn handle_obstacle(&self, ctx: &LineDrag<DragStateImpl>) -> DragStepResult<DragStateImpl> {
+    fn handle_obstacle(
+        &self,
+        ctx: &LineDrag<DragStateImpl>,
+        is_forward: bool,
+    ) -> DragStepResult<DragStateImpl> {
         let new_state = match self {
-            NormalState::BeltPlaced => NormalState::Traversing {
+            NormalState::OverBelt { can_replace: true } => NormalState::Traversing {
                 input_pos: ctx.last_position,
+                is_forward,
             },
-            NormalState::Traversing { .. } | NormalState::TraversingAfterOutput { .. } => {
-                self.clone()
-            }
+            NormalState::Traversing { .. } | NormalState::UgPlaced { .. } => self.clone(),
             NormalState::ErrorState { .. } => NormalState::ErrorState {
                 over_impassable: false,
             },
-            &NormalState::OutputUgPlaced {
-                input_pos: entrance_position,
-            } => NormalState::TraversingAfterOutput {
-                input_pos: entrance_position,
-                output_pos: ctx.last_position,
-            },
 
-            NormalState::IntegratedOutput => {
+            NormalState::OverBelt { can_replace: false } => {
                 return DragStepResult(
                     Action::None,
                     Some(Error::EntityInTheWay),
@@ -179,11 +190,12 @@ impl NormalState {
 fn pass_through_step(
     ctx: &LineDrag<DragStateImpl>,
     is_forward: bool,
+    _input_pos: i32,
     output_pos: i32,
     current_state: &DragStateImpl,
 ) -> DragStepResult<DragStateImpl> {
     let next_state = if ctx.next_position(is_forward) == output_pos {
-        NormalState::IntegratedOutput.into()
+        NormalState::OverBelt { can_replace: false }.into()
     } else {
         current_state.clone()
     };
@@ -204,13 +216,20 @@ fn integrate_underground_pair(
     } else {
         None
     };
-    DragStepResult(action, error, DragStateImpl::PassThrough { output_pos })
+    DragStepResult(
+        action,
+        error,
+        DragStateImpl::PassThrough {
+            input_pos: ctx.next_position(is_forward),
+            output_pos,
+        },
+    )
 }
 
 impl DragState for DragStateImpl {
     fn initial_state(successful_placement: bool) -> Self {
         if successful_placement {
-            NormalState::BeltPlaced.into()
+            NormalState::OverBelt { can_replace: true }.into()
         } else {
             NormalState::ErrorState {
                 over_impassable: false,
@@ -233,9 +252,10 @@ impl DragState for DragStateImpl {
         }
         match self {
             DragStateImpl::Normal(state) => state.normal_state_step(ctx, is_forward),
-            &DragStateImpl::PassThrough { output_pos } => {
-                pass_through_step(ctx, is_forward, output_pos, self)
-            }
+            &DragStateImpl::PassThrough {
+                input_pos,
+                output_pos,
+            } => pass_through_step(ctx, is_forward, input_pos, output_pos, self),
         }
     }
 
