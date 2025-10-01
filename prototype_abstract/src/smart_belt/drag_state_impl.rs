@@ -1,6 +1,7 @@
 use crate::smart_belt::{
     DragState, DragStepResult, DragWorldView, LineDrag, TileClassifier, TileType,
     action::{Action, Error},
+    drag::DragDirection,
 };
 
 /// FP style implementation of DragState
@@ -14,10 +15,20 @@ pub enum DragStateImpl {
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum NormalState {
-    OverBelt { can_replace: bool },
-    ErrorState { over_impassable: bool },
-    Traversing { input_pos: i32, is_forward: bool },
-    UgPlaced { input_pos: i32, output_pos: i32 },
+    OverBelt {
+        can_replace: bool,
+    },
+    ErrorState {
+        over_impassable: bool,
+    },
+    Traversing {
+        input_pos: i32,
+        direction: DragDirection,
+    },
+    UgPlaced {
+        input_pos: i32,
+        output_pos: i32,
+    },
 }
 
 impl From<NormalState> for DragStateImpl {
@@ -47,10 +58,10 @@ impl NormalState {
     fn normal_state_step(
         &self,
         ctx: &LineDrag<DragStateImpl>,
-        is_forward: bool,
+        direction: DragDirection,
     ) -> DragStepResult<DragStateImpl> {
         let next_tile = TileClassifier::new(
-            DragWorldView::new(ctx.world, ctx.ray, ctx.tile_history.as_ref(), is_forward),
+            DragWorldView::new(ctx.world, ctx.ray, ctx.tile_history.as_ref(), direction),
             ctx.tier,
             self.can_enter_next_tile(ctx.last_position),
             self.underground_input_pos(ctx.last_position),
@@ -59,8 +70,8 @@ impl NormalState {
         .classify_next_tile();
         eprintln!("Tile type: {:?}", next_tile);
         match next_tile {
-            TileType::Usable => self.place_belt_or_underground(ctx, is_forward),
-            TileType::Obstacle => self.handle_obstacle(ctx, is_forward),
+            TileType::Usable => self.place_belt_or_underground(ctx, direction),
+            TileType::Obstacle => self.handle_obstacle(ctx, direction),
             TileType::IntegratedSplitter => DragStepResult(
                 Action::IntegrateSplitter,
                 None,
@@ -68,7 +79,7 @@ impl NormalState {
             ),
             TileType::ImpassableObstacle => self.handle_impassable_obstacle(),
             TileType::IntegratedUnderground { output_pos } => {
-                integrate_underground_pair(ctx, is_forward, output_pos)
+                integrate_underground_pair(ctx, direction, output_pos)
             }
         }
     }
@@ -76,7 +87,7 @@ impl NormalState {
     fn place_belt_or_underground(
         &self,
         ctx: &LineDrag<DragStateImpl>,
-        is_forward: bool,
+        direction: DragDirection,
     ) -> DragStepResult<DragStateImpl> {
         match self {
             NormalState::OverBelt { .. } | NormalState::ErrorState { .. } => DragStepResult(
@@ -93,9 +104,10 @@ impl NormalState {
             }
             &NormalState::Traversing {
                 input_pos,
-                is_forward: traversing_forward,
+                direction: traversing_direction,
             } => {
-                if let Err(error) = ctx.can_build_underground(input_pos, traversing_forward, false)
+                if let Err(error) =
+                    ctx.can_build_underground(input_pos, traversing_direction, false)
                 {
                     DragStepResult(
                         Action::PlaceBelt,
@@ -106,12 +118,12 @@ impl NormalState {
                     DragStepResult(
                         Action::CreateUnderground {
                             input_pos,
-                            output_pos: ctx.next_position(is_forward),
+                            output_pos: ctx.next_position(direction),
                         },
                         None,
                         NormalState::UgPlaced {
                             input_pos,
-                            output_pos: ctx.next_position(is_forward),
+                            output_pos: ctx.next_position(direction),
                         }
                         .into(),
                     )
@@ -121,7 +133,7 @@ impl NormalState {
                 input_pos,
                 output_pos,
             } => {
-                if let Err(error) = ctx.can_build_underground(input_pos, is_forward, true) {
+                if let Err(error) = ctx.can_build_underground(input_pos, direction, true) {
                     DragStepResult(
                         Action::PlaceBelt,
                         Some(error),
@@ -131,12 +143,12 @@ impl NormalState {
                     DragStepResult(
                         Action::ExtendUnderground {
                             previous_output_pos: output_pos,
-                            new_output_pos: ctx.next_position(is_forward),
+                            new_output_pos: ctx.next_position(direction),
                         },
                         None,
                         NormalState::UgPlaced {
                             input_pos,
-                            output_pos: ctx.next_position(is_forward),
+                            output_pos: ctx.next_position(direction),
                         }
                         .into(),
                     )
@@ -148,12 +160,12 @@ impl NormalState {
     fn handle_obstacle(
         &self,
         ctx: &LineDrag<DragStateImpl>,
-        is_forward: bool,
+        direction: DragDirection,
     ) -> DragStepResult<DragStateImpl> {
         let new_state = match self {
             NormalState::OverBelt { can_replace: true } => NormalState::Traversing {
                 input_pos: ctx.last_position,
-                is_forward,
+                direction,
             },
             NormalState::Traversing { .. } | NormalState::UgPlaced { .. } => self.clone(),
             NormalState::ErrorState { .. } => NormalState::ErrorState {
@@ -189,12 +201,12 @@ impl NormalState {
 
 fn pass_through_step(
     ctx: &LineDrag<DragStateImpl>,
-    is_forward: bool,
+    direction: DragDirection,
     _input_pos: i32,
     output_pos: i32,
     current_state: &DragStateImpl,
 ) -> DragStepResult<DragStateImpl> {
-    let next_state = if ctx.next_position(is_forward) == output_pos {
+    let next_state = if ctx.next_position(direction) == output_pos {
         NormalState::OverBelt { can_replace: false }.into()
     } else {
         current_state.clone()
@@ -204,10 +216,10 @@ fn pass_through_step(
 
 fn integrate_underground_pair(
     ctx: &LineDrag<DragStateImpl>,
-    is_forward: bool,
+    direction: DragDirection,
     output_pos: i32,
 ) -> DragStepResult<DragStateImpl> {
-    let can_upgrade = ctx.can_upgrade_underground(is_forward, output_pos);
+    let can_upgrade = ctx.can_upgrade_underground(direction, output_pos);
     let action = Action::IntegrateUndergroundPair {
         do_upgrade: can_upgrade,
     };
@@ -220,7 +232,7 @@ fn integrate_underground_pair(
         action,
         error,
         DragStateImpl::PassThrough {
-            input_pos: ctx.next_position(is_forward),
+            input_pos: ctx.next_position(direction),
             output_pos,
         },
     )
@@ -241,21 +253,21 @@ impl DragState for DragStateImpl {
     fn step(
         &self,
         ctx: &LineDrag<DragStateImpl>,
-        is_forward: bool,
+        direction: DragDirection,
     ) -> DragStepResult<DragStateImpl> {
         {
-            let pos = ctx.next_position(is_forward);
+            let pos = ctx.next_position(direction);
             let world_pos = ctx.ray.get_position(pos);
-            eprintln!("STEP: forward: {}, pos: {:?}", is_forward, world_pos);
+            eprintln!("STEP: forward: {:?}, pos: {:?}", direction, world_pos);
             let next_entity = ctx.world.get(world_pos);
             eprintln!("Entity: {next_entity:?}");
         }
         match self {
-            DragStateImpl::Normal(state) => state.normal_state_step(ctx, is_forward),
+            DragStateImpl::Normal(state) => state.normal_state_step(ctx, direction),
             &DragStateImpl::PassThrough {
                 input_pos,
                 output_pos,
-            } => pass_through_step(ctx, is_forward, input_pos, output_pos, self),
+            } => pass_through_step(ctx, direction, input_pos, output_pos, self),
         }
     }
 

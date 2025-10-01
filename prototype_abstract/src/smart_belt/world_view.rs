@@ -3,6 +3,8 @@ use crate::{
     smart_belt::belt_curving::{BeltCurveView, TileHistory, TileHistoryView},
 };
 
+use super::drag::DragDirection;
+
 /**
 World view for TileClassifier.
 
@@ -12,7 +14,7 @@ Handles geometric transformations, and belt shapes.
 pub(super) struct DragWorldView<'a> {
     world_reader: TileHistoryView<'a>,
     ray: Ray,
-    pub(crate) is_forward: bool,
+    pub(crate) direction: DragDirection,
 }
 
 impl<'a> DragWorldView<'a> {
@@ -20,12 +22,12 @@ impl<'a> DragWorldView<'a> {
         world: &'a World,
         ray: Ray,
         tile_history: Option<&'a TileHistory>,
-        is_forward: bool,
+        direction: DragDirection,
     ) -> Self {
         Self {
             world_reader: TileHistoryView::new(world, tile_history),
             ray,
-            is_forward,
+            direction,
         }
     }
 
@@ -33,7 +35,7 @@ impl<'a> DragWorldView<'a> {
         self.ray.direction
     }
     pub fn drag_direction(&self) -> Direction {
-        if self.is_forward {
+        if self.direction == DragDirection::Forward {
             self.ray.direction
         } else {
             self.ray.direction.opposite()
@@ -58,7 +60,7 @@ impl<'a> DragWorldView<'a> {
 
     /// If this entity belt-connects to the previous entity, forming part of the same belt segment.
     pub fn is_belt_connected_to_previous_tile(&self, next_pos: i32) -> bool {
-        let (last_pos, cur_pos) = if self.is_forward {
+        let (last_pos, cur_pos) = if self.direction == DragDirection::Forward {
             (
                 self.ray.get_position(next_pos - 1),
                 self.ray.get_position(next_pos),

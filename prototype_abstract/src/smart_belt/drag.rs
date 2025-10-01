@@ -7,6 +7,21 @@ use crate::smart_belt::DragState;
 use crate::smart_belt::belt_curving::TileHistory;
 use crate::{Direction, Ray, World, smart_belt::Action};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DragDirection {
+    Forward,
+    Backward,
+}
+
+impl DragDirection {
+    pub fn direction_multiplier(self) -> i32 {
+        match self {
+            DragDirection::Forward => 1,
+            DragDirection::Backward => -1,
+        }
+    }
+}
+
 /**
  * Handles line dragging; includes mutable methods
  */
@@ -72,43 +87,43 @@ impl<'a, S: DragState> LineDrag<'a, S> {
         self.tile_history = Some(Self::get_tile_history(world_position, self.world));
     }
 
-    pub(super) fn next_position(&self, is_forward: bool) -> i32 {
-        self.last_position + if is_forward { 1 } else { -1 }
+    pub(super) fn next_position(&self, direction: DragDirection) -> i32 {
+        self.last_position + direction.direction_multiplier()
     }
 
     /// the only mutable functions are here!
     pub fn interpolate_to(&mut self, new_position: TilePosition) {
         let target_pos = self.ray.ray_position(new_position);
         while self.last_position < target_pos {
-            let result = self.last_state.step(self, true);
-            self.apply_step(result, true);
+            let result = self.last_state.step(self, DragDirection::Forward);
+            self.apply_step(result, DragDirection::Forward);
         }
         while self.last_position > target_pos {
-            let result = self.last_state.step(self, false);
-            self.apply_step(result, false);
+            let result = self.last_state.step(self, DragDirection::Backward);
+            self.apply_step(result, DragDirection::Backward);
         }
     }
-    
-    fn apply_step(&mut self, step: DragStepResult<S>, is_forward: bool) {
+
+    fn apply_step(&mut self, step: DragStepResult<S>, direction: DragDirection) {
         let DragStepResult(action, error, next_state) = step;
         eprintln!("action: {:?}", action);
-        self.apply_action(action, is_forward);
+        self.apply_action(action, direction);
 
         if let Some(error) = self.last_state.deferred_error() {
-            self.add_error(error, is_forward);
+            self.add_error(error, direction);
         }
         if let Some(error) = error {
-            self.add_error(error, is_forward);
+            self.add_error(error, direction);
         }
 
         eprintln!("Next state: {:?}\n", next_state);
         self.last_state = next_state;
-        self.last_position = self.next_position(is_forward);
+        self.last_position = self.next_position(direction);
     }
 
-    fn add_error(&mut self, error: Error, is_forward: bool) {
+    fn add_error(&mut self, error: Error, direction: DragDirection) {
         eprintln!("error: {:?}", error);
         self.errors
-            .push((self.ray.get_position(self.next_position(is_forward)), error));
+            .push((self.ray.get_position(self.next_position(direction)), error));
     }
 }

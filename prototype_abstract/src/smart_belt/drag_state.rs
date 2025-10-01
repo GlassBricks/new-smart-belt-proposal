@@ -1,11 +1,11 @@
 use crate::Impassable;
 use crate::smart_belt::DragStepResult;
 
-use super::{LineDrag, action::Error};
+use super::{LineDrag, action::Error, drag::DragDirection};
 
 pub trait DragState: Clone + std::fmt::Debug {
     fn initial_state(successful_placement: bool) -> Self;
-    fn step(&self, ctx: &LineDrag<Self>, is_forward: bool) -> DragStepResult<Self>;
+    fn step(&self, ctx: &LineDrag<Self>, direction: DragDirection) -> DragStepResult<Self>;
     fn deferred_error(&self) -> Option<Error>;
 }
 
@@ -13,10 +13,10 @@ impl<'a, S: DragState> LineDrag<'a, S> {
     pub(super) fn can_build_underground(
         &self,
         input_pos: i32,
-        is_forward: bool,
+        direction: DragDirection,
         is_extension: bool,
     ) -> Result<(), Error> {
-        let output_pos = self.next_position(is_forward);
+        let output_pos = self.next_position(direction);
         let distance = output_pos.abs_diff(input_pos);
         if distance > self.tier.underground_distance.into() {
             return Err(Error::TooFarToConnect);
@@ -41,7 +41,7 @@ impl<'a, S: DragState> LineDrag<'a, S> {
             }
             Ok(())
         };
-        if is_forward {
+        if direction == DragDirection::Forward {
             for pos in start_pos + 1..=output_pos - 1 {
                 check_pos(pos)?;
             }
@@ -54,13 +54,17 @@ impl<'a, S: DragState> LineDrag<'a, S> {
         Ok(())
     }
 
-    pub(super) fn can_upgrade_underground(&self, is_forward: bool, output_pos: i32) -> bool {
-        let input_pos = self.next_position(is_forward);
+    pub(super) fn can_upgrade_underground(
+        &self,
+        direction: DragDirection,
+        output_pos: i32,
+    ) -> bool {
+        let input_pos = self.next_position(direction);
         if output_pos.abs_diff(input_pos) > self.tier.underground_distance as u32 {
             return false;
         }
 
-        let between_range = if is_forward {
+        let between_range = if direction == DragDirection::Forward {
             input_pos + 1..=output_pos - 1
         } else {
             output_pos + 1..=input_pos - 1

@@ -2,7 +2,7 @@ use std::any::Any;
 
 use serde::Deserialize;
 
-use super::LineDrag;
+use super::{LineDrag, drag::DragDirection};
 use crate::belts::{Belt, BeltTier, UndergroundBelt};
 use crate::{Direction, Splitter, TilePosition, World};
 
@@ -35,8 +35,8 @@ pub enum Error {
 }
 
 impl<'a, S: super::DragState> LineDrag<'a, S> {
-    pub fn apply_action(&mut self, action: Action, is_forward: bool) {
-        let position = self.next_position(is_forward);
+    pub fn apply_action(&mut self, action: Action, direction: DragDirection) {
+        let position = self.next_position(direction);
         let world_pos = self.ray.get_position(position);
         match action {
             Action::None => {}
@@ -59,13 +59,13 @@ impl<'a, S: super::DragState> LineDrag<'a, S> {
                 self.world.place_underground_belt(
                     input_world_pos,
                     self.ray.direction,
-                    is_forward,
+                    direction == DragDirection::Forward,
                     self.tier,
                 );
                 self.world.place_underground_belt(
                     output_world_pos,
                     self.ray.direction,
-                    !is_forward,
+                    direction == DragDirection::Backward,
                     self.tier,
                 );
             }
@@ -84,7 +84,7 @@ impl<'a, S: super::DragState> LineDrag<'a, S> {
                 self.world.place_underground_belt(
                     new_output_world_pos,
                     self.ray.direction,
-                    !is_forward,
+                    direction == DragDirection::Backward,
                     self.tier,
                 );
             }
@@ -97,7 +97,7 @@ impl<'a, S: super::DragState> LineDrag<'a, S> {
                     .and_then(|e| (e as &dyn Any).downcast_ref::<UndergroundBelt>())
                     .expect("Expected UndergroundBelt at position");
                 let (is_input, tier) = (ug.is_input, ug.tier);
-                if is_input != is_forward {
+                if is_input != (direction == DragDirection::Forward) {
                     self.world.flip_ug(world_pos);
                 }
                 if upgrade && tier != self.tier {
