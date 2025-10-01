@@ -1,14 +1,7 @@
-use std::process::Output;
-
-use itertools::Diff;
-
-use crate::{
-    Direction,
-    smart_belt::{
-        DragState, DragStepResult, DragWorldView, LineDrag, TileClassifier, TileType,
-        action::{Action, Error},
-        drag::DragDirection,
-    },
+use crate::smart_belt::{
+    DragState, DragStepResult, DragWorldView, LineDrag, TileClassifier, TileType,
+    action::{Action, Error},
+    drag::DragDirection,
 };
 
 #[derive(Debug, Clone)]
@@ -99,7 +92,7 @@ impl DragStateImpl {
         let underground_input = self.underground_input_pos(ctx.last_position, direction);
         eprintln!("can_enter: {can_enter}, underground_input: {underground_input:?}");
         let next_tile = TileClassifier::new(
-            DragWorldView::new(ctx.world, ctx.ray, ctx.tile_history.as_ref(), direction),
+            DragWorldView::new(ctx.world, ctx.ray, ctx.tile_history, direction),
             ctx.tier,
             can_enter,
             underground_input,

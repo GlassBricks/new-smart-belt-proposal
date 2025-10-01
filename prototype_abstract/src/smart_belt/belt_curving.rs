@@ -1,11 +1,24 @@
-use crate::{Belt, BeltConnectable, Direction, Entity, TilePosition, UndergroundBelt, World};
+use crate::{Belt, Direction, Entity, TilePosition, UndergroundBelt, World};
+
+#[derive(Debug, Clone, Copy)]
+pub struct BeltConnections {
+    pub input: Option<Direction>,
+    pub output: Option<Direction>,
+}
+pub type TileHistory = (TilePosition, BeltConnections);
 
 pub trait BeltCurveView {
     fn output_direction_at(&self, position: TilePosition) -> Option<Direction>;
-
     fn input_direction_at(&self, position: TilePosition) -> Option<Direction>;
 
-    /// Computes what direction a belt should be inputting from. Decides belt curvature.
+    fn belt_connections_at(&self, position: TilePosition) -> BeltConnections {
+        BeltConnections {
+            input: self.input_direction_at(position),
+            output: self.output_direction_at(position),
+        }
+    }
+
+    /// Computes what direction a belt should be inputting from. Decides belt curvature.#=
     fn belt_curved_input_direction(
         &self,
         position: TilePosition,
@@ -51,16 +64,14 @@ impl BeltCurveView for World {
     }
 }
 
-pub type TileHistory = (TilePosition, Option<Box<dyn BeltConnectable>>);
-
 #[derive(Debug)]
 pub struct TileHistoryView<'a> {
     world: &'a World,
-    tile_history: Option<&'a TileHistory>,
+    tile_history: Option<TileHistory>,
 }
 
 impl<'a> TileHistoryView<'a> {
-    pub fn new(world: &'a World, tile_history: Option<&'a TileHistory>) -> Self {
+    pub fn new(world: &'a World, tile_history: Option<TileHistory>) -> Self {
         Self {
             world,
             tile_history,
@@ -82,20 +93,20 @@ impl<'a> TileHistoryView<'a> {
 
 impl<'a> BeltCurveView for TileHistoryView<'a> {
     fn output_direction_at(&self, position: TilePosition) -> Option<Direction> {
-        if let Some((history_position, entity_opt)) = self.tile_history
+        if let Some((history_position, dirs)) = &self.tile_history
             && *history_position == position
         {
-            entity_opt.as_ref().and_then(|b| b.output_direction())
+            dirs.output
         } else {
             self.world.output_direction_at(position)
         }
     }
 
     fn input_direction_at(&self, position: TilePosition) -> Option<Direction> {
-        if let Some((history_position, entity_opt)) = self.tile_history
+        if let Some((history_position, dirs)) = &self.tile_history
             && *history_position == position
         {
-            entity_opt.as_ref().map(|b| b.direction())
+            dirs.input
         } else {
             let entity = self
                 .get_entity(position)

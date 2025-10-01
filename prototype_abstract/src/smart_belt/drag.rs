@@ -1,10 +1,8 @@
-use dyn_clone::clone_box;
-
 use super::{DragStateImpl, Error};
 use crate::TilePosition;
 use crate::belts::BeltTier;
 use crate::smart_belt::DragState;
-use crate::smart_belt::belt_curving::TileHistory;
+use crate::smart_belt::belt_curving::{BeltCurveView, TileHistory, TileHistoryView};
 use crate::{Direction, Ray, World, smart_belt::Action};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -59,7 +57,7 @@ impl<'a, S: DragState> LineDrag<'a, S> {
     ) -> LineDrag<'a, S> {
         let mut errors = Vec::new();
         let can_place = world.can_place_belt_on_tile(start_pos);
-        let tile_history = can_place.then(|| Self::get_tile_history(start_pos, world));
+        let tile_history = can_place.then(|| Self::get_tile_history(world, start_pos, None));
 
         if can_place {
             world.place_belt(start_pos, belt_direction, tier);
@@ -84,14 +82,22 @@ impl<'a, S: DragState> LineDrag<'a, S> {
         self.errors
     }
 
-    fn get_tile_history(position: TilePosition, world: &World) -> TileHistory {
-        let entity = world.get_belt_dyn(position).map(clone_box);
-        (position, entity)
+    fn get_tile_history(
+        world: &World,
+        position: TilePosition,
+        prev_tile_history: Option<TileHistory>,
+    ) -> TileHistory {
+        let view = TileHistoryView::new(world, prev_tile_history);
+        (position, view.belt_connections_at(position))
     }
 
     pub(super) fn record_tile_history(&mut self, position: i32) {
         let world_position = self.ray.get_position(position);
-        self.tile_history = Some(Self::get_tile_history(world_position, self.world));
+        self.tile_history = Some(Self::get_tile_history(
+            self.world,
+            world_position,
+            self.tile_history,
+        ));
     }
 
     pub(super) fn next_position(&self, direction: DragDirection) -> i32 {

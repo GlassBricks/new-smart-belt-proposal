@@ -21,7 +21,7 @@ impl<'a> DragWorldView<'a> {
     pub fn new(
         world: &'a World,
         ray: Ray,
-        tile_history: Option<&'a TileHistory>,
+        tile_history: Option<TileHistory>,
         direction: DragDirection,
     ) -> Self {
         Self {
