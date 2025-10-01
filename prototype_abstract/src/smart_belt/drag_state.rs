@@ -1,7 +1,7 @@
 use crate::Impassable;
 use crate::smart_belt::DragStepResult;
 
-use super::{LineDrag, action::Error, drag::DragDirection};
+use super::{Action, LineDrag, TileClassifier, TileType, action::Error, drag::DragDirection};
 
 /// The state of the drag we store. Needs to work in both directions.
 #[derive(Debug, Clone)]
@@ -60,9 +60,9 @@ impl DragState {
         print_debug_info(ctx, direction);
         let Some(belt_shape) = self.get_drag_end(ctx.last_position, direction) else {
             eprintln!("Do nothing");
-            return DragStepResult(super::Action::None, None, self.clone());
+            return DragStepResult(Action::None, None, self.clone());
         };
-        let next_tile = super::TileClassifier::new(
+        let next_tile = TileClassifier::new(
             ctx.drag_world_view(direction),
             ctx.last_position,
             belt_shape.can_enter_next_tile(),
@@ -72,15 +72,13 @@ impl DragState {
         .classify_next_tile();
         eprintln!("Tile type: {:?}", next_tile);
         match next_tile {
-            super::TileType::Usable => belt_shape.place_belt_or_underground(ctx, direction),
-            super::TileType::Obstacle => belt_shape.handle_obstacle(ctx, direction),
-            super::TileType::IntegratedSplitter => DragStepResult(
-                super::Action::IntegrateSplitter,
-                None,
-                DragState::OverSplitter,
-            ),
-            super::TileType::ImpassableObstacle => belt_shape.handle_impassable_obstacle(direction),
-            super::TileType::IntegratedUnderground { output_pos } => {
+            TileType::Usable => belt_shape.place_belt_or_underground(ctx, direction),
+            TileType::Obstacle => belt_shape.handle_obstacle(ctx, direction),
+            TileType::IntegratedSplitter => {
+                DragStepResult(Action::IntegrateSplitter, None, DragState::OverSplitter)
+            }
+            TileType::ImpassableObstacle => belt_shape.handle_impassable_obstacle(direction),
+            TileType::IntegratedUnderground { output_pos } => {
                 integrate_underground_pair(ctx, direction, output_pos)
             }
         }
@@ -174,7 +172,7 @@ impl DragEndShape {
                 input_pos,
                 output_pos,
             } => place_underground(ctx, direction, input_pos, output_pos),
-            _ => DragStepResult(super::Action::PlaceBelt, None, DragState::OverBelt),
+            _ => DragStepResult(Action::PlaceBelt, None, DragState::OverBelt),
         }
     }
 
@@ -204,7 +202,7 @@ impl DragEndShape {
             DragEndShape::IntegratedOutput => Some(Error::EntityInTheWay),
             _ => None,
         };
-        DragStepResult(super::Action::None, error, new_state)
+        DragStepResult(Action::None, error, new_state)
     }
 
     fn handle_impassable_obstacle(&self, direction: DragDirection) -> DragStepResult {
@@ -212,7 +210,7 @@ impl DragEndShape {
             DragEndShape::Error => DragState::ErrorRecovery,
             _ => DragState::OverImpassable { direction },
         };
-        DragStepResult(super::Action::None, None, next_state)
+        DragStepResult(Action::None, None, next_state)
     }
 }
 
@@ -233,15 +231,15 @@ fn place_underground(
     let next_position = ctx.next_position(direction);
     let is_extension = last_output_pos.is_some();
     if let Err(error) = ctx.can_build_underground(input_pos, direction, is_extension) {
-        DragStepResult(super::Action::PlaceBelt, Some(error), DragState::OverBelt)
+        DragStepResult(Action::PlaceBelt, Some(error), DragState::OverBelt)
     } else {
         let action = if let Some(last_output_pos) = last_output_pos {
-            super::Action::ExtendUnderground {
+            Action::ExtendUnderground {
                 last_output_pos,
                 new_output_pos: next_position,
             }
         } else {
-            super::Action::CreateUnderground {
+            Action::CreateUnderground {
                 input_pos,
                 output_pos: next_position,
             }
@@ -264,7 +262,7 @@ fn integrate_underground_pair(
     output_pos: i32,
 ) -> DragStepResult {
     let can_upgrade = ctx.can_upgrade_underground(direction, output_pos);
-    let action = super::Action::IntegrateUndergroundPair {
+    let action = Action::IntegrateUndergroundPair {
         do_upgrade: can_upgrade,
     };
     // This error can maybe be moved to the action itself

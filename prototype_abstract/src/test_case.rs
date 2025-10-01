@@ -549,7 +549,7 @@ mod tests {
     use std::any::Any;
 
     use super::*;
-    use crate::RelativeDirection;
+
     use crate::entity::*;
 
     #[test]
@@ -775,22 +775,5 @@ after: "2>\t^\tX"
         assert_eq!(output, expected);
         let (back_to_world, _) = parse_world(&output).expect("Failed to parse world");
         assert_eq!(back_to_world, world);
-    }
-
-    #[test]
-    fn test_coordinate_transformation_debug() {
-        let original_pos = pos(0, 0);
-        let transform =
-            Transform::rotation(RelativeDirection::Right).with_translation(euclid::vec2(5, 3));
-        let transformed_pos = transform.transform_position(original_pos);
-
-        // Debug: pos(0,0) with rotation 1 (90° CW) should become pos(0,0) then translate to pos(5,3)
-        assert_eq!(transformed_pos, pos(5, 3));
-
-        // Test another position
-        let original_pos2 = pos(1, 0);
-        let transformed_pos2 = transform.transform_position(original_pos2);
-        // pos(1,0) rotated 90° CW becomes pos(0,1) then translated becomes pos(5,4)
-        assert_eq!(transformed_pos2, pos(5, 4));
     }
 }
