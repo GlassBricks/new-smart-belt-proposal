@@ -24,12 +24,11 @@ export interface ReadonlyWorld {
 }
 
 export interface World extends ReadonlyWorld {
-  set(position: TilePosition, entity: EntityLike): void
+  tryBuild(position: TilePosition, entity: BeltConnectable): boolean
   remove(pos: TilePosition): void
-  trySet(position: TilePosition, entity: BeltConnectable): boolean
 
   flipUg(position: TilePosition): void
-  upgradeUnderground(position: TilePosition, tier: BeltTier): void
+  upgradeUg(position: TilePosition, tier: BeltTier): void
 }
 
 export class ReadonlyWorldOps {
@@ -102,7 +101,7 @@ export class WorldOps extends ReadonlyWorldOps {
     let history = this.beltConnectionsAt(position)
 
     const newBelt = new Belt(direction, tier)
-    if (this.world.trySet(position, newBelt)) {
+    if (this.world.tryBuild(position, newBelt)) {
       return [position, history]
     }
   }
@@ -116,7 +115,7 @@ export class WorldOps extends ReadonlyWorldOps {
     let history = this.beltConnectionsAt(position)
 
     const newUg = new UndergroundBelt(direction, isInput, tier)
-    if (this.world.trySet(position, newUg)) {
+    if (this.world.tryBuild(position, newUg)) {
       return [position, history]
     }
   }

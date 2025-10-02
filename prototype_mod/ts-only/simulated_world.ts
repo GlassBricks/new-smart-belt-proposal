@@ -54,7 +54,7 @@ export class SimulatedWorld implements World {
     this.entities.set(this.posKey(position), entity)
   }
 
-  trySet(position: TilePosition, entity: BeltConnectable): boolean {
+  tryBuild(position: TilePosition, entity: BeltConnectable): boolean {
     const existing = this.get(position)
     if (existing instanceof BeltConnectable && entity.equals(existing)) {
       return false
@@ -78,7 +78,7 @@ export class SimulatedWorld implements World {
     return beltCurvedInputDirection(this, position, entity.direction)
   }
 
-  upgradeUnderground(position: TilePosition, tier: BeltTier): void {
+  upgradeUg(position: TilePosition, tier: BeltTier): void {
     this.upgradeUgChecked(position, tier)
   }
 
@@ -216,10 +216,7 @@ export class SimulatedWorld implements World {
     const newWorld = new SimulatedWorld()
 
     for (const [key, entity] of this.entities.entries()) {
-      const parts = key.split(",").map(Number)
-      const x = parts[0]!
-      const y = parts[1]!
-      const oldPos = pos(x, y)
+      const oldPos = keyToPosition(key)
       const newPos = transformPosition(transform, oldPos)
       const newEntity = this.transformEntity(transform, entity)
       newWorld.set(newPos, newEntity)

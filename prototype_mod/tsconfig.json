@@ -13,13 +13,14 @@
     "noImplicitThis": true,
     "noImplicitOverride": true,
     "noFallthroughCasesInSwitch": true,
-    "noEmitOnError": true
+    "noEmitOnError": true,
+    "noUncheckedIndexedAccess": true
   },
   "tstl": {
     "luaTarget": "5.2",
     "noImplicitSelf": true,
     "sourceMapTraceback": true
   },
-  "files": ["control.ts", "data-updates.ts"],
-  "exclude": ["../ts-only/"]
+  "include": ["control.ts", "data-updates.ts", "common/**/*.ts", "mod-scripts/**/*.ts"],
+  "exclude": ["ts-only/"]
 }

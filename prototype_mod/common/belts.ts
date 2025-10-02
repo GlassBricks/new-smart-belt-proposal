@@ -21,7 +21,7 @@ export interface BeltTier {
 export abstract class BeltConnectable {
   abstract readonly type: string
   abstract readonly direction: Direction
-  abstract readonly tier: BeltTier
+  abstract readonly tier?: BeltTier
   readonly isInput?: boolean
 
   abstract hasOutput(): boolean
@@ -73,7 +73,7 @@ export class UndergroundBelt extends BeltConnectable {
 
   constructor(
     readonly direction: Direction,
-    readonly isInput: boolean,
+    override readonly isInput: boolean,
     readonly tier: BeltTier,
   ) {
     super()
@@ -105,8 +105,8 @@ export class LoaderLike extends BeltConnectable {
 
   constructor(
     readonly direction: Direction,
-    readonly isInput: boolean,
-    readonly tier: BeltTier,
+    override readonly isInput: boolean,
+    readonly tier?: BeltTier,
   ) {
     super()
   }
@@ -129,7 +129,7 @@ export class Splitter extends BeltConnectable {
 
   constructor(
     readonly direction: Direction,
-    public tier: BeltTier,
+    public tier?: BeltTier,
   ) {
     super()
   }

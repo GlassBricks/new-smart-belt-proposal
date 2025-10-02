@@ -6,8 +6,8 @@
   "scripts": {
     "test": "bun test",
     "generate-tests": "bun run scripts/generate-tests.ts",
-    "build": "tstl",
-    "watch": "tstl --watch"
+    "build-mod": "tstl",
+    "watch-mod": "tstl --watch"
   },
   "devDependencies": {
     "@types/bun": "latest",
