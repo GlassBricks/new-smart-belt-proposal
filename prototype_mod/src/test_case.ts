@@ -29,19 +29,19 @@ import {
   type Transform,
 } from "./geometry.js"
 import { LineDrag, type ActionError } from "./smart_belt/index.js"
-import { World } from "./world.js"
+import { SimulatedWorld } from "./simulated_world.js"
 
 export interface DragTestCase {
   name: string
   entities: TestCaseEntities
-  afterForReverse: World | undefined
+  afterForReverse: SimulatedWorld | undefined
   notReversible: boolean
   forwardBack: boolean
 }
 
 export interface TestCaseEntities {
-  before: World
-  after: World
+  before: SimulatedWorld
+  after: SimulatedWorld
   leftmostPos: TilePosition
   startPos: TilePosition
   beltDirection: Direction
@@ -60,7 +60,7 @@ interface TestCaseSerialized {
   forward_back?: boolean
 }
 
-export type WorldParse = [World, TilePosition[]]
+export type WorldParse = [SimulatedWorld, TilePosition[]]
 
 export function serializeError(pos: TilePosition, error: ActionError): string {
   return `${pos.x},${pos.y}:${error}`
@@ -73,7 +73,7 @@ export function deserializeError(str: string): [TilePosition, ActionError] {
 }
 
 export function parseWorld(input: string): WorldParse {
-  const world = new World()
+  const world = new SimulatedWorld()
   const markers: TilePosition[] = []
 
   const lines = input.split("\n")
@@ -189,7 +189,7 @@ function printEntity(entity: Entity): string {
 }
 
 export function printWorld(
-  world: World,
+  world: SimulatedWorld,
   bounds: BoundingBox,
   markers: TilePosition[],
 ): string {
@@ -233,7 +233,7 @@ export function parseTestCase(yamlContent: string): DragTestCase {
 
   const entities = getEntities(serde)
 
-  let afterForReverse: World | undefined = undefined
+  let afterForReverse: SimulatedWorld | undefined = undefined
   if (serde.after_for_reverse) {
     const [world] = parseWorld(serde.after_for_reverse)
     afterForReverse = world
@@ -322,7 +322,7 @@ export function runTestCase(
   test: TestCaseEntities,
   wiggle: boolean,
   forwardBack: boolean,
-): [World, Set<string>] {
+): [SimulatedWorld, Set<string>] {
   const { leftmostPos, startPos, beltDirection, endPos, tier } = test
 
   const ray = createRay(startPos, beltDirection)
@@ -470,7 +470,7 @@ export function transformTestCase(
 
 export function flipTestCase(
   test: TestCaseEntities,
-  afterForReverse: World | undefined,
+  afterForReverse: SimulatedWorld | undefined,
 ): TestCaseEntities {
   return {
     before: test.before.flipAllEntities(),

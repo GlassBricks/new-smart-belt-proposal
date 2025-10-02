@@ -8,6 +8,7 @@ import {
 } from "../belts.js"
 import { Direction, directionAxis } from "../geometry.js"
 import { DragDirection, directionMultiplier } from "./action.js"
+import type { DragContext } from "./drag_state.js"
 import { DragWorldView } from "./world_view.js"
 
 export type TileType =
@@ -18,13 +19,25 @@ export type TileType =
   | "ImpassableObstacle"
 
 export class TileClassifier {
+  private worldView: DragWorldView
+  private lastPosition: number
+  private tier: BeltTier
+
   constructor(
-    private worldView: DragWorldView,
-    private lastPosition: number,
+    ctx: DragContext,
+    direction: DragDirection,
     private canEnterNextTile: boolean,
     private undergroundInputPos: number | undefined,
-    private tier: BeltTier,
-  ) {}
+  ) {
+    this.worldView = new DragWorldView(
+      ctx.world,
+      ctx.ray,
+      ctx.tileHistory,
+      direction,
+    )
+    this.lastPosition = ctx.lastPosition
+    this.tier = ctx.tier
+  }
 
   private dragDirection(): DragDirection {
     return this.worldView.direction

@@ -8,9 +8,10 @@ import {
   type Ray,
   type TilePosition,
 } from "../geometry.js"
-import { World, type TileHistory } from "../world.js"
+import { type TileHistory } from "../simulated_world.js"
+import type { ReadonlyWorld } from "../world.js"
 import { DragDirection } from "./action.js"
-import { TileHistoryView } from "./belt_curving.js"
+import { beltIsCurvedAt, TileHistoryView } from "./belt_curving.js"
 
 export class DragWorldView {
   private historyView: TileHistoryView
@@ -18,7 +19,7 @@ export class DragWorldView {
   private ray: Ray
 
   constructor(
-    world: World,
+    world: ReadonlyWorld,
     ray: Ray,
     tileHistory: TileHistory | undefined,
     direction: DragDirection,
@@ -39,7 +40,7 @@ export class DragWorldView {
   }
 
   getEntity(position: number): Entity | undefined {
-    return this.historyView.getEntity(getPositionOnRay(this.ray, position))
+    return this.historyView.get(getPositionOnRay(this.ray, position))
   }
 
   getBeltEntity(position: number): BeltConnectable | undefined {
@@ -49,7 +50,7 @@ export class DragWorldView {
 
   beltWasCurved(position: number, belt: Belt): boolean {
     const worldPos = getPositionOnRay(this.ray, position)
-    return this.historyView.beltIsCurvedAt(worldPos, belt)
+    return beltIsCurvedAt(this.historyView, worldPos, belt)
   }
 
   isBeltConnectedToPreviousTile(nextPos: number): boolean {

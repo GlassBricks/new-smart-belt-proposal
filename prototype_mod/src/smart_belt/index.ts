@@ -13,7 +13,7 @@ export { TileClassifier, type TileType } from "./tile_classification.js"
 export {
   deferredError,
   DragStepResult,
-  stepDragState,
+  takeStep as stepDragState,
   type DragContext,
   type DragState,
 } from "./drag_state.js"

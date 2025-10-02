@@ -1,7 +1,8 @@
 import { UndergroundBelt, type BeltTier } from "../belts.js"
 import { Impassable } from "../entity.js"
 import { directionAxis, getPositionOnRay, type Ray } from "../geometry.js"
-import { type TileHistory, type World } from "../world.js"
+import { type TileHistory } from "../simulated_world.js"
+import type { World } from "../world.js"
 import {
   Action,
   ActionError,
@@ -101,7 +102,7 @@ export interface DragContext {
   tileHistory: TileHistory | undefined
 }
 
-export function stepDragState(
+export function takeStep(
   state: DragState,
   ctx: DragContext,
   direction: DragDirection,
@@ -119,11 +120,10 @@ export function stepDragState(
   )
 
   const nextTile = new TileClassifier(
-    worldView,
-    ctx.lastPosition,
+    ctx,
+    direction,
     canEnterNextTile(dragEnd),
     undergroundInputPos(dragEnd, ctx.lastPosition),
-    ctx.tier,
   ).classifyNextTile()
 
   switch (nextTile) {

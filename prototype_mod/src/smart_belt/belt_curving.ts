@@ -7,71 +7,63 @@ import {
   subPos,
   type TilePosition,
 } from "../geometry.js"
-import type { TileHistory, World } from "../world.js"
+import type { TileHistory } from "../simulated_world.js"
+import { ReadonlyWorldOps, type ReadonlyWorld } from "../world.js"
 
 export interface BeltConnections {
   readonly input: Direction | undefined
   readonly output: Direction | undefined
 }
 
-export abstract class BeltCurveView {
-  abstract outputDirectionAt(position: TilePosition): Direction | undefined
-  abstract inputDirectionAt(position: TilePosition): Direction | undefined
-
-  beltConnectionsAt(position: TilePosition): BeltConnections {
-    return {
-      input: this.inputDirectionAt(position),
-      output: this.outputDirectionAt(position),
-    }
+export function beltCurvedInputDirection(
+  world: ReadonlyWorld,
+  position: TilePosition,
+  beltDirection: Direction,
+): Direction {
+  const hasInputIn = (direction: Direction): boolean => {
+    const dirVec = directionToVector(direction)
+    const queryPos = subPos(position, dirVec)
+    return world.outputDirectionAt(queryPos) === direction
   }
 
-  beltCurvedInputDirection(
-    position: TilePosition,
-    beltDirection: Direction,
-  ): Direction {
-    const hasInputIn = (direction: Direction): boolean => {
-      const dirVec = directionToVector(direction)
-      const queryPos = subPos(position, dirVec)
-      return this.outputDirectionAt(queryPos) === direction
-    }
-
-    if (hasInputIn(beltDirection)) {
-      return beltDirection
-    }
-
-    const rotateCW = ((beltDirection + 1) % 4) as Direction
-    const rotateCCW = ((beltDirection + 3) % 4) as Direction
-
-    const leftInput = hasInputIn(rotateCW)
-    const rightInput = hasInputIn(rotateCCW)
-
-    if (leftInput && !rightInput) {
-      return rotateCW
-    } else if (!leftInput && rightInput) {
-      return rotateCCW
-    }
-
+  if (hasInputIn(beltDirection)) {
     return beltDirection
   }
 
-  beltIsCurvedAt(position: TilePosition, belt: Belt): boolean {
-    const input = this.inputDirectionAt(position)
-    if (input === undefined) {
-      return false
-    }
-    return directionAxis(input) !== directionAxis(belt.direction)
+  const rotateCW = ((beltDirection + 1) % 4) as Direction
+  const rotateCCW = ((beltDirection + 3) % 4) as Direction
+
+  const leftInput = hasInputIn(rotateCW)
+  const rightInput = hasInputIn(rotateCCW)
+
+  if (leftInput && !rightInput) {
+    return rotateCW
+  } else if (!leftInput && rightInput) {
+    return rotateCCW
   }
+
+  return beltDirection
 }
 
-export class TileHistoryView extends BeltCurveView {
-  constructor(
-    private world: World,
-    private tileHistory: TileHistory | undefined,
-  ) {
-    super()
+export function beltIsCurvedAt(
+  world: ReadonlyWorld,
+  position: TilePosition,
+  belt: Belt,
+): boolean {
+  const input = world.inputDirectionAt(position)
+  if (input === undefined) {
+    return false
   }
+  return directionAxis(input) !== directionAxis(belt.direction)
+}
 
-  getEntity(position: TilePosition): Entity | undefined {
+export class TileHistoryView implements ReadonlyWorld {
+  constructor(
+    private world: ReadonlyWorld,
+    private tileHistory: TileHistory | undefined,
+  ) {}
+
+  get(position: TilePosition): Entity | undefined {
     return this.world.get(position)
   }
 
@@ -79,7 +71,8 @@ export class TileHistoryView extends BeltCurveView {
     position: TilePosition,
     underground: UndergroundBelt,
   ): TilePosition | undefined {
-    const pair = this.world.getUgPair(position, underground)
+    const ops = new ReadonlyWorldOps(this)
+    const pair = ops.getUgPair(position, underground)
     return pair ? pair[0] : undefined
   }
 
@@ -103,13 +96,13 @@ export class TileHistoryView extends BeltCurveView {
       return this.tileHistory[1].input
     }
 
-    const entity = this.getEntity(position)
+    const entity = this.get(position)
     if (!entity || !(entity instanceof BeltConnectable)) {
       return undefined
     }
 
     if (entity instanceof Belt) {
-      return this.beltCurvedInputDirection(position, entity.direction)
+      return beltCurvedInputDirection(this, position, entity.direction)
     }
 
     return entity.primaryInputDirection()

@@ -7,7 +7,8 @@ import {
   type Ray,
   type TilePosition,
 } from "../geometry.js"
-import { type TileHistory, type World } from "../world.js"
+import { type SimulatedWorld, type TileHistory } from "../simulated_world.js"
+import { WorldOps } from "../world.js"
 import {
   Action,
   ActionError,
@@ -18,13 +19,13 @@ import {
   DragState,
   DragStepResult,
   deferredError,
-  stepDragState,
+  takeStep,
   type DragContext,
 } from "./drag_state.js"
 
 export class LineDrag {
   private constructor(
-    private world: World,
+    private world: WorldOps,
     private ray: Ray,
     private tier: BeltTier,
     private lastState: DragState,
@@ -34,19 +35,20 @@ export class LineDrag {
   ) {}
 
   static startDrag(
-    world: World,
+    world: SimulatedWorld,
     tier: BeltTier,
     startPos: TilePosition,
     beltDirection: Direction,
   ): LineDrag {
+    const worldOps = new WorldOps(world)
     const errors: Array<[TilePosition, ActionError]> = []
-    const canPlace = world.canPlaceBeltOnTile(startPos)
+    const canPlace = worldOps.canPlaceBeltOnTile(startPos)
     const tileHistory: TileHistory | undefined = canPlace
-      ? [startPos, world.beltConnectionsAt(startPos)]
+      ? [startPos, worldOps.beltConnectionsAt(startPos)]
       : undefined
 
     if (canPlace) {
-      world.placeBelt(startPos, beltDirection, tier)
+      worldOps.placeBelt(startPos, beltDirection, tier)
     } else {
       errors.push([startPos, ActionError.EntityInTheWay])
     }
@@ -54,7 +56,7 @@ export class LineDrag {
     const initialState = DragState.initialState(canPlace)
 
     return new LineDrag(
-      world,
+      worldOps,
       createRay(startPos, beltDirection),
       tier,
       initialState,
@@ -77,13 +79,13 @@ export class LineDrag {
 
     while (this.lastPosition < targetPos) {
       const ctx = this.createContext()
-      const result = stepDragState(this.lastState, ctx, DragDirection.Forward)
+      const result = takeStep(this.lastState, ctx, DragDirection.Forward)
       this.applyStep(result, DragDirection.Forward)
     }
 
     while (this.lastPosition > targetPos) {
       const ctx = this.createContext()
-      const result = stepDragState(this.lastState, ctx, DragDirection.Backward)
+      const result = takeStep(this.lastState, ctx, DragDirection.Backward)
       this.applyStep(result, DragDirection.Backward)
     }
   }
@@ -107,6 +109,8 @@ export class LineDrag {
   private applyAction(action: Action, direction: DragDirection): void {
     const position = this.nextPosition(direction)
     const worldPos = getPositionOnRay(this.ray, position)
+
+    const innerWorld = this.world.world
 
     switch (action.type) {
       case "None":
@@ -157,7 +161,7 @@ export class LineDrag {
           action.newOutputPos,
         )
 
-        this.world.remove(previousOutputWorldPos)
+        innerWorld.remove(previousOutputWorldPos)
 
         const tileHistory = this.world.placeUndergroundBelt(
           newOutputWorldPos,
@@ -172,7 +176,7 @@ export class LineDrag {
       }
 
       case "IntegrateUndergroundPair": {
-        const entity = this.world.get(worldPos)
+        const entity = innerWorld.get(worldPos)
         if (!(entity instanceof UndergroundBelt)) {
           throw new Error("Expected UndergroundBelt at position")
         }
@@ -181,17 +185,17 @@ export class LineDrag {
         const tier = entity.tier
 
         if (isInput !== (direction === DragDirection.Forward)) {
-          this.world.flipUg(worldPos)
+          innerWorld.flipUg(worldPos)
         }
 
         if (action.doUpgrade && tier !== this.tier) {
-          this.world.upgradeUgChecked(worldPos, this.tier)
+          innerWorld.upgradeUnderground(worldPos, this.tier)
         }
         break
       }
 
       case "IntegrateSplitter": {
-        const entity = this.world.get(worldPos)
+        const entity = innerWorld.get(worldPos)
         if (!(entity instanceof Splitter)) {
           throw new Error("Expected Splitter at position")
         }
@@ -215,7 +219,7 @@ export class LineDrag {
 
   private createContext(): DragContext {
     return {
-      world: this.world,
+      world: this.world.world,
       ray: this.ray,
       tier: this.tier,
       lastPosition: this.lastPosition,

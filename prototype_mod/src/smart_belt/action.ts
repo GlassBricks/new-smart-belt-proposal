@@ -6,7 +6,7 @@ export type Action =
   | { type: "IntegrateSplitter" }
   | { type: "None" }
 
-export enum ActionError {
+export const enum ActionError {
   TooFarToConnect = "too_far_to_connect",
   EntityInTheWay = "entity_in_the_way",
   CannotUpgradeUnderground = "cannot_upgrade_underground",
@@ -14,7 +14,7 @@ export enum ActionError {
   CannotTraversePastTile = "cannot_traverse_past_tile",
 }
 
-export enum DragDirection {
+export const enum DragDirection {
   Forward = "forward",
   Backward = "backward",
 }
