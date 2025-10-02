@@ -1,14 +1,9 @@
 import { UndergroundBelt, type BeltTier } from "../belts"
 import { Impassable } from "../entity"
-import { directionAxis, getPositionOnRay, type Ray } from "../geometry"
+import { directionAxis, getRayPosition, type Ray } from "../geometry"
 import type { World } from "../world"
-import {
-  Action,
-  ActionError,
-  DragDirection,
-  directionMultiplier,
-  swapIfBackwards,
-} from "./action"
+import { Action, ActionError } from "./action"
+import { directionMultiplier, DragDirection, swapIfBackwards } from "./drag"
 import { TileClassifier } from "./tile_classification"
 import type { TileHistory } from "./tile_history_view"
 import { DragWorldView } from "./world_view"
@@ -326,16 +321,14 @@ function integrateUndergroundPair(
   direction: DragDirection,
   outputPos: number,
 ): DragStepResult {
-  const canUpgrade = canUpgradeUnderground(ctx, direction, outputPos)
-  const action = Action.IntegrateUndergroundPair(canUpgrade)
-  const error = canUpgrade ? undefined : ActionError.CannotUpgradeUnderground
+  const action = Action.IntegrateUndergroundPair()
 
   const nextPos = ctx.lastPosition + directionMultiplier(direction)
   const [leftPos, rightPos] = swapIfBackwards(direction, nextPos, outputPos)
 
   return new DragStepResult(
     action,
-    error,
+    undefined,
     DragState.PassThrough(leftPos, rightPos),
   )
 }
@@ -355,7 +348,7 @@ function canBuildUnderground(
 
   const startPos = isExtension ? ctx.lastPosition : inputPos
   const checkPos = (pos: number): ActionError | undefined => {
-    const worldPos = getPositionOnRay(ctx.ray, pos)
+    const worldPos = getRayPosition(ctx.ray, pos)
     const entity = ctx.world.get(worldPos)
 
     if (!entity) {
@@ -395,35 +388,4 @@ function canBuildUnderground(
   }
 
   return undefined
-}
-
-function canUpgradeUnderground(
-  ctx: DragContext,
-  direction: DragDirection,
-  outputPos: number,
-): boolean {
-  const inputPos = ctx.lastPosition + directionMultiplier(direction)
-
-  if (Math.abs(outputPos - inputPos) > ctx.tier.undergroundDistance) {
-    return false
-  }
-
-  const start = Math.min(inputPos, outputPos) + 1
-  const end = Math.max(inputPos, outputPos) - 1
-
-  for (let pos = start; pos <= end; pos++) {
-    const worldPos = getPositionOnRay(ctx.ray, pos)
-    const entity = ctx.world.get(worldPos)
-
-    if (entity instanceof UndergroundBelt) {
-      const entityAxis = directionAxis(entity.direction)
-      const rayAxis = directionAxis(ctx.ray.direction)
-
-      if (entityAxis === rayAxis && entity.tier === ctx.tier) {
-        return false
-      }
-    }
-  }
-
-  return true
 }

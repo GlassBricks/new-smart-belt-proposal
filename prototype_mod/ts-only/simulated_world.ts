@@ -365,15 +365,4 @@ export class SimulatedWorld implements World {
     }
     return newWorld
   }
-
-  getAllPositions(): TilePosition[] {
-    const positions: TilePosition[] = []
-    for (const key of this.entities.keys()) {
-      const parts = key.split(",").map(Number)
-      const x = parts[0]!
-      const y = parts[1]!
-      positions.push(pos(x, y))
-    }
-    return positions
-  }
 }

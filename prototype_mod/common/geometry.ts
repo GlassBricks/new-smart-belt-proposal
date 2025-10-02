@@ -41,14 +41,14 @@ export function posEquals(p1: TilePosition, p2: TilePosition): boolean {
   return p1.x === p2.x && p1.y === p2.y
 }
 
-export enum Direction {
+export const enum Direction {
   North = 0,
   East = 1,
   South = 2,
   West = 3,
 }
 
-export enum Axis {
+export const enum Axis {
   X = "X",
   Y = "Y",
 }
@@ -79,32 +79,6 @@ export function oppositeDirection(dir: Direction): Direction {
   }
 }
 
-export function rotateCW(dir: Direction): Direction {
-  switch (dir) {
-    case Direction.North:
-      return Direction.East
-    case Direction.East:
-      return Direction.South
-    case Direction.South:
-      return Direction.West
-    case Direction.West:
-      return Direction.North
-  }
-}
-
-export function rotateCCW(dir: Direction): Direction {
-  switch (dir) {
-    case Direction.North:
-      return Direction.West
-    case Direction.East:
-      return Direction.North
-    case Direction.South:
-      return Direction.East
-    case Direction.West:
-      return Direction.South
-  }
-}
-
 export function directionAxis(dir: Direction): Axis {
   switch (dir) {
     case Direction.North:
@@ -113,49 +87,6 @@ export function directionAxis(dir: Direction): Axis {
     case Direction.East:
     case Direction.West:
       return Axis.X
-  }
-}
-
-export function directionToChar(dir: Direction): string {
-  switch (dir) {
-    case Direction.North:
-      return "^"
-    case Direction.East:
-      return ">"
-    case Direction.South:
-      return "v"
-    case Direction.West:
-      return "<"
-  }
-}
-
-export function directionFromChar(char: string): Direction | undefined {
-  switch (char) {
-    case "^":
-      return Direction.North
-    case ">":
-      return Direction.East
-    case "v":
-      return Direction.South
-    case "<":
-      return Direction.West
-    default:
-      return undefined
-  }
-}
-
-export function directionFromOrdinal(ordinal: number): Direction | undefined {
-  switch (ordinal) {
-    case 0:
-      return Direction.North
-    case 1:
-      return Direction.East
-    case 2:
-      return Direction.South
-    case 3:
-      return Direction.West
-    default:
-      return undefined
   }
 }
 
@@ -168,21 +99,17 @@ export function createRay(position: TilePosition, direction: Direction): Ray {
   return { startPosition: position, direction }
 }
 
-export function rayPosition(ray: Ray, position: TilePosition): number {
+export function rayDistance(ray: Ray, position: TilePosition): number {
   const offset = subPos(position, ray.startPosition)
   const dirVec = directionToVector(ray.direction)
   return dotVec(offset, dirVec)
 }
 
-export function getPositionOnRay(ray: Ray, index: number): TilePosition {
+export function getRayPosition(ray: Ray, index: number): TilePosition {
   return addVec(
     ray.startPosition,
     mulVec(directionToVector(ray.direction), index),
   )
-}
-
-export function snapToRay(ray: Ray, position: TilePosition): TilePosition {
-  return getPositionOnRay(ray, rayPosition(ray, position))
 }
 
 export interface BoundingBox {

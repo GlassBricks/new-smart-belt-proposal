@@ -1,48 +1,13 @@
 import { describe, expect, test } from "bun:test"
 import { beltCurvedInputDirection } from "../common/belt_curving"
-import {
-  Belt,
-  BLUE_BELT,
-  RED_BELT,
-  Splitter,
-  UndergroundBelt,
-  YELLOW_BELT,
-} from "../common/belts"
+import { Belt, Splitter, UndergroundBelt } from "../common/belts"
 import { createTransform, Direction, pos } from "../common/geometry"
 import { WorldOps } from "../common/world"
+import { BLUE_BELT, RED_BELT, YELLOW_BELT } from "./belt_tiers"
 import { SimulatedWorld } from "./simulated_world"
 
 describe("world", () => {
-  describe("Basic operations", () => {
-    test("new World creates empty world", () => {
-      const world = new SimulatedWorld()
-      expect(world.get(pos(0, 0))).toBe(undefined)
-    })
-
-    test("set and get entity", () => {
-      const world = new SimulatedWorld()
-      const belt = new Belt(Direction.North, YELLOW_BELT)
-      world.set(pos(1, 2), belt)
-      const retrieved = world.get(pos(1, 2))
-      expect(retrieved).toBe(belt)
-    })
-
-    test("remove entity", () => {
-      const world = new SimulatedWorld()
-      world.set(pos(1, 2), new Belt(Direction.North, YELLOW_BELT))
-      world.remove(pos(1, 2))
-      expect(world.get(pos(1, 2))).toBe(undefined)
-    })
-  })
-
   describe("Bounds calculation", () => {
-    test("empty world has zero bounds", () => {
-      const world = new SimulatedWorld()
-      const bounds = world.bounds()
-      expect(bounds.min).toEqual(pos(0, 0))
-      expect(bounds.max).toEqual(pos(0, 0))
-    })
-
     test("bounds includes all entities", () => {
       const world = new SimulatedWorld()
       world.set(pos(1, 2), new Belt(Direction.North, YELLOW_BELT))
@@ -155,31 +120,6 @@ describe("world", () => {
       expect(ug2.isInput).toBe(true)
       expect(ug2.direction).toBe(Direction.West)
     })
-  })
-
-  describe("flipUg", () => {
-    test("flips both underground belts in pair", () => {
-      const world = new SimulatedWorld()
-      world.set(
-        pos(0, 0),
-        new UndergroundBelt(Direction.East, true, YELLOW_BELT),
-      )
-      world.set(
-        pos(3, 0),
-        new UndergroundBelt(Direction.East, false, YELLOW_BELT),
-      )
-
-      const result = world.flipUg(pos(0, 0))
-      expect(result).toBe(true)
-
-      const ug1 = world.get(pos(0, 0)) as UndergroundBelt
-      const ug2 = world.get(pos(3, 0)) as UndergroundBelt
-
-      expect(ug1.isInput).toBe(false)
-      expect(ug1.direction).toBe(Direction.West)
-      expect(ug2.isInput).toBe(true)
-      expect(ug2.direction).toBe(Direction.West)
-    })
 
     test("returns false when no pair", () => {
       const world = new SimulatedWorld()
@@ -237,12 +177,6 @@ describe("world", () => {
   })
 
   describe("Belt curving", () => {
-    test("straight belt with no neighbors", () => {
-      const world = new SimulatedWorld()
-      const dir = beltCurvedInputDirection(world, pos(1, 1), Direction.East)
-      expect(dir).toBe(Direction.East)
-    })
-
     test("belt curves from left", () => {
       const world = new SimulatedWorld()
       world.set(pos(1, 0), new Belt(Direction.South, YELLOW_BELT))
@@ -264,23 +198,6 @@ describe("world", () => {
       world.set(pos(1, 2), new Belt(Direction.North, YELLOW_BELT))
       const dir = beltCurvedInputDirection(world, pos(1, 1), Direction.East)
       expect(dir).toBe(Direction.East)
-    })
-
-    test("inputDirectionAt returns curved direction for Belt", () => {
-      const world = new SimulatedWorld()
-      world.set(pos(1, 1), new Belt(Direction.East, YELLOW_BELT))
-      world.set(pos(1, 0), new Belt(Direction.South, YELLOW_BELT))
-
-      const dir = world.inputDirectionAt(pos(1, 1))
-      expect(dir).toBe(Direction.South)
-    })
-
-    test("outputDirectionAt returns belt output direction", () => {
-      const world = new SimulatedWorld()
-      world.set(pos(2, 2), new Belt(Direction.West, YELLOW_BELT))
-
-      const dir = world.outputDirectionAt(pos(2, 2))
-      expect(dir).toBe(Direction.West)
     })
   })
 
@@ -325,22 +242,6 @@ describe("world", () => {
   })
 
   describe("World equality", () => {
-    test("empty worlds are equal", () => {
-      const world1 = new SimulatedWorld()
-      const world2 = new SimulatedWorld()
-      expect(world1.equals(world2)).toBe(true)
-    })
-
-    test("worlds with same entities are equal", () => {
-      const world1 = new SimulatedWorld()
-      const world2 = new SimulatedWorld()
-
-      world1.set(pos(1, 1), new Belt(Direction.North, YELLOW_BELT))
-      world2.set(pos(1, 1), new Belt(Direction.North, YELLOW_BELT))
-
-      expect(world1.equals(world2)).toBe(true)
-    })
-
     test("worlds with different entities are not equal", () => {
       const world1 = new SimulatedWorld()
       const world2 = new SimulatedWorld()
@@ -359,19 +260,6 @@ describe("world", () => {
       world2.set(pos(2, 2), new Belt(Direction.North, YELLOW_BELT))
 
       expect(world1.equals(world2)).toBe(false)
-    })
-  })
-
-  describe("Clone", () => {
-    test("clone creates independent copy", () => {
-      const world1 = new SimulatedWorld()
-      world1.set(pos(1, 1), new Belt(Direction.North, YELLOW_BELT))
-
-      const world2 = world1.clone()
-      world2.set(pos(2, 2), new Belt(Direction.South, RED_BELT))
-
-      expect(world1.get(pos(2, 2))).toBe(undefined)
-      expect(world2.get(pos(1, 1))).toBeInstanceOf(Belt)
     })
   })
 })

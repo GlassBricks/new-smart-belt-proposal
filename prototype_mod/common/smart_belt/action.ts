@@ -2,7 +2,7 @@ export type Action =
   | { type: "PlaceBelt" }
   | { type: "CreateUnderground"; inputPos: number; outputPos: number }
   | { type: "ExtendUnderground"; lastOutputPos: number; newOutputPos: number }
-  | { type: "IntegrateUndergroundPair"; doUpgrade: boolean }
+  | { type: "IntegrateUndergroundPair" }
   | { type: "IntegrateSplitter" }
   | { type: "None" }
 
@@ -12,23 +12,6 @@ export const enum ActionError {
   CannotUpgradeUnderground = "cannot_upgrade_underground",
   CannotTraversePastEntity = "cannot_traverse_past_entity",
   CannotTraversePastTile = "cannot_traverse_past_tile",
-}
-
-export const enum DragDirection {
-  Forward = "forward",
-  Backward = "backward",
-}
-
-export function directionMultiplier(direction: DragDirection): number {
-  return direction === DragDirection.Forward ? 1 : -1
-}
-
-export function swapIfBackwards<T>(
-  direction: DragDirection,
-  a: T,
-  b: T,
-): [T, T] {
-  return direction === DragDirection.Forward ? [a, b] : [b, a]
 }
 
 export const Action = {
@@ -46,9 +29,8 @@ export const Action = {
     newOutputPos,
   }),
 
-  IntegrateUndergroundPair: (doUpgrade: boolean): Action => ({
+  IntegrateUndergroundPair: (): Action => ({
     type: "IntegrateUndergroundPair",
-    doUpgrade,
   }),
 
   IntegrateSplitter: (): Action => ({ type: "IntegrateSplitter" }),

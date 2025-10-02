@@ -1,10 +1,4 @@
-export {
-  Action,
-  ActionError,
-  directionMultiplier,
-  DragDirection,
-  swapIfBackwards,
-} from "./action"
+export { Action, ActionError } from "./action"
 
 export { DragWorldView } from "./world_view"
 

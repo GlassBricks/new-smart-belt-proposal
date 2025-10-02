@@ -2,25 +2,9 @@ import type { Direction } from "./geometry"
 import { oppositeDirection } from "./geometry"
 
 export interface BeltTier {
-  readonly _symbol: symbol
+  readonly name: string
   readonly undergroundDistance: number
 }
-
-function createBeltTier(name: string, undergroundDistance: number): BeltTier {
-  return {
-    _symbol: Symbol(name),
-    undergroundDistance,
-  }
-}
-
-export const YELLOW_BELT = createBeltTier("Yellow", 5)
-export const RED_BELT = createBeltTier("Red", 7)
-export const BLUE_BELT = createBeltTier("Blue", 9)
-export const BELT_TIERS: readonly BeltTier[] = [
-  YELLOW_BELT,
-  RED_BELT,
-  BLUE_BELT,
-]
 
 export abstract class BeltConnectable {
   abstract readonly entityType: string
@@ -148,9 +132,5 @@ export class Splitter extends BeltConnectable {
 
   hasBackwardsInput(): boolean {
     return true
-  }
-
-  withTier(newTier: BeltTier): Splitter {
-    return new Splitter(this.direction, newTier)
   }
 }

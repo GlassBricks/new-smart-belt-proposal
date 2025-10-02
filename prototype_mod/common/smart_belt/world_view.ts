@@ -3,14 +3,15 @@ import { Belt, BeltConnectable, UndergroundBelt } from "../belts"
 import { Entity } from "../entity"
 import {
   Direction,
-  getPositionOnRay,
+  getRayPosition,
   oppositeDirection,
-  rayPosition,
+  rayDistance,
   type Ray,
   type TilePosition,
 } from "../geometry"
 import type { ReadonlyWorld } from "../world"
-import { DragDirection } from "./action"
+import { DragDirection } from "./drag"
+
 import { TileHistoryView, type TileHistory } from "./tile_history_view"
 
 export class DragWorldView {
@@ -40,7 +41,7 @@ export class DragWorldView {
   }
 
   getEntity(position: number): Entity | undefined {
-    return this.historyView.get(getPositionOnRay(this.ray, position))
+    return this.historyView.get(getRayPosition(this.ray, position))
   }
 
   getBeltEntity(position: number): BeltConnectable | undefined {
@@ -49,7 +50,7 @@ export class DragWorldView {
   }
 
   beltWasCurved(position: number, belt: Belt): boolean {
-    const worldPos = getPositionOnRay(this.ray, position)
+    const worldPos = getRayPosition(this.ray, position)
     return beltIsCurvedAt(this.historyView, worldPos, belt)
   }
 
@@ -58,11 +59,11 @@ export class DragWorldView {
     let curPos: TilePosition
 
     if (this.direction === DragDirection.Forward) {
-      lastPos = getPositionOnRay(this.ray, nextPos - 1)
-      curPos = getPositionOnRay(this.ray, nextPos)
+      lastPos = getRayPosition(this.ray, nextPos - 1)
+      curPos = getRayPosition(this.ray, nextPos)
     } else {
-      lastPos = getPositionOnRay(this.ray, nextPos)
-      curPos = getPositionOnRay(this.ray, nextPos + 1)
+      lastPos = getRayPosition(this.ray, nextPos)
+      curPos = getRayPosition(this.ray, nextPos + 1)
     }
 
     const connectsForward =
@@ -81,8 +82,8 @@ export class DragWorldView {
   }
 
   getUgPairPos(index: number, ug: UndergroundBelt): number | undefined {
-    const worldPosition = getPositionOnRay(this.ray, index)
+    const worldPosition = getRayPosition(this.ray, index)
     const pairPos = this.historyView.getUgPairPos(worldPosition, ug)
-    return pairPos ? rayPosition(this.ray, pairPos) : undefined
+    return pairPos ? rayDistance(this.ray, pairPos) : undefined
   }
 }

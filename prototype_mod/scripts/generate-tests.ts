@@ -13,7 +13,7 @@ import {
   getTestVariants,
   loadTestCasesFromYaml,
   sanitizeTestName,
-} from "../js-only/test-utils"
+} from "../ts-only/test-utils"
 
 function generateTestFile(fileStem: string, testCases: TestCaseYaml[]): string {
   let code = `// Generated test file for ${fileStem}.yaml\n`

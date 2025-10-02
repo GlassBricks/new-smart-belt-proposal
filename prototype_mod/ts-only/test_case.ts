@@ -1,7 +1,6 @@
 import * as yaml from "js-yaml"
 import {
   Belt,
-  BELT_TIERS,
   BeltConnectable,
   LoaderLike,
   Splitter,
@@ -14,13 +13,11 @@ import {
   boundsUnion,
   createRay,
   Direction,
-  directionFromChar,
-  directionToChar,
   directionToVector,
+  getRayPosition,
   oppositeDirection,
   pos,
-  rayPosition,
-  snapToRay,
+  rayDistance,
   transformDirection,
   transformPosition,
   type BoundingBox,
@@ -29,6 +26,7 @@ import {
   type Transform,
 } from "../common/geometry"
 import { LineDrag, type ActionError } from "../common/smart_belt/index"
+import { BELT_TIERS } from "./belt_tiers"
 import { SimulatedWorld } from "./simulated_world"
 
 export interface DragTestCase {
@@ -153,6 +151,34 @@ function parseWord(input: string): Entity | undefined {
       return new LoaderLike(direction, false, tier)
     default:
       throw new Error(`Invalid entity type: ${typeChar}`)
+  }
+}
+
+export function directionToChar(dir: Direction): string {
+  switch (dir) {
+    case Direction.North:
+      return "^"
+    case Direction.East:
+      return ">"
+    case Direction.South:
+      return "v"
+    case Direction.West:
+      return "<"
+  }
+}
+
+export function directionFromChar(char: string): Direction | undefined {
+  switch (char) {
+    case "^":
+      return Direction.North
+    case ">":
+      return Direction.East
+    case "v":
+      return Direction.South
+    case "<":
+      return Direction.West
+    default:
+      return undefined
   }
 }
 
@@ -326,9 +352,9 @@ export function runTestCase(
   const { leftmostPos, startPos, beltDirection, endPos, tier } = test
 
   const ray = createRay(startPos, beltDirection)
-  const endPosRay = rayPosition(ray, endPos)
+  const endPosRay = rayDistance(ray, endPos)
 
-  const snapped = snapToRay(ray, endPos)
+  const snapped = getRayPosition(ray, rayDistance(ray, endPos))
   if (snapped.x !== endPos.x || snapped.y !== endPos.y) {
     throw new Error(
       "end_pos must be on the same line as start_pos in drag_direction",
@@ -366,7 +392,7 @@ function runWiggle(
 
   let currentPos = startPos
 
-  while (rayPosition(ray, currentPos) + 2 < endPosRay) {
+  while (rayDistance(ray, currentPos) + 2 < endPosRay) {
     const forward2 = pos(
       currentPos.x + dirVec.x * 2,
       currentPos.y + dirVec.y * 2,
@@ -377,7 +403,7 @@ function runWiggle(
     currentPos = back1
   }
 
-  if (rayPosition(ray, currentPos) !== endPosRay) {
+  if (rayDistance(ray, currentPos) !== endPosRay) {
     drag.interpolateTo(endPos)
   }
 }

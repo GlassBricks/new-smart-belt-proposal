@@ -8,7 +8,7 @@ Rust was chosen, to allow the prototype to be mostly but not completely function
 
 ## Main logic
 - All the "main" logic is in `prototype_abstract/src/smart_belt/*.rs`.
-- This ENTIRE CRATE was recently ported to prototype_mod/, written in typescript, setup using bun.sh; so also see `prototype_mod/src/smart_belt/*.ts`
+- This ENTIRE CRATE was recently ported to prototype_mod/, written in typescript, setup using bun.sh; so also see `prototype_mod`.
 
 - Testing is mainly done through the a test suite, test cases defined in `./test_suite/*.yaml`, parsed and processed by `prototype_abstract/src/test_case.rs`. A build script gathers these, and generates normal rust integration tests.
 - The goal is to get enough tests to get 100% code and branch coverage for `smart_belt/*`

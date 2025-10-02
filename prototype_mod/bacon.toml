@@ -1,0 +1,3 @@
+[jobs.ts-test]
+command = ["bun", "test"]
+need_stdout = true
