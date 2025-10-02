@@ -1,6 +1,6 @@
 import { beltIsCurvedAt } from "../belt_curving"
 import { Belt, BeltConnectable, UndergroundBelt } from "../belts"
-import { Entity } from "../entity"
+import { Entity } from "../belts"
 import {
   Direction,
   getRayPosition,

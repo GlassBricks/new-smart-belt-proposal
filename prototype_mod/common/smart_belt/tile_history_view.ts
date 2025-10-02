@@ -1,6 +1,6 @@
 import { beltCurvedInputDirection, type BeltConnections } from "../belt_curving"
 import { Belt, BeltConnectable, UndergroundBelt } from "../belts"
-import type { Entity } from "../entity"
+import type { Entity } from "../belts"
 import type { Direction, TilePosition } from "../geometry"
 import { ReadonlyWorldOps, type ReadonlyWorld } from "../world"
 

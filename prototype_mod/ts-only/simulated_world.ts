@@ -6,25 +6,23 @@ import {
   Splitter,
   UndergroundBelt,
   type BeltTier,
+  type Entity,
 } from "../common/belts"
-import { Entity } from "../common/entity"
-import type {
-  BoundingBox,
-  Direction,
-  TilePosition,
-  Transform,
-} from "../common/geometry"
+import type { BoundingBox, Direction, TilePosition } from "../common/geometry"
 import {
   boundsNew,
-  keyToPosition,
   oppositeDirection,
   pos,
   posEquals,
+} from "../common/geometry"
+import { ReadonlyWorldOps, type World } from "../common/world"
+import {
+  keyToPosition,
   positionToKey,
   transformDirection,
   transformPosition,
-} from "../common/geometry"
-import { ReadonlyWorldOps, type World } from "../common/world"
+  type Transform,
+} from "./test-utils"
 
 export class SimulatedWorld implements World {
   private entities: Map<string, Entity>
@@ -309,7 +307,7 @@ export class SimulatedWorld implements World {
         return false
       }
 
-      if (entity.entityType !== otherEntity.entityType) {
+      if (entity.type !== otherEntity.type) {
         return false
       }
 

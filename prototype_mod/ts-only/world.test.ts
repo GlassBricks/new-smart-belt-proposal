@@ -1,10 +1,11 @@
 import { describe, expect, test } from "bun:test"
 import { beltCurvedInputDirection } from "../common/belt_curving"
 import { Belt, Splitter, UndergroundBelt } from "../common/belts"
-import { createTransform, Direction, pos } from "../common/geometry"
+import { Direction, pos } from "../common/geometry"
 import { WorldOps } from "../common/world"
 import { BLUE_BELT, RED_BELT, YELLOW_BELT } from "./belt_tiers"
 import { SimulatedWorld } from "./simulated_world"
+import { createTransform } from "./test-utils"
 
 describe("world", () => {
   describe("Bounds calculation", () => {
@@ -13,8 +14,8 @@ describe("world", () => {
       world.set(pos(1, 2), new Belt(Direction.North, YELLOW_BELT))
       world.set(pos(5, 7), new Belt(Direction.South, YELLOW_BELT))
       const bounds = world.bounds()
-      expect(bounds.min).toEqual(pos(1, 2))
-      expect(bounds.max).toEqual(pos(6, 8))
+      expect(bounds.left_top).toEqual(pos(1, 2))
+      expect(bounds.right_bottom).toEqual(pos(6, 8))
     })
 
     test("bounds with negative coordinates", () => {
@@ -22,8 +23,8 @@ describe("world", () => {
       world.set(pos(-2, -3), new Belt(Direction.North, YELLOW_BELT))
       world.set(pos(4, 5), new Belt(Direction.South, YELLOW_BELT))
       const bounds = world.bounds()
-      expect(bounds.min).toEqual(pos(-2, -3))
-      expect(bounds.max).toEqual(pos(5, 6))
+      expect(bounds.left_top).toEqual(pos(-2, -3))
+      expect(bounds.right_bottom).toEqual(pos(5, 6))
     })
   })
 

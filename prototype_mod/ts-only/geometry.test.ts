@@ -5,15 +5,18 @@ import {
   boundsNew,
   boundsUnion,
   createRay,
-  createTransform,
   Direction,
   directionAxis,
   getRayPosition,
   pos,
   rayDistance,
+  rayRelativeDirection,
+} from "../common/geometry"
+import {
+  createTransform,
   transformDirection,
   transformPosition,
-} from "../common/geometry"
+} from "./test-utils"
 
 describe("geometry", () => {
   describe("Direction", () => {
@@ -73,6 +76,34 @@ describe("geometry", () => {
       const result = getRayPosition(ray, 5)
       expect(result).toEqual(pos(-4, 1))
     })
+
+    test("rayRelativeDirection - East ray with North/South positions", () => {
+      const ray = createRay(pos(0, 0), Direction.East)
+      expect(rayRelativeDirection(ray, pos(5, -3))).toBe(Direction.North)
+      expect(rayRelativeDirection(ray, pos(5, 3))).toBe(Direction.South)
+      expect(rayRelativeDirection(ray, pos(5, 0))).toBe(undefined)
+    })
+
+    test("rayRelativeDirection - North ray with East/West positions", () => {
+      const ray = createRay(pos(0, 0), Direction.North)
+      expect(rayRelativeDirection(ray, pos(-3, -5))).toBe(Direction.West)
+      expect(rayRelativeDirection(ray, pos(3, -5))).toBe(Direction.East)
+      expect(rayRelativeDirection(ray, pos(0, -5))).toBe(undefined)
+    })
+
+    test("rayRelativeDirection - South ray with East/West positions", () => {
+      const ray = createRay(pos(0, 0), Direction.South)
+      expect(rayRelativeDirection(ray, pos(3, 5))).toBe(Direction.East)
+      expect(rayRelativeDirection(ray, pos(-3, 5))).toBe(Direction.West)
+      expect(rayRelativeDirection(ray, pos(0, 5))).toBe(undefined)
+    })
+
+    test("rayRelativeDirection - West ray with North/South positions", () => {
+      const ray = createRay(pos(0, 0), Direction.West)
+      expect(rayRelativeDirection(ray, pos(-5, 3))).toBe(Direction.South)
+      expect(rayRelativeDirection(ray, pos(-5, -3))).toBe(Direction.North)
+      expect(rayRelativeDirection(ray, pos(-5, 0))).toBe(undefined)
+    })
   })
 
   describe("BoundingBox", () => {
@@ -80,8 +111,8 @@ describe("geometry", () => {
       const b1 = boundsNew(pos(0, 0), pos(5, 5))
       const b2 = boundsNew(pos(3, 3), pos(8, 8))
       const result = boundsUnion(b1, b2)
-      expect(result.min).toEqual(pos(0, 0))
-      expect(result.max).toEqual(pos(8, 8))
+      expect(result.left_top).toEqual(pos(0, 0))
+      expect(result.right_bottom).toEqual(pos(8, 8))
     })
 
     test("boundsContains checks if position is inside", () => {

@@ -1,13 +1,25 @@
 import type { Direction } from "./geometry"
 import { oppositeDirection } from "./geometry"
 
+// Only for the purposes of belt interaction.
+export interface Entity {
+  readonly type: string
+}
+
+export class Colliding implements Entity {
+  readonly type = "Colliding" as const
+}
+export class Impassable implements Entity {
+  readonly type = "Impassable" as const
+}
+
 export interface BeltTier {
   readonly name: string
   readonly undergroundDistance: number
 }
 
 export abstract class BeltConnectable {
-  abstract readonly entityType: string
+  abstract readonly type: string
   abstract readonly direction: Direction
   abstract readonly tier: BeltTier
   readonly isInput?: boolean
@@ -17,7 +29,7 @@ export abstract class BeltConnectable {
 
   equals(other: BeltConnectable): boolean {
     return (
-      this.entityType == other.entityType &&
+      this.type == other.type &&
       this.direction == other.direction &&
       this.tier == other.tier &&
       this.isInput == other.isInput
@@ -35,14 +47,10 @@ export abstract class BeltConnectable {
   primaryInputDirection(): Direction | undefined {
     return this.hasBackwardsInput() ? this.direction : undefined
   }
-
-  hasInputGoing(enteringDirection: Direction): boolean {
-    return this.primaryInputDirection() === enteringDirection
-  }
 }
 
 export class Belt extends BeltConnectable {
-  readonly entityType = "Belt" as const
+  readonly type = "Belt" as const
 
   constructor(
     readonly direction: Direction,
@@ -61,7 +69,7 @@ export class Belt extends BeltConnectable {
 }
 
 export class UndergroundBelt extends BeltConnectable {
-  readonly entityType = "UndergroundBelt" as const
+  readonly type = "UndergroundBelt" as const
 
   constructor(
     readonly direction: Direction,
@@ -93,7 +101,7 @@ export class UndergroundBelt extends BeltConnectable {
 }
 
 export class LoaderLike extends BeltConnectable {
-  readonly entityType = "LoaderLike" as const
+  readonly type = "LoaderLike" as const
 
   constructor(
     readonly direction: Direction,
@@ -117,7 +125,7 @@ export class LoaderLike extends BeltConnectable {
 }
 
 export class Splitter extends BeltConnectable {
-  readonly entityType = "Splitter" as const
+  readonly type = "Splitter" as const
 
   constructor(
     readonly direction: Direction,

@@ -1,5 +1,4 @@
-import { UndergroundBelt, type BeltTier } from "../belts"
-import { Impassable } from "../entity"
+import { Impassable, UndergroundBelt, type BeltTier } from "../belts"
 import { directionAxis, getRayPosition, type Ray } from "../geometry"
 import type { World } from "../world"
 import { Action, ActionError } from "./action"
@@ -8,13 +7,11 @@ import { TileClassifier } from "./tile_classification"
 import type { TileHistory } from "./tile_history_view"
 import { DragWorldView } from "./world_view"
 
-export class DragStepResult {
-  constructor(
-    public action: Action,
-    public error: ActionError | undefined,
-    public nextState: DragState,
-  ) {}
-}
+export type DragStepResult = [
+  action: Action,
+  nextState: DragState,
+  error?: ActionError,
+]
 
 export type DragState =
   | { type: "OverBelt" }
@@ -104,7 +101,7 @@ export function takeStep(
 ): DragStepResult {
   const dragEnd = getDragEnd(state, ctx.lastPosition, direction)
   if (dragEnd === undefined) {
-    return new DragStepResult(Action.None(), undefined, state)
+    return [Action.None(), state]
   }
 
   const worldView = new DragWorldView(
@@ -127,11 +124,7 @@ export function takeStep(
     case "Obstacle":
       return handleObstacle(dragEnd, ctx, direction)
     case "IntegratedSplitter":
-      return new DragStepResult(
-        Action.IntegrateSplitter(),
-        undefined,
-        DragState.OverSplitter(),
-      )
+      return [Action.IntegrateSplitter(), DragState.OverSplitter()]
     case "ImpassableObstacle":
       return handleImpassableObstacle(dragEnd, direction)
     case "IntegratedUnderground": {
@@ -228,11 +221,7 @@ function placeBeltOrUnderground(
   if (dragEnd.type === "TraversingObstacle") {
     return placeUnderground(ctx, direction, dragEnd.inputPos, dragEnd.outputPos)
   } else {
-    return new DragStepResult(
-      Action.PlaceBelt(),
-      undefined,
-      DragState.OverBelt(),
-    )
+    return [Action.PlaceBelt(), DragState.OverBelt()]
   }
 }
 
@@ -275,7 +264,7 @@ function handleObstacle(
       break
   }
 
-  return new DragStepResult(Action.None(), error, newState)
+  return [Action.None(), newState, error]
 }
 
 function handleImpassableObstacle(
@@ -286,7 +275,7 @@ function handleImpassableObstacle(
     dragEnd.type === "Error"
       ? DragState.ErrorRecovery()
       : DragState.OverImpassable(direction)
-  return new DragStepResult(Action.None(), undefined, nextState)
+  return [Action.None(), nextState]
 }
 
 function placeUnderground(
@@ -301,7 +290,7 @@ function placeUnderground(
   const error = canBuildUnderground(ctx, inputPos, direction, isExtension)
 
   if (error !== undefined) {
-    return new DragStepResult(Action.PlaceBelt(), error, DragState.OverBelt())
+    return [Action.PlaceBelt(), DragState.OverBelt(), error]
   }
 
   const action =
@@ -309,11 +298,10 @@ function placeUnderground(
       ? Action.ExtendUnderground(lastOutputPos, nextPosition)
       : Action.CreateUnderground(inputPos, nextPosition)
 
-  return new DragStepResult(
+  return [
     action,
-    undefined,
     DragState.BuildingUnderground(inputPos, nextPosition, direction),
-  )
+  ]
 }
 
 function integrateUndergroundPair(
@@ -326,11 +314,7 @@ function integrateUndergroundPair(
   const nextPos = ctx.lastPosition + directionMultiplier(direction)
   const [leftPos, rightPos] = swapIfBackwards(direction, nextPos, outputPos)
 
-  return new DragStepResult(
-    action,
-    undefined,
-    DragState.PassThrough(leftPos, rightPos),
-  )
+  return [action, DragState.PassThrough(leftPos, rightPos)]
 }
 
 function canBuildUnderground(

@@ -6,7 +6,6 @@ export { TileClassifier, type TileType } from "./tile_classification"
 
 export {
   deferredError,
-  DragStepResult,
   takeStep as stepDragState,
   type DragContext,
   type DragState,

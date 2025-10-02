@@ -3,6 +3,7 @@
  */
 
 import * as yaml from "js-yaml"
+import { Direction, pos, type TilePosition } from "../common/geometry"
 
 export interface TestCaseFlags {
   not_reversible?: boolean
@@ -39,7 +40,9 @@ export interface TestVariant {
 }
 
 export function getTestVariants(flags: TestCaseFlags): TestVariant[] {
-  const variants: TestVariant[] = [{ suffix: "", reverse: false, wiggle: false }]
+  const variants: TestVariant[] = [
+    { suffix: "", reverse: false, wiggle: false },
+  ]
 
   if (!flags.not_reversible) {
     variants.push({ suffix: "_reverse", reverse: true, wiggle: false })
@@ -56,4 +59,82 @@ export function getTestVariants(flags: TestCaseFlags): TestVariant[] {
 
 export function loadTestCasesFromYaml(content: string): TestCaseYaml[] {
   return yaml.load(content) as TestCaseYaml[]
+}
+
+export interface Transform {
+  readonly flipX: boolean
+  readonly flipY: boolean
+  readonly swapXY: boolean
+}
+
+export function createTransform(
+  flipX: boolean,
+  flipY: boolean,
+  swapXY: boolean,
+): Transform {
+  return { flipX, flipY, swapXY }
+}
+
+export function transformPosition(
+  transform: Transform,
+  position: TilePosition,
+): TilePosition {
+  let result = position
+
+  if (transform.swapXY) {
+    result = pos(result.y, result.x)
+  }
+
+  if (transform.flipX) {
+    result = pos(-result.x, result.y)
+  }
+
+  if (transform.flipY) {
+    result = pos(result.x, -result.y)
+  }
+
+  return result
+}
+
+export function transformDirection(
+  transform: Transform,
+  dir: Direction,
+): Direction {
+  let ordinal = dir as number
+
+  if (transform.swapXY) {
+    ordinal = [3, 2, 1, 0][ordinal]!
+  }
+
+  if (transform.flipX) {
+    ordinal = [0, 3, 2, 1][ordinal]!
+  }
+
+  if (transform.flipY) {
+    ordinal = [2, 1, 0, 3][ordinal]!
+  }
+
+  return ordinal as Direction
+}
+
+export function allUniqueTransforms(): Transform[] {
+  return [
+    createTransform(false, false, false),
+    createTransform(true, false, true),
+    createTransform(true, true, false),
+    createTransform(false, true, true),
+    createTransform(true, false, false),
+    createTransform(true, true, true),
+    createTransform(false, true, false),
+    createTransform(false, false, true),
+  ]
+}
+
+export function positionToKey(pos: TilePosition): string {
+  return `${pos.x},${pos.y}`
+}
+
+export function keyToPosition(key: string): TilePosition {
+  const parts = key.split(",")
+  return pos(Number(parts[0]), Number(parts[1]))
 }

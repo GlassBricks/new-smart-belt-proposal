@@ -2,14 +2,15 @@ import * as yaml from "js-yaml"
 import {
   Belt,
   BeltConnectable,
+  Colliding,
+  Impassable,
   LoaderLike,
   Splitter,
   UndergroundBelt,
   type BeltTier,
+  type Entity,
 } from "../common/belts"
-import { Colliding, Entity, Impassable } from "../common/entity"
 import {
-  allUniqueTransforms,
   boundsUnion,
   createRay,
   Direction,
@@ -18,16 +19,19 @@ import {
   oppositeDirection,
   pos,
   rayDistance,
-  transformDirection,
-  transformPosition,
   type BoundingBox,
   type Ray,
   type TilePosition,
-  type Transform,
 } from "../common/geometry"
 import { LineDrag, type ActionError } from "../common/smart_belt/index"
 import { BELT_TIERS } from "./belt_tiers"
 import { SimulatedWorld } from "./simulated_world"
+import {
+  allUniqueTransforms,
+  transformDirection,
+  transformPosition,
+  type Transform,
+} from "./test-utils"
 
 export interface DragTestCase {
   name: string
@@ -219,14 +223,17 @@ export function printWorld(
   bounds: BoundingBox,
   markers: TilePosition[],
 ): string {
-  if (bounds.min.x === bounds.max.x || bounds.min.y === bounds.max.y) {
+  if (
+    bounds.left_top.x === bounds.right_bottom.x ||
+    bounds.left_top.y === bounds.right_bottom.y
+  ) {
     return "<Empty>"
   }
 
   const lines: string[] = []
-  for (let y = bounds.min.y; y < bounds.max.y; y++) {
+  for (let y = bounds.left_top.y; y < bounds.right_bottom.y; y++) {
     const words: string[] = []
-    for (let x = bounds.min.x; x < bounds.max.x; x++) {
+    for (let x = bounds.left_top.x; x < bounds.right_bottom.x; x++) {
       const position = pos(x, y)
       const entity = world.get(position)
 
@@ -251,17 +258,17 @@ export function printWorld(
 }
 
 export function parseTestCase(yamlContent: string): DragTestCase {
-  const serde = yaml.load(yamlContent) as TestCaseSerialized
+  const serialized = yaml.load(yamlContent) as TestCaseSerialized
 
-  const name = serde.name || "Unnamed"
-  const notReversible = serde.not_reversible || false
-  const forwardBack = serde.forward_back || false
+  const name = serialized.name || "Unnamed"
+  const notReversible = serialized.not_reversible || false
+  const forwardBack = serialized.forward_back || false
 
-  const entities = getEntities(serde)
+  const entities = getEntities(serialized)
 
   let afterForReverse: SimulatedWorld | undefined = undefined
-  if (serde.after_for_reverse) {
-    const [world] = parseWorld(serde.after_for_reverse)
+  if (serialized.after_for_reverse) {
+    const [world] = parseWorld(serialized.after_for_reverse)
     afterForReverse = world
   }
 

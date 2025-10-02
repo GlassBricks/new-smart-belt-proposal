@@ -1,5 +1,3 @@
-export type TileSpace = { readonly _brand: "TileSpace" }
-
 export interface Point2D<T> {
   readonly x: number
   readonly y: number
@@ -10,8 +8,14 @@ export interface Vector2D<T> {
   readonly y: number
 }
 
-export type TilePosition = Point2D<TileSpace>
-export type TileVec = Vector2D<TileSpace>
+export interface TilePosition {
+  readonly x: number
+  readonly y: number
+}
+export interface TileVec {
+  readonly x: number
+  readonly y: number
+}
 
 export function pos(x: number, y: number): TilePosition {
   return { x, y }
@@ -49,8 +53,8 @@ export const enum Direction {
 }
 
 export const enum Axis {
-  X = "X",
-  Y = "Y",
+  X = 0,
+  Y = 1,
 }
 
 export function directionToVector(dir: Direction): TileVec {
@@ -112,22 +116,46 @@ export function getRayPosition(ray: Ray, index: number): TilePosition {
   )
 }
 
+export function rayRelativeDirection(
+  ray: Ray,
+  position: TilePosition,
+): Direction | undefined {
+  const offset = subPos(position, ray.startPosition)
+
+  switch (ray.direction) {
+    case Direction.North:
+    case Direction.South:
+      if (offset.x === 0) return undefined
+      return offset.x > 0 ? Direction.East : Direction.West
+    case Direction.East:
+    case Direction.West:
+      if (offset.y === 0) return undefined
+      return offset.y > 0 ? Direction.South : Direction.North
+  }
+}
+
 export interface BoundingBox {
-  readonly min: TilePosition
-  readonly max: TilePosition
+  readonly left_top: TilePosition
+  readonly right_bottom: TilePosition
 }
 
 export function boundsNew(
   topLeft: TilePosition,
   bottomRight: TilePosition,
 ): BoundingBox {
-  return { min: topLeft, max: bottomRight }
+  return { left_top: topLeft, right_bottom: bottomRight }
 }
 
 export function boundsUnion(b1: BoundingBox, b2: BoundingBox): BoundingBox {
   return {
-    min: pos(Math.min(b1.min.x, b2.min.x), Math.min(b1.min.y, b2.min.y)),
-    max: pos(Math.max(b1.max.x, b2.max.x), Math.max(b1.max.y, b2.max.y)),
+    left_top: pos(
+      Math.min(b1.left_top.x, b2.left_top.x),
+      Math.min(b1.left_top.y, b2.left_top.y),
+    ),
+    right_bottom: pos(
+      Math.max(b1.right_bottom.x, b2.right_bottom.x),
+      Math.max(b1.right_bottom.y, b2.right_bottom.y),
+    ),
   }
 }
 
@@ -136,91 +164,9 @@ export function boundsContains(
   position: TilePosition,
 ): boolean {
   return (
-    position.x >= bounds.min.x &&
-    position.x <= bounds.max.x &&
-    position.y >= bounds.min.y &&
-    position.y <= bounds.max.y
+    position.x >= bounds.left_top.x &&
+    position.x <= bounds.right_bottom.x &&
+    position.y >= bounds.left_top.y &&
+    position.y <= bounds.right_bottom.y
   )
-}
-
-export interface Transform {
-  readonly flipX: boolean
-  readonly flipY: boolean
-  readonly swapXY: boolean
-}
-
-export function createTransform(
-  flipX: boolean,
-  flipY: boolean,
-  swapXY: boolean,
-): Transform {
-  return { flipX, flipY, swapXY }
-}
-
-export function identityTransform(): Transform {
-  return { flipX: false, flipY: false, swapXY: false }
-}
-
-export function transformPosition(
-  transform: Transform,
-  position: TilePosition,
-): TilePosition {
-  let result = position
-
-  if (transform.swapXY) {
-    result = pos(result.y, result.x)
-  }
-
-  if (transform.flipX) {
-    result = pos(-result.x, result.y)
-  }
-
-  if (transform.flipY) {
-    result = pos(result.x, -result.y)
-  }
-
-  return result
-}
-
-export function transformDirection(
-  transform: Transform,
-  dir: Direction,
-): Direction {
-  let ordinal = dir as number
-
-  if (transform.swapXY) {
-    ordinal = [3, 2, 1, 0][ordinal]!
-  }
-
-  if (transform.flipX) {
-    ordinal = [0, 3, 2, 1][ordinal]!
-  }
-
-  if (transform.flipY) {
-    ordinal = [2, 1, 0, 3][ordinal]!
-  }
-
-  return ordinal as Direction
-}
-
-export function allUniqueTransforms(): Transform[] {
-  return [
-    createTransform(false, false, false),
-    createTransform(true, false, true),
-    createTransform(true, true, false),
-    createTransform(false, true, true),
-    createTransform(true, false, false),
-    createTransform(true, true, true),
-    createTransform(false, true, false),
-    createTransform(false, false, true),
-  ]
-}
-
-export function positionToKey(pos: TilePosition): string {
-  return `${pos.x},${pos.y}`
-}
-
-export function keyToPosition(key: string): TilePosition {
-  const parts = key.split(",")
-  return pos(Number(parts[0]), Number(parts[1]))
 }
