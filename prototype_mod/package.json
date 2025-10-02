@@ -5,7 +5,9 @@
   "private": true,
   "scripts": {
     "test": "bun test",
-    "generate-tests": "bun run scripts/generate-tests.ts"
+    "generate-tests": "bun run scripts/generate-tests.ts",
+    "build": "tstl",
+    "watch": "tstl --watch"
   },
   "devDependencies": {
     "@types/bun": "latest",

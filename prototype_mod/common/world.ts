@@ -1,6 +1,12 @@
 import type { BeltConnections } from "./belt_curving"
-import { Belt, BeltConnectable, UndergroundBelt, type BeltTier } from "./belts"
-import { Colliding, type Entity as EntityLike } from "./belts"
+import {
+  Belt,
+  BeltConnectable,
+  Colliding,
+  UndergroundBelt,
+  type BeltTier,
+  type Entity as EntityLike,
+} from "./belts"
 import {
   addVec,
   directionToVector,

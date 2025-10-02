@@ -19,6 +19,7 @@ import {
   type DragStepResult,
 } from "./drag_state"
 import type { TileHistory } from "./tile_history_view"
+import { DragWorldView } from "./world_view"
 
 export const enum DragDirection {
   Forward = "forward",
