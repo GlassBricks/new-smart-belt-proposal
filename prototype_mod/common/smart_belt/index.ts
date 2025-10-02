@@ -11,4 +11,4 @@ export {
   type DragState,
 } from "./drag_state"
 
-export { LineDrag } from "./drag"
+export { LineDrag, type ErrorHandler } from "./drag"

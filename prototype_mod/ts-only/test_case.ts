@@ -351,6 +351,18 @@ function getEntities(serde: TestCaseSerialized): TestCaseEntities {
   }
 }
 
+class TestErrorHandler implements ErrorHandler {
+  private errors: Array<[TilePosition, ActionError]> = []
+
+  handleError(position: TilePosition, error: ActionError): void {
+    this.errors.push([position, error])
+  }
+
+  getErrors(): Array<[TilePosition, ActionError]> {
+    return this.errors
+  }
+}
+
 export function runTestCase(
   test: TestCaseEntities,
   wiggle: boolean,
@@ -369,18 +381,25 @@ export function runTestCase(
   }
 
   const result = test.before.clone()
-  const drag = LineDrag.startDrag(result, tier, startPos, beltDirection)
+  const errorHandler = new TestErrorHandler()
+  const drag = LineDrag.startDrag(
+    result,
+    tier,
+    startPos,
+    beltDirection,
+    errorHandler,
+  )
 
   if (wiggle) {
-    runWiggle(drag, startPos, endPos, beltDirection, ray, endPosRay)
+    runWiggle(drag, result, startPos, endPos, beltDirection, ray, endPosRay)
   } else if (forwardBack) {
-    runForwardBack(drag, leftmostPos, endPos)
+    runForwardBack(drag, result, leftmostPos, endPos)
   } else {
-    drag.interpolateTo(endPos)
+    drag.interpolateTo(result, endPos)
   }
 
   const errors = new Set<string>()
-  for (const [position, error] of drag.getErrors()) {
+  for (const [position, error] of errorHandler.getErrors()) {
     errors.add(serializeError(position, error))
   }
 
@@ -389,6 +408,7 @@ export function runTestCase(
 
 function runWiggle(
   drag: LineDrag,
+  world: SimulatedWorld,
   startPos: TilePosition,
   endPos: TilePosition,
   dragDirection: Direction,
@@ -404,24 +424,25 @@ function runWiggle(
       currentPos.x + dirVec.x * 2,
       currentPos.y + dirVec.y * 2,
     )
-    drag.interpolateTo(forward2)
+    drag.interpolateTo(world, forward2)
     const back1 = pos(currentPos.x + dirVec.x, currentPos.y + dirVec.y)
-    drag.interpolateTo(back1)
+    drag.interpolateTo(world, back1)
     currentPos = back1
   }
 
   if (rayDistance(ray, currentPos) !== endPosRay) {
-    drag.interpolateTo(endPos)
+    drag.interpolateTo(world, endPos)
   }
 }
 
 function runForwardBack(
   drag: LineDrag,
+  world: SimulatedWorld,
   leftmostPos: TilePosition,
   endPos: TilePosition,
 ): void {
-  drag.interpolateTo(endPos)
-  drag.interpolateTo(leftmostPos)
+  drag.interpolateTo(world, endPos)
+  drag.interpolateTo(world, leftmostPos)
 }
 
 export function checkTestCase(

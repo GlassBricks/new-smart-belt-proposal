@@ -19,7 +19,6 @@ import {
   type DragStepResult,
 } from "./drag_state"
 import type { TileHistory } from "./tile_history_view"
-import { DragWorldView } from "./world_view"
 
 export const enum DragDirection {
   Forward = "forward",
@@ -38,15 +37,18 @@ export function swapIfBackwards<T>(
   return direction === DragDirection.Forward ? [a, b] : [b, a]
 }
 
+export interface ErrorHandler {
+  handleError(position: TilePosition, error: ActionError): void
+}
+
 export class LineDrag {
   private constructor(
-    private world: WorldOps,
     public ray: Ray,
     private tier: BeltTier,
     private lastState: DragState,
     private lastPosition: number,
     private tileHistory: TileHistory | undefined,
-    private errors: Array<[TilePosition, ActionError]>,
+    private errorHandler: ErrorHandler,
   ) {}
 
   static startDrag(
@@ -54,9 +56,9 @@ export class LineDrag {
     tier: BeltTier,
     startPos: TilePosition,
     beltDirection: Direction,
+    errorHandler: ErrorHandler,
   ): LineDrag {
     const worldOps = new WorldOps(world)
-    const errors: Array<[TilePosition, ActionError]> = []
     const canPlace = worldOps.canPlaceBeltOnTile(startPos)
     const tileHistory: TileHistory | undefined = canPlace
       ? [startPos, worldOps.beltConnectionsAt(startPos)]
@@ -65,24 +67,19 @@ export class LineDrag {
     if (canPlace) {
       worldOps.placeBelt(startPos, beltDirection, tier)
     } else {
-      errors.push([startPos, ActionError.EntityInTheWay])
+      errorHandler.handleError(startPos, ActionError.EntityInTheWay)
     }
 
     const initialState = DragState.initialState(canPlace)
 
     return new LineDrag(
-      worldOps,
       createRay(startPos, beltDirection),
       tier,
       initialState,
       0,
       tileHistory,
-      errors,
+      errorHandler,
     )
-  }
-
-  getErrors(): Array<[TilePosition, ActionError]> {
-    return this.errors
   }
 
   private nextPosition(direction: DragDirection): number {
@@ -93,25 +90,29 @@ export class LineDrag {
     return getRayPosition(this.ray, this.lastPosition)
   }
 
-  interpolateTo(newPosition: TilePosition): void {
+  interpolateTo(world: World, newPosition: TilePosition): void {
     const targetPos = rayDistance(this.ray, newPosition)
 
     while (this.lastPosition < targetPos) {
-      const ctx = this.createContext()
+      const ctx = this.createContext(world)
       const result = takeStep(this.lastState, ctx, DragDirection.Forward)
-      this.applyStep(result, DragDirection.Forward)
+      this.applyStep(world, result, DragDirection.Forward)
     }
 
     while (this.lastPosition > targetPos) {
-      const ctx = this.createContext()
+      const ctx = this.createContext(world)
       const result = takeStep(this.lastState, ctx, DragDirection.Backward)
-      this.applyStep(result, DragDirection.Backward)
+      this.applyStep(world, result, DragDirection.Backward)
     }
   }
 
-  private applyStep(step: DragStepResult, direction: DragDirection): void {
+  private applyStep(
+    world: World,
+    step: DragStepResult,
+    direction: DragDirection,
+  ): void {
     let [action, nextState, err] = step
-    this.applyAction(action, direction)
+    this.applyAction(world, action, direction)
 
     const deferred = deferredError(this.lastState, direction)
     if (deferred !== undefined) {
@@ -126,18 +127,21 @@ export class LineDrag {
     this.lastPosition = this.nextPosition(direction)
   }
 
-  private applyAction(action: Action, direction: DragDirection): void {
+  private applyAction(
+    world: World,
+    action: Action,
+    direction: DragDirection,
+  ): void {
+    const worldOps = new WorldOps(world)
     const position = this.nextPosition(direction)
     const worldPos = getRayPosition(this.ray, position)
-
-    const innerWorld = this.world.world
 
     switch (action.type) {
       case "None":
         break
 
       case "PlaceBelt": {
-        const tileHistory = this.world.placeBelt(
+        const tileHistory = worldOps.placeBelt(
           worldPos,
           this.ray.direction,
           this.tier,
@@ -152,14 +156,14 @@ export class LineDrag {
         const inputWorldPos = getRayPosition(this.ray, action.inputPos)
         const outputWorldPos = getRayPosition(this.ray, action.outputPos)
 
-        this.world.placeUndergroundBelt(
+        worldOps.placeUndergroundBelt(
           inputWorldPos,
           this.ray.direction,
           direction === DragDirection.Forward,
           this.tier,
         )
 
-        const tileHistory = this.world.placeUndergroundBelt(
+        const tileHistory = worldOps.placeUndergroundBelt(
           outputWorldPos,
           this.ray.direction,
           direction === DragDirection.Backward,
@@ -178,9 +182,9 @@ export class LineDrag {
         )
         const newOutputWorldPos = getRayPosition(this.ray, action.newOutputPos)
 
-        innerWorld.remove(previousOutputWorldPos)
+        world.remove(previousOutputWorldPos)
 
-        const tileHistory = this.world.placeUndergroundBelt(
+        const tileHistory = worldOps.placeUndergroundBelt(
           newOutputWorldPos,
           this.ray.direction,
           direction === DragDirection.Backward,
@@ -193,29 +197,29 @@ export class LineDrag {
       }
 
       case "IntegrateUndergroundPair": {
-        const ug = innerWorld.get(worldPos)
+        const ug = world.get(worldPos)
         if (!(ug instanceof UndergroundBelt)) {
           throw new Error("Expected UndergroundBelt at position")
         }
 
         if (ug.isInput !== (direction === DragDirection.Forward)) {
-          innerWorld.flipUg(worldPos)
+          world.flipUg(worldPos)
         }
 
-        const [outputWorldPos] = this.world.getUgPair(worldPos, ug)!
+        const [outputWorldPos] = worldOps.getUgPair(worldPos, ug)!
         const outputPos = rayDistance(this.ray, outputWorldPos)
 
         if (ug.tier != this.tier) {
           if (
             canUpgradeUnderground(
               this.tier,
-              innerWorld,
+              world,
               this.ray,
               position,
               outputPos,
             )
           ) {
-            innerWorld.upgradeUnderground(worldPos, this.tier)
+            world.upgradeUg(worldPos, this.tier)
           } else {
             this.addError(ActionError.CannotUpgradeUnderground, direction)
           }
@@ -224,7 +228,7 @@ export class LineDrag {
       }
 
       case "IntegrateSplitter": {
-        const entity = innerWorld.get(worldPos)
+        const entity = world.get(worldPos)
         if (!(entity instanceof Splitter)) {
           throw new Error("Expected Splitter at position")
         }
@@ -243,12 +247,12 @@ export class LineDrag {
 
   private addError(error: ActionError, direction: DragDirection): void {
     const worldPos = getRayPosition(this.ray, this.nextPosition(direction))
-    this.errors.push([worldPos, error])
+    this.errorHandler.handleError(worldPos, error)
   }
 
-  private createContext(): DragContext {
+  private createContext(world: World): DragContext {
     return {
-      world: this.world.world,
+      world: world,
       ray: this.ray,
       tier: this.tier,
       lastPosition: this.lastPosition,
@@ -293,6 +297,7 @@ export class FullDrag {
   private constructor(
     private world: World,
     private tier: BeltTier,
+    private errorHandler: ErrorHandler,
     startPos: TilePosition,
     beltDirection: Direction,
   ) {
@@ -300,7 +305,13 @@ export class FullDrag {
   }
 
   private switchDrag(pos: TilePosition, direction: Direction) {
-    this.currentLine = LineDrag.startDrag(this.world, this.tier, pos, direction)
+    this.currentLine = LineDrag.startDrag(
+      this.world,
+      this.tier,
+      pos,
+      direction,
+      this.errorHandler,
+    )
   }
 
   static startDrag(
@@ -308,12 +319,13 @@ export class FullDrag {
     tier: BeltTier,
     startPos: TilePosition,
     beltDirection: Direction,
+    errorHandler: ErrorHandler,
   ): FullDrag {
-    return new FullDrag(world, tier, startPos, beltDirection)
+    return new FullDrag(world, tier, errorHandler, startPos, beltDirection)
   }
 
   public interpolateTo(pos: TilePosition) {
-    this.currentLine.interpolateTo(pos)
+    this.currentLine.interpolateTo(this.world, pos)
   }
 
   public rotate(pos: TilePosition): boolean {
