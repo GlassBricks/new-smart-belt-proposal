@@ -1,3 +1,4 @@
+import type { BeltConnections } from "./belt_curving"
 import { Belt, BeltConnectable, UndergroundBelt, type BeltTier } from "./belts"
 import { Colliding, type Entity as EntityLike } from "./entity"
 import {
@@ -8,7 +9,7 @@ import {
   type Direction,
   type TilePosition,
 } from "./geometry"
-import type { BeltConnections, TileHistory } from "./simulated_world"
+import type { TileHistory } from "./smart_belt/tile_history_view"
 
 export interface ReadonlyWorld {
   get(position: TilePosition): EntityLike | undefined

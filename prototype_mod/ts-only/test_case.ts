@@ -7,8 +7,8 @@ import {
   Splitter,
   UndergroundBelt,
   type BeltTier,
-} from "./belts.js"
-import { Colliding, Entity, Impassable } from "./entity.js"
+} from "../common/belts"
+import { Colliding, Entity, Impassable } from "../common/entity"
 import {
   allUniqueTransforms,
   boundsUnion,
@@ -27,9 +27,9 @@ import {
   type Ray,
   type TilePosition,
   type Transform,
-} from "./geometry.js"
-import { LineDrag, type ActionError } from "./smart_belt/index.js"
-import { SimulatedWorld } from "./simulated_world.js"
+} from "../common/geometry"
+import { LineDrag, type ActionError } from "../common/smart_belt/index"
+import { SimulatedWorld } from "./simulated_world"
 
 export interface DragTestCase {
   name: string

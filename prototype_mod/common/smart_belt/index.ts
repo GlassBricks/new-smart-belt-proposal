@@ -4,11 +4,11 @@ export {
   directionMultiplier,
   DragDirection,
   swapIfBackwards,
-} from "./action.js"
+} from "./action"
 
-export { DragWorldView } from "./world_view.js"
+export { DragWorldView } from "./world_view"
 
-export { TileClassifier, type TileType } from "./tile_classification.js"
+export { TileClassifier, type TileType } from "./tile_classification"
 
 export {
   deferredError,
@@ -16,6 +16,6 @@ export {
   takeStep as stepDragState,
   type DragContext,
   type DragState,
-} from "./drag_state.js"
+} from "./drag_state"
 
-export { LineDrag } from "./drag.js"
+export { LineDrag } from "./drag"

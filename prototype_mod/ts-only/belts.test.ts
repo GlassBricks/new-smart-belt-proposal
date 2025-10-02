@@ -9,8 +9,8 @@ import {
   Splitter,
   UndergroundBelt,
   YELLOW_BELT,
-} from "./belts"
-import { Direction } from "./geometry"
+} from "../common/belts"
+import { Direction } from "../common/geometry"
 
 describe("belts", () => {
   describe("BeltTier", () => {

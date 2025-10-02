@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import { beltCurvedInputDirection } from "../common/belt_curving"
 import {
   Belt,
   BLUE_BELT,
@@ -6,11 +7,10 @@ import {
   Splitter,
   UndergroundBelt,
   YELLOW_BELT,
-} from "./belts"
-import { createTransform, Direction, pos } from "./geometry"
+} from "../common/belts"
+import { createTransform, Direction, pos } from "../common/geometry"
+import { WorldOps } from "../common/world"
 import { SimulatedWorld } from "./simulated_world"
-import { beltCurvedInputDirection } from "./smart_belt/belt_curving"
-import { WorldOps } from "./world"
 
 describe("world", () => {
   describe("Basic operations", () => {

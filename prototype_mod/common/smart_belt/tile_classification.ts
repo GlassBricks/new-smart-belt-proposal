@@ -5,11 +5,11 @@ import {
   Splitter,
   UndergroundBelt,
   type BeltTier,
-} from "../belts.js"
-import { Direction, directionAxis } from "../geometry.js"
-import { DragDirection, directionMultiplier } from "./action.js"
-import type { DragContext } from "./drag_state.js"
-import { DragWorldView } from "./world_view.js"
+} from "../belts"
+import { Direction, directionAxis } from "../geometry"
+import { DragDirection, directionMultiplier } from "./action"
+import type { DragContext } from "./drag_state"
+import { DragWorldView } from "./world_view"
 
 export type TileType =
   | "Usable"

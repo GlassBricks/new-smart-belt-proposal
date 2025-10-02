@@ -1,4 +1,4 @@
-import { Splitter, UndergroundBelt, type BeltTier } from "../belts.js"
+import { Splitter, UndergroundBelt, type BeltTier } from "../belts"
 import {
   Direction,
   createRay,
@@ -6,22 +6,22 @@ import {
   rayPosition,
   type Ray,
   type TilePosition,
-} from "../geometry.js"
-import { type SimulatedWorld, type TileHistory } from "../simulated_world.js"
-import { WorldOps } from "../world.js"
+} from "../geometry"
+import { WorldOps, type World } from "../world"
 import {
   Action,
   ActionError,
   DragDirection,
   directionMultiplier,
-} from "./action.js"
+} from "./action"
 import {
   DragState,
   DragStepResult,
   deferredError,
   takeStep,
   type DragContext,
-} from "./drag_state.js"
+} from "./drag_state"
+import type { TileHistory } from "./tile_history_view"
 
 export class LineDrag {
   private constructor(
@@ -35,7 +35,7 @@ export class LineDrag {
   ) {}
 
   static startDrag(
-    world: SimulatedWorld,
+    world: World,
     tier: BeltTier,
     startPos: TilePosition,
     beltDirection: Direction,

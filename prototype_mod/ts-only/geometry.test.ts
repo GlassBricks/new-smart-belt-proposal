@@ -26,7 +26,7 @@ import {
   transformDirection,
   transformPosition,
   vec2,
-} from "./geometry"
+} from "../common/geometry"
 
 describe("geometry", () => {
   describe("Vector operations", () => {

@@ -9,11 +9,11 @@ import { readdirSync, readFileSync, writeFileSync } from "fs"
 import * as yaml from "js-yaml"
 import { join } from "path"
 import {
+  type TestCaseYaml,
   getTestVariants,
   loadTestCasesFromYaml,
   sanitizeTestName,
-  type TestCaseYaml,
-} from "./src/test-utils.js"
+} from "../js-only/test-utils"
 
 function generateTestFile(fileStem: string, testCases: TestCaseYaml[]): string {
   let code = `// Generated test file for ${fileStem}.yaml\n`
@@ -22,7 +22,7 @@ function generateTestFile(fileStem: string, testCases: TestCaseYaml[]): string {
   code += `  checkTestCaseAllTransforms,\n`
   code += `  parseTestCase,\n`
   code += `  type DragTestCase,\n`
-  code += `} from "../test_case.js";\n\n`
+  code += `} from "../test_case";\n\n`
 
   code += `describe("${fileStem}", () => {\n`
 
@@ -57,8 +57,8 @@ function generateTestFile(fileStem: string, testCases: TestCaseYaml[]): string {
 }
 
 async function main() {
-  const testSuiteDir = join(import.meta.dir, "..", "test_suite")
-  const generatedDir = join(import.meta.dir, "src", "generated")
+  const testSuiteDir = join(import.meta.dir, "..", "..", "test_suite")
+  const generatedDir = join(import.meta.dir, "..", "bun", "generated")
 
   console.log(`Reading test suite from: ${testSuiteDir}`)
   console.log(`Generating tests to: ${generatedDir}`)

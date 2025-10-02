@@ -1,5 +1,6 @@
-import { Belt, BeltConnectable, UndergroundBelt } from "../belts.js"
-import { Entity } from "../entity.js"
+import { beltIsCurvedAt } from "../belt_curving"
+import { Belt, BeltConnectable, UndergroundBelt } from "../belts"
+import { Entity } from "../entity"
 import {
   Direction,
   getPositionOnRay,
@@ -7,11 +8,10 @@ import {
   rayPosition,
   type Ray,
   type TilePosition,
-} from "../geometry.js"
-import { type TileHistory } from "../simulated_world.js"
-import type { ReadonlyWorld } from "../world.js"
-import { DragDirection } from "./action.js"
-import { beltIsCurvedAt, TileHistoryView } from "./belt_curving.js"
+} from "../geometry"
+import type { ReadonlyWorld } from "../world"
+import { DragDirection } from "./action"
+import { TileHistoryView, type TileHistory } from "./tile_history_view"
 
 export class DragWorldView {
   private historyView: TileHistoryView

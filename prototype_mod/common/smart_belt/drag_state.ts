@@ -1,17 +1,17 @@
-import { UndergroundBelt, type BeltTier } from "../belts.js"
-import { Impassable } from "../entity.js"
-import { directionAxis, getPositionOnRay, type Ray } from "../geometry.js"
-import { type TileHistory } from "../simulated_world.js"
-import type { World } from "../world.js"
+import { UndergroundBelt, type BeltTier } from "../belts"
+import { Impassable } from "../entity"
+import { directionAxis, getPositionOnRay, type Ray } from "../geometry"
+import type { World } from "../world"
 import {
   Action,
   ActionError,
   DragDirection,
   directionMultiplier,
   swapIfBackwards,
-} from "./action.js"
-import { TileClassifier } from "./tile_classification.js"
-import { DragWorldView } from "./world_view.js"
+} from "./action"
+import { TileClassifier } from "./tile_classification"
+import type { TileHistory } from "./tile_history_view"
+import { DragWorldView } from "./world_view"
 
 export class DragStepResult {
   constructor(

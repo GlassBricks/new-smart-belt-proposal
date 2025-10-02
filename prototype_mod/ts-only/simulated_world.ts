@@ -1,3 +1,4 @@
+import { beltCurvedInputDirection } from "../common/belt_curving"
 import {
   Belt,
   BeltConnectable,
@@ -5,14 +6,14 @@ import {
   Splitter,
   UndergroundBelt,
   type BeltTier,
-} from "./belts.js"
-import { Entity } from "./entity.js"
+} from "../common/belts"
+import { Entity } from "../common/entity"
 import type {
   BoundingBox,
   Direction,
   TilePosition,
   Transform,
-} from "./geometry.js"
+} from "../common/geometry"
 import {
   boundsNew,
   keyToPosition,
@@ -22,15 +23,8 @@ import {
   positionToKey,
   transformDirection,
   transformPosition,
-} from "./geometry.js"
-import {
-  beltCurvedInputDirection,
-  type BeltConnections,
-} from "./smart_belt/belt_curving.js"
-import { ReadonlyWorldOps, type World } from "./world.js"
-
-export type { BeltConnections }
-export type TileHistory = [TilePosition, BeltConnections]
+} from "../common/geometry"
+import { ReadonlyWorldOps, type World } from "../common/world"
 
 export class SimulatedWorld implements World {
   private entities: Map<string, Entity>
