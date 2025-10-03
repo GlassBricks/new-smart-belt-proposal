@@ -33,6 +33,16 @@ impl Debug for BeltTier {
     }
 }
 
+impl BeltTier {
+    /// Returns the zero-based index of this tier in the BELT_TIERS array.
+    /// - 0 = Yellow (YELLOW_BELT)
+    /// - 1 = Red (RED_BELT)
+    /// - 2 = Blue (BLUE_BELT)
+    pub fn tier_index(&self) -> usize {
+        BELT_TIERS.iter().position(|&t| t == *self).unwrap_or(0)
+    }
+}
+
 pub static YELLOW_BELT: BeltTier = BeltTier(&BeltTierData {
     name: "Yellow",
     underground_distance: 5,
@@ -276,8 +286,15 @@ impl dyn Entity {
 
 #[cfg(test)]
 mod tests {
-    use crate::belts::{Belt, BeltConnectable, UndergroundBelt, YELLOW_BELT};
+    use crate::belts::{BLUE_BELT, Belt, BeltConnectable, RED_BELT, UndergroundBelt, YELLOW_BELT};
     use crate::geometry::Direction::*;
+
+    #[test]
+    fn test_tier_index() {
+        assert_eq!(YELLOW_BELT.tier_index(), 0);
+        assert_eq!(RED_BELT.tier_index(), 1);
+        assert_eq!(BLUE_BELT.tier_index(), 2);
+    }
 
     #[test]
     fn test_underground_belt_shape_direction() {

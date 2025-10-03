@@ -126,12 +126,12 @@ impl Tilemap {
 }
 
 pub struct Tilemaps {
-    pub belt: Tilemap,
-    pub underground: Tilemap,
-    pub splitter_east: [Tilemap; 2],
-    pub splitter_west: [Tilemap; 2],
-    pub splitter_north: Tilemap,
-    pub splitter_south: Tilemap,
+    pub belt: [Tilemap; 3],
+    pub underground: [Tilemap; 3],
+    pub splitter_east: [[Tilemap; 2]; 3],
+    pub splitter_west: [[Tilemap; 2]; 3],
+    pub splitter_north: [Tilemap; 3],
+    pub splitter_south: [Tilemap; 3],
 }
 
 impl Tilemaps {
@@ -142,18 +142,70 @@ impl Tilemaps {
             Tilemap::load(assets_path.join(path), PixelSize::new(width, height))
         };
 
-        let belt = load("transport-belt.png", 128, 128)?;
-        let underground = load("underground-belt-structure.png", 192, 192)?;
+        // Belt dimensions vary by tier due to animation frames
+        // Yellow: 2048x2560 = 16x20 tiles of 128x128
+        // Fast/Express: 4096x2560 = 32x20 tiles of 128x128
+        let belt = [
+            load("transport-belt.png", 128, 128)?,
+            load("fast-transport-belt.png", 128, 128)?,
+            load("express-transport-belt.png", 128, 128)?,
+        ];
+
+        // Underground structures are consistent across tiers: 768x768 = 4x4 tiles of 192x192
+        let underground = [
+            load("underground-belt-structure.png", 192, 192)?,
+            load("fast-underground-belt-structure.png", 192, 192)?,
+            load("express-underground-belt-structure.png", 192, 192)?,
+        ];
+
+        // Splitter dimensions: 720x336 = 8x4 tiles of 90x84
+        // Top patch: 720x416 = 8x4 tiles of 90x104
         let splitter_east = [
-            load("splitter-east.png", 90, 84)?,
-            load("splitter-east-top_patch.png", 90, 104)?,
+            [
+                load("splitter-east.png", 90, 84)?,
+                load("splitter-east-top_patch.png", 90, 104)?,
+            ],
+            [
+                load("fast-splitter-east.png", 90, 84)?,
+                load("fast-splitter-east-top_patch.png", 90, 104)?,
+            ],
+            [
+                load("express-splitter-east.png", 90, 84)?,
+                load("express-splitter-east-top_patch.png", 90, 104)?,
+            ],
         ];
+
+        // West splitter dimensions vary slightly for express tier
+        // Yellow/Fast: 720x344 = 8x4 tiles of 90x86, top patch: 720x384 = 8x4 tiles of 90x96
+        // Express: 752x344 = 8x4 tiles of 94x86, top patch: 752x384 = 8x4 tiles of 94x96
         let splitter_west = [
-            load("splitter-west.png", 90, 86)?,
-            load("splitter-west-top_patch.png", 90, 96)?,
+            [
+                load("splitter-west.png", 90, 86)?,
+                load("splitter-west-top_patch.png", 90, 96)?,
+            ],
+            [
+                load("fast-splitter-west.png", 90, 86)?,
+                load("fast-splitter-west-top_patch.png", 90, 96)?,
+            ],
+            [
+                load("express-splitter-west.png", 94, 86)?,
+                load("express-splitter-west-top_patch.png", 94, 96)?,
+            ],
         ];
-        let splitter_south = load("splitter-south.png", 164, 64)?;
-        let splitter_north = load("splitter-north.png", 160, 70)?;
+
+        // South: 1312x256 = 8x4 tiles of 164x64
+        let splitter_south = [
+            load("splitter-south.png", 164, 64)?,
+            load("fast-splitter-south.png", 164, 64)?,
+            load("express-splitter-south.png", 164, 64)?,
+        ];
+
+        // North: 1280x280 = 8x4 tiles of 160x70
+        let splitter_north = [
+            load("splitter-north.png", 160, 70)?,
+            load("fast-splitter-north.png", 160, 70)?,
+            load("express-splitter-north.png", 160, 70)?,
+        ];
 
         Ok(Self {
             belt,

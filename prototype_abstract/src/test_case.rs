@@ -475,10 +475,8 @@ fn get_dir_char(direction: Direction) -> char {
 }
 
 fn print_entity(entity: &dyn Entity) -> String {
-    use crate::belts::BELT_TIERS;
-
     if let Some(Belt { direction, tier }) = entity.as_belt() {
-        let tier_num = BELT_TIERS.iter().position(|&t| t == *tier).unwrap_or(0) + 1;
+        let tier_num = tier.tier_index() + 1;
         let dir_char = get_dir_char(*direction);
         if tier_num == 1 {
             format!("{}", dir_char)
@@ -491,7 +489,7 @@ fn print_entity(entity: &dyn Entity) -> String {
         is_input,
     }) = entity.as_underground_belt()
     {
-        let tier_num = BELT_TIERS.iter().position(|&t| t == *tier).unwrap_or(0) + 1;
+        let tier_num = tier.tier_index() + 1;
         let dir_char = get_dir_char(*direction);
         let type_char = if *is_input { 'i' } else { 'o' };
         if tier_num == 1 {
@@ -500,7 +498,7 @@ fn print_entity(entity: &dyn Entity) -> String {
             format!("{}{}{}", tier_num, dir_char, type_char)
         }
     } else if let Some(Splitter { direction, tier }) = entity.as_splitter() {
-        let tier_num = BELT_TIERS.iter().position(|&t| t == *tier).unwrap_or(0) + 1;
+        let tier_num = tier.tier_index() + 1;
         let dir_char = get_dir_char(*direction);
         if tier_num == 1 {
             format!("{}s", dir_char)
@@ -513,7 +511,7 @@ fn print_entity(entity: &dyn Entity) -> String {
         is_input,
     }) = entity.as_loader_like()
     {
-        let tier_num = BELT_TIERS.iter().position(|&t| t == *tier).unwrap_or(0) + 1;
+        let tier_num = tier.tier_index() + 1;
         let type_char = if *is_input { 'I' } else { 'O' };
         let dir_char = get_dir_char(*direction);
         if tier_num == 1 {

@@ -140,33 +140,41 @@ impl ImageRenderer {
 
         match (entity.as_belt_connectable(), layer) {
             (Some(BeltConnectableEnum::Belt(belt)), RenderLayer::Bottom) => {
+                let tier_idx = belt.tier.tier_index();
                 self.render_belt(
                     canvas,
                     belt.direction,
                     world.input_direction_at(pos),
                     pixel_pos,
+                    tier_idx,
                 );
             }
             (Some(BeltConnectableEnum::UndergroundBelt(underground)), RenderLayer::Bottom) => {
+                let tier_idx = underground.tier.tier_index();
                 self.render_underground_belt_base(
                     canvas,
                     underground.direction,
                     underground.is_input,
                     pixel_pos,
+                    tier_idx,
                 );
             }
             (Some(BeltConnectableEnum::UndergroundBelt(underground)), RenderLayer::Top) => {
+                let tier_idx = underground.tier.tier_index();
                 self.render_underground_belt_structure(
                     canvas,
                     underground.direction,
                     underground.is_input,
                     pixel_pos,
+                    tier_idx,
                 );
             }
             (Some(BeltConnectableEnum::Splitter(splitter)), RenderLayer::Bottom) => {
-                self.render_belt(canvas, splitter.direction, None, pixel_pos);
+                let tier_idx = splitter.tier.tier_index();
+                self.render_belt(canvas, splitter.direction, None, pixel_pos, tier_idx);
             }
             (Some(BeltConnectableEnum::Splitter(splitter)), RenderLayer::Top) => {
+                let tier_idx = splitter.tier.tier_index();
                 let is_head = if let Some(tail_pos) = get_tail_pos(splitter, pos, bounds)
                     && world
                         .get(tail_pos)
@@ -176,7 +184,13 @@ impl ImageRenderer {
                 } else {
                     true
                 };
-                self.render_splitter_structure(canvas, splitter.direction, is_head, pixel_pos);
+                self.render_splitter_structure(
+                    canvas,
+                    splitter.direction,
+                    is_head,
+                    pixel_pos,
+                    tier_idx,
+                );
             }
             (_, RenderLayer::Bottom) => {
                 self.render_blocker(canvas, pixel_pos);
@@ -191,6 +205,7 @@ impl ImageRenderer {
         output_direction: Direction,
         input_direction: Option<Direction>,
         pixel_pos: PixelPoint,
+        tier_index: usize,
     ) {
         const CURVED_INDICES: [[u8; 4]; 3] = [[11, 8, 4, 7], [0, 2, 1, 3], [6, 10, 9, 5]];
 
@@ -198,7 +213,7 @@ impl ImageRenderer {
         let output_py = direction_to_python_index(output_direction);
         let direction_diff = (output_py + 4 - input_py + 1) % 4;
         let tile_index = CURVED_INDICES[direction_diff][input_py];
-        self.tilemaps.belt.draw(
+        self.tilemaps.belt[tier_index].draw(
             canvas,
             pixel_pos - Vector2D::splat(TILE_SIZE as i32 / 2),
             (ANIMATION_FRAME, tile_index),
@@ -213,6 +228,7 @@ impl ImageRenderer {
         direction: Direction,
         is_input: bool,
         pixel_pos: PixelPoint,
+        tier_index: usize,
     ) {
         let indices = if !is_input {
             [14, 12, 18, 16]
@@ -221,7 +237,7 @@ impl ImageRenderer {
         };
         let tile_index = indices[direction_to_python_index(direction)];
 
-        self.tilemaps.belt.draw(
+        self.tilemaps.belt[tier_index].draw(
             canvas,
             pixel_pos - Vector2D::splat(TILE_SIZE as i32 / 2),
             (ANIMATION_FRAME, tile_index),
@@ -236,6 +252,7 @@ impl ImageRenderer {
         direction: Direction,
         is_input: bool,
         pixel_pos: PixelPoint,
+        tier_index: usize,
     ) {
         let indices = if !is_input {
             [3, 2, 1, 0]
@@ -244,7 +261,7 @@ impl ImageRenderer {
         };
         let tile_index = indices[direction_to_python_index(direction)];
 
-        self.tilemaps.underground.draw(
+        self.tilemaps.underground[tier_index].draw(
             canvas,
             pixel_pos - Vector2D::splat(TILE_SIZE as i32),
             (tile_index, is_input as u8),
@@ -259,6 +276,7 @@ impl ImageRenderer {
         direction: Direction,
         is_head: bool,
         pixel_pos: PixelPoint,
+        tier_index: usize,
     ) {
         match direction {
             Direction::East => {
@@ -271,7 +289,7 @@ impl ImageRenderer {
                             (5 * TILE_SIZE) / 16
                         } as i32,
                     );
-                self.tilemaps.splitter_east[if !is_head { 1 } else { 0 }].draw(
+                self.tilemaps.splitter_east[tier_index][if !is_head { 1 } else { 0 }].draw(
                     canvas,
                     adjusted_pos,
                     ((ANIMATION_FRAME % 8), (ANIMATION_FRAME / 8) % 4),
@@ -280,7 +298,7 @@ impl ImageRenderer {
                 );
             }
             Direction::West => {
-                self.tilemaps.splitter_west[if !is_head { 0 } else { 1 }].draw(
+                self.tilemaps.splitter_west[tier_index][if !is_head { 0 } else { 1 }].draw(
                     canvas,
                     pixel_pos - Vector2D::new(0, (5 * TILE_SIZE as i32) / 16),
                     ((ANIMATION_FRAME % 8), (ANIMATION_FRAME / 8) % 4),
@@ -300,7 +318,7 @@ impl ImageRenderer {
                         fractional_to_pixel_vector(1.0 - 13.0 / 32.0, 1.0),
                     )
                 };
-                self.tilemaps.splitter_north.draw(
+                self.tilemaps.splitter_north[tier_index].draw(
                     canvas,
                     pixel_pos,
                     ((ANIMATION_FRAME % 8), (ANIMATION_FRAME / 8) % 4),
@@ -323,7 +341,7 @@ impl ImageRenderer {
                         fractional_to_pixel_vector(1.0 - 14.0 / 32.0, 1.0),
                     )
                 };
-                self.tilemaps.splitter_south.draw(
+                self.tilemaps.splitter_south[tier_index].draw(
                     canvas,
                     adjusted_pos,
                     (ANIMATION_FRAME % 8, (ANIMATION_FRAME / 8) % 4),

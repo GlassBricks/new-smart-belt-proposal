@@ -27,9 +27,9 @@ impl DragDirection {
     }
 }
 
-/**
- * Handles line dragging; includes mutable methods
- */
+pub struct DragStepResult(pub Action, pub Option<Error>, pub DragState);
+
+/// Handles dragging in a straight line (no rotations).
 #[derive(Debug)]
 pub struct LineDrag<'a> {
     pub(super) world: &'a mut World,
@@ -41,14 +41,14 @@ pub struct LineDrag<'a> {
     // want the logic to be independent of what we've placed. As such, we track
     // the history of tiles we've replaced. It suffices only to keep track of
     // one tile (the last placed output belt).
+    // See belt_curving.rs for more info
     tile_history: Option<TileHistory>,
-    // for testing
     pub(super) errors: Vec<(TilePosition, Error)>,
 }
 
-pub struct DragStepResult(pub Action, pub Option<Error>, pub DragState);
-
 impl<'a> LineDrag<'a> {
+    /// Starts a drag.
+    /// Note: the very first click may fast-replace something, forcing something to be overwritten.
     pub fn start_drag(
         world: &'a mut World,
         tier: BeltTier,
@@ -86,7 +86,7 @@ impl<'a> LineDrag<'a> {
         self.last_position + direction.direction_multiplier()
     }
 
-    /// the only mutable functions are here!
+    /// Main entry point for the drag operation.
     pub fn interpolate_to(&mut self, new_position: TilePosition) {
         let target_pos = self.ray.ray_position(new_position);
         while self.last_position < target_pos {

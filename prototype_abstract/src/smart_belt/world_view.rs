@@ -31,9 +31,11 @@ impl<'a> DragWorldView<'a> {
         }
     }
 
+    /// Direction of the belt.
     pub fn belt_direction(&self) -> Direction {
         self.ray.direction
     }
+    /// Direction of the next belt, maybe be opposite in case of backwards drags
     pub fn ray_direction(&self) -> Direction {
         if self.direction == DragDirection::Forward {
             self.ray.direction
@@ -42,7 +44,6 @@ impl<'a> DragWorldView<'a> {
         }
     }
 
-    // World interaction methods - stubbed for implementation
     pub fn get_entity(&self, position: i32) -> Option<&dyn Entity> {
         self.history_view
             .get_entity(self.ray.get_position(position))

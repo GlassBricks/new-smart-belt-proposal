@@ -23,5 +23,6 @@ Please test this out and share your feedback!
 ## TODO
 
 - Implement ghost building and super forced building
+- Handle deconstructed belts
 - Actually take items from your inventory
 - Contact Kovarex
