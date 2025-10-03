@@ -2,7 +2,6 @@ import type { BeltConnections } from "./belt_curving"
 import {
   Belt,
   BeltConnectable,
-  Colliding,
   UndergroundBelt,
   type BeltTier,
   type Entity as EntityLike,
@@ -21,6 +20,7 @@ export interface ReadonlyWorld {
   get(position: TilePosition): EntityLike | undefined
   outputDirectionAt(position: TilePosition): Direction | undefined
   inputDirectionAt(position: TilePosition): Direction | undefined
+  canFastReplaceBelt(position: TilePosition): boolean
 }
 
 export interface World extends ReadonlyWorld {
@@ -69,14 +69,6 @@ export class ReadonlyWorldOps {
   getBelt(position: TilePosition): BeltConnectable | undefined {
     const entity = this.world.get(position)
     return entity instanceof BeltConnectable ? entity : undefined
-  }
-
-  canPlaceBeltOnTile(position: TilePosition): boolean {
-    const entity = this.world.get(position)
-    if (!entity) {
-      return true
-    }
-    return !(entity instanceof Colliding)
   }
 
   beltConnectionsAt(position: TilePosition): BeltConnections {

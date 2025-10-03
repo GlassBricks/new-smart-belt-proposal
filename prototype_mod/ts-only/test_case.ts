@@ -23,7 +23,11 @@ import {
   type Ray,
   type TilePosition,
 } from "../common/geometry"
-import { LineDrag, type ActionError } from "../common/smart_belt/index"
+import {
+  LineDrag,
+  type ActionError,
+  type ErrorHandler,
+} from "../common/smart_belt/index"
 import { BELT_TIERS } from "./belt_tiers"
 import { SimulatedWorld } from "./simulated_world"
 import {
@@ -371,7 +375,6 @@ export function runTestCase(
   const { leftmostPos, startPos, beltDirection, endPos, tier } = test
 
   const ray = createRay(startPos, beltDirection)
-  const endPosRay = rayDistance(ray, endPos)
 
   const snapped = getRayPosition(ray, rayDistance(ray, endPos))
   if (snapped.x !== endPos.x || snapped.y !== endPos.y) {
@@ -391,11 +394,11 @@ export function runTestCase(
   )
 
   if (wiggle) {
-    runWiggle(drag, result, startPos, endPos, beltDirection, ray, endPosRay)
+    runWiggle(drag, result, errorHandler, startPos, endPos, beltDirection, ray)
   } else if (forwardBack) {
-    runForwardBack(drag, result, leftmostPos, endPos)
+    runForwardBack(drag, result, errorHandler, leftmostPos, endPos)
   } else {
-    drag.interpolateTo(result, endPos)
+    drag.interpolateTo(result, errorHandler, endPos)
   }
 
   const errors = new Set<string>()
@@ -409,12 +412,13 @@ export function runTestCase(
 function runWiggle(
   drag: LineDrag,
   world: SimulatedWorld,
+  errorHandler: ErrorHandler,
   startPos: TilePosition,
   endPos: TilePosition,
   dragDirection: Direction,
   ray: Ray,
-  endPosRay: number,
 ): void {
+  const endPosRay = rayDistance(ray, endPos)
   const dirVec = directionToVector(dragDirection)
 
   let currentPos = startPos
@@ -424,25 +428,26 @@ function runWiggle(
       currentPos.x + dirVec.x * 2,
       currentPos.y + dirVec.y * 2,
     )
-    drag.interpolateTo(world, forward2)
+    drag.interpolateTo(world, errorHandler, forward2)
     const back1 = pos(currentPos.x + dirVec.x, currentPos.y + dirVec.y)
-    drag.interpolateTo(world, back1)
+    drag.interpolateTo(world, errorHandler, back1)
     currentPos = back1
   }
 
   if (rayDistance(ray, currentPos) !== endPosRay) {
-    drag.interpolateTo(world, endPos)
+    drag.interpolateTo(world, errorHandler, endPos)
   }
 }
 
 function runForwardBack(
   drag: LineDrag,
   world: SimulatedWorld,
+  errorHandler: ErrorHandler,
   leftmostPos: TilePosition,
   endPos: TilePosition,
 ): void {
-  drag.interpolateTo(world, endPos)
-  drag.interpolateTo(world, leftmostPos)
+  drag.interpolateTo(world, errorHandler, endPos)
+  drag.interpolateTo(world, errorHandler, leftmostPos)
 }
 
 export function checkTestCase(

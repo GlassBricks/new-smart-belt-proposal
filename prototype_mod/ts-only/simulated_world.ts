@@ -78,6 +78,14 @@ export class SimulatedWorld implements World {
     return beltCurvedInputDirection(this, position, entity.direction)
   }
 
+  canFastReplaceBelt(position: TilePosition): boolean {
+    const entity = this.get(position)
+    if (!entity) {
+      return true
+    }
+    return entity instanceof BeltConnectable
+  }
+
   upgradeUg(position: TilePosition, tier: BeltTier): void {
     this.upgradeUgChecked(position, tier)
   }

@@ -48,7 +48,6 @@ export class LineDrag {
     private lastState: DragState,
     private lastPosition: number,
     private tileHistory: TileHistory | undefined,
-    private errorHandler: ErrorHandler,
   ) {}
 
   static startDrag(
@@ -59,7 +58,7 @@ export class LineDrag {
     errorHandler: ErrorHandler,
   ): LineDrag {
     const worldOps = new WorldOps(world)
-    const canPlace = worldOps.canPlaceBeltOnTile(startPos)
+    const canPlace = world.canFastReplaceBelt(startPos)
     const tileHistory: TileHistory | undefined = canPlace
       ? [startPos, worldOps.beltConnectionsAt(startPos)]
       : undefined
@@ -78,7 +77,6 @@ export class LineDrag {
       initialState,
       0,
       tileHistory,
-      errorHandler,
     )
   }
 
@@ -90,37 +88,42 @@ export class LineDrag {
     return getRayPosition(this.ray, this.lastPosition)
   }
 
-  interpolateTo(world: World, newPosition: TilePosition): void {
+  interpolateTo(
+    world: World,
+    errorHandler: ErrorHandler,
+    newPosition: TilePosition,
+  ): void {
     const targetPos = rayDistance(this.ray, newPosition)
 
     while (this.lastPosition < targetPos) {
       const ctx = this.createContext(world)
       const result = takeStep(this.lastState, ctx, DragDirection.Forward)
-      this.applyStep(world, result, DragDirection.Forward)
+      this.applyStep(world, errorHandler, result, DragDirection.Forward)
     }
 
     while (this.lastPosition > targetPos) {
       const ctx = this.createContext(world)
       const result = takeStep(this.lastState, ctx, DragDirection.Backward)
-      this.applyStep(world, result, DragDirection.Backward)
+      this.applyStep(world, errorHandler, result, DragDirection.Backward)
     }
   }
 
   private applyStep(
     world: World,
+    errorHandler: ErrorHandler,
     step: DragStepResult,
     direction: DragDirection,
   ): void {
     let [action, nextState, err] = step
-    this.applyAction(world, action, direction)
+    this.applyAction(world, errorHandler, action, direction)
 
     const deferred = deferredError(this.lastState, direction)
     if (deferred !== undefined) {
-      this.addError(deferred, direction)
+      this.addError(errorHandler, deferred, direction)
     }
 
     if (err !== undefined) {
-      this.addError(err, direction)
+      this.addError(errorHandler, err, direction)
     }
 
     this.lastState = nextState
@@ -129,6 +132,7 @@ export class LineDrag {
 
   private applyAction(
     world: World,
+    errorHandler: ErrorHandler,
     action: Action,
     direction: DragDirection,
   ): void {
@@ -221,7 +225,11 @@ export class LineDrag {
           ) {
             world.upgradeUg(worldPos, this.tier)
           } else {
-            this.addError(ActionError.CannotUpgradeUnderground, direction)
+            this.addError(
+              errorHandler,
+              ActionError.CannotUpgradeUnderground,
+              direction,
+            )
           }
         }
         break
@@ -245,9 +253,13 @@ export class LineDrag {
     this.tileHistory = tileHistory
   }
 
-  private addError(error: ActionError, direction: DragDirection): void {
+  private addError(
+    errorHandler: ErrorHandler,
+    error: ActionError,
+    direction: DragDirection,
+  ): void {
     const worldPos = getRayPosition(this.ray, this.nextPosition(direction))
-    this.errorHandler.handleError(worldPos, error)
+    errorHandler.handleError(worldPos, error)
   }
 
   private createContext(world: World): DragContext {
@@ -295,46 +307,53 @@ function canUpgradeUnderground(
 export class FullDrag {
   private currentLine!: LineDrag
   private constructor(
-    private world: World,
     private tier: BeltTier,
-    private errorHandler: ErrorHandler,
-    startPos: TilePosition,
-    beltDirection: Direction,
-  ) {
-    this.switchDrag(startPos, beltDirection)
-  }
-
-  private switchDrag(pos: TilePosition, direction: Direction) {
-    this.currentLine = LineDrag.startDrag(
-      this.world,
-      this.tier,
-      pos,
-      direction,
-      this.errorHandler,
-    )
-  }
+    private startPos: TilePosition,
+    private beltDirection: Direction,
+  ) {}
 
   static startDrag(
-    world: World,
     tier: BeltTier,
     startPos: TilePosition,
     beltDirection: Direction,
-    errorHandler: ErrorHandler,
   ): FullDrag {
-    return new FullDrag(world, tier, errorHandler, startPos, beltDirection)
+    return new FullDrag(tier, startPos, beltDirection)
   }
 
-  public interpolateTo(pos: TilePosition) {
-    this.currentLine.interpolateTo(this.world, pos)
+  public interpolateTo(
+    world: World,
+    errorHandler: ErrorHandler,
+    pos: TilePosition,
+  ) {
+    if (!this.currentLine) {
+      this.currentLine = LineDrag.startDrag(
+        world,
+        this.tier,
+        this.startPos,
+        this.beltDirection,
+        errorHandler,
+      )
+    }
+    this.currentLine.interpolateTo(world, errorHandler, pos)
   }
 
-  public rotate(pos: TilePosition): boolean {
+  public rotate(
+    world: World,
+    errorHandler: ErrorHandler,
+    pos: TilePosition,
+  ): boolean {
     let newDirection = rayRelativeDirection(this.currentLine.ray, pos)
     if (newDirection === undefined) {
       return false
     }
     let newStart = this.currentLine.curWorldPosition()
-    this.switchDrag(newStart, newDirection)
+    this.currentLine = LineDrag.startDrag(
+      world,
+      this.tier,
+      newStart,
+      newDirection,
+      errorHandler,
+    )
     return true
   }
 }
