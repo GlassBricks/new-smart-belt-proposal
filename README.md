@@ -2,7 +2,7 @@
 
 A proposal for a new, improved, and fixed version of Factorio smart belt!
 
-UPDATE: MOD IS PUBLISHED! See
+UPDATE: PROTOTYPE MOD IS PUBLISHED! See https://mods.factorio.com/mod/smarter-belt
 
 The main prototype implementation is in ./prototype_mod.
 **See also: [the forum post discussion](https://forums.factorio.com/viewtopic.php?p=678133#p678133)**, where open questions are being discussed!
