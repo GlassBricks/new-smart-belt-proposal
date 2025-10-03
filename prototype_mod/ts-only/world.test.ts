@@ -206,7 +206,7 @@ describe("world", () => {
     test("transformWorld applies transform to all entities", () => {
       const world = new SimulatedWorld()
       world.set(pos(1, 2), new Belt(Direction.North, YELLOW_BELT))
-      world.set(pos(3, 4), new Splitter(Direction.East, RED_BELT))
+      world.set(pos(3, 4), new Splitter(Direction.East, RED_BELT.splitterName!))
 
       const transform = createTransform(true, false, false)
       const transformed = world.transformWorld(transform)
@@ -226,7 +226,10 @@ describe("world", () => {
       const world = new SimulatedWorld()
       world.set(pos(0, 0), new Belt(Direction.North, YELLOW_BELT))
       world.set(pos(1, 1), new UndergroundBelt(Direction.East, true, RED_BELT))
-      world.set(pos(2, 2), new Splitter(Direction.South, BLUE_BELT))
+      world.set(
+        pos(2, 2),
+        new Splitter(Direction.South, BLUE_BELT.splitterName!),
+      )
 
       const flipped = world.flipAllEntities()
 

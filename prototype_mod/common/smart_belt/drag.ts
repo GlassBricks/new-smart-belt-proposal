@@ -58,7 +58,7 @@ export class LineDrag {
     errorHandler: ErrorHandler,
   ): LineDrag {
     const worldOps = new WorldOps(world)
-    const canPlace = world.canFastReplaceBelt(startPos)
+    const canPlace = world.canFastReplaceBelt(startPos, beltDirection)
     const tileHistory: TileHistory | undefined = canPlace
       ? [startPos, worldOps.beltConnectionsAt(startPos)]
       : undefined
@@ -241,8 +241,15 @@ export class LineDrag {
           throw new Error("Expected Splitter at position")
         }
 
-        if (entity.tier !== this.tier) {
-          entity.tier = this.tier
+        if (
+          this.tier.splitterName !== undefined &&
+          entity.name !== this.tier.splitterName
+        ) {
+          // Only upgrade if the tier has a splitterName defined
+          world.tryBuild(
+            worldPos,
+            new Splitter(this.ray.direction, this.tier.splitterName),
+          )
         }
         break
       }

@@ -20,7 +20,7 @@ export interface ReadonlyWorld {
   get(position: TilePosition): EntityLike | undefined
   outputDirectionAt(position: TilePosition): Direction | undefined
   inputDirectionAt(position: TilePosition): Direction | undefined
-  canFastReplaceBelt(position: TilePosition): boolean
+  canFastReplaceBelt(position: TilePosition, beltDirection: Direction): boolean
 }
 
 export interface World extends ReadonlyWorld {

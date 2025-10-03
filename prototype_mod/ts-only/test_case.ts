@@ -112,10 +112,10 @@ function parseWord(input: string): Entity | undefined {
     return undefined
   }
   if (input === "X") {
-    return new Colliding()
+    return new Colliding("X")
   }
   if (input === "#") {
-    return new Impassable()
+    return new Impassable("#")
   }
 
   let i = 0
@@ -152,11 +152,11 @@ function parseWord(input: string): Entity | undefined {
     case "o":
       return new UndergroundBelt(direction, false, tier)
     case "s":
-      return new Splitter(direction, tier)
+      return new Splitter(direction, tier.splitterName!)
     case "I":
-      return new LoaderLike(direction, true, tier)
+      return new LoaderLike(direction, true, tier.beltName + "-loader")
     case "O":
-      return new LoaderLike(direction, false, tier)
+      return new LoaderLike(direction, false, tier.beltName + "-loader")
     default:
       throw new Error(`Invalid entity type: ${typeChar}`)
   }
@@ -203,11 +203,14 @@ function printEntity(entity: Entity): string {
       ? `${dirChar}${typeChar}`
       : `${tierNum}${dirChar}${typeChar}`
   } else if (entity instanceof Splitter) {
-    const tierNum = BELT_TIERS.indexOf(entity.tier) + 1
+    const tierNum =
+      BELT_TIERS.findIndex((tier) => entity.name == tier.splitterName) + 1
     const dirChar = directionToChar(entity.direction)
     return tierNum === 1 ? `${dirChar}s` : `${tierNum}${dirChar}s`
   } else if (entity instanceof LoaderLike) {
-    const tierNum = BELT_TIERS.indexOf(entity.tier) + 1
+    const tierNum = BELT_TIERS.findIndex(
+      (tier) => entity.name == tier.beltName + "-loader",
+    )
     const dirChar = directionToChar(entity.direction)
     const typeChar = entity.isInput ? "I" : "O"
     return tierNum === 1
@@ -331,7 +334,9 @@ function getEntities(serde: TestCaseSerialized): TestCaseEntities {
   }
 
   const firstBeltEntity = firstBelt[1] as BeltConnectable
-  const tier = firstBeltEntity.tier
+  const tier =
+    firstBeltEntity.tier ??
+    BELT_TIERS.find((tier) => tier.splitterName == firstBeltEntity.name)!
   const direction = firstBeltEntity.direction
 
   const maxX = Math.max(

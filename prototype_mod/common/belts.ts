@@ -4,22 +4,28 @@ import { oppositeDirection } from "./geometry"
 // Only for the purposes of belt interaction.
 export interface Entity {
   readonly type: string
+  readonly name: string
 }
 
 export class Colliding implements Entity {
   readonly type = "Colliding" as const
+  constructor(readonly name: string) {}
 }
 export class Impassable implements Entity {
   readonly type = "Impassable" as const
+  constructor(readonly name: string) {}
 }
 
 export interface BeltTier {
-  readonly name: string
+  readonly beltName: string
+  readonly undergroundName: string
+  readonly splitterName?: string
   readonly undergroundDistance: number
 }
 
-export abstract class BeltConnectable {
+export abstract class BeltConnectable implements Entity {
   abstract readonly type: string
+  abstract readonly name: string
   abstract readonly direction: Direction
   abstract readonly tier?: BeltTier
   readonly isInput?: boolean
@@ -31,7 +37,7 @@ export abstract class BeltConnectable {
     return (
       this.type == other.type &&
       this.direction == other.direction &&
-      this.tier == other.tier &&
+      this.name === other.name &&
       this.isInput == other.isInput
     )
   }
@@ -51,12 +57,14 @@ export abstract class BeltConnectable {
 
 export class Belt extends BeltConnectable {
   readonly type = "Belt" as const
+  name: string
 
   constructor(
     readonly direction: Direction,
     readonly tier: BeltTier,
   ) {
     super()
+    this.name = tier.beltName
   }
 
   hasOutput(): boolean {
@@ -70,6 +78,7 @@ export class Belt extends BeltConnectable {
 
 export class UndergroundBelt extends BeltConnectable {
   readonly type = "UndergroundBelt" as const
+  name: string
 
   constructor(
     readonly direction: Direction,
@@ -77,6 +86,7 @@ export class UndergroundBelt extends BeltConnectable {
     readonly tier: BeltTier,
   ) {
     super()
+    this.name = tier.beltName
   }
 
   hasOutput(): boolean {
@@ -102,11 +112,12 @@ export class UndergroundBelt extends BeltConnectable {
 
 export class LoaderLike extends BeltConnectable {
   readonly type = "LoaderLike" as const
+  readonly tier = undefined
 
   constructor(
     readonly direction: Direction,
     override readonly isInput: boolean,
-    readonly tier?: BeltTier,
+    readonly name: string,
   ) {
     super()
   }
@@ -126,10 +137,11 @@ export class LoaderLike extends BeltConnectable {
 
 export class Splitter extends BeltConnectable {
   readonly type = "Splitter" as const
+  readonly tier = undefined
 
   constructor(
     readonly direction: Direction,
-    public tier?: BeltTier,
+    readonly name: string,
   ) {
     super()
   }

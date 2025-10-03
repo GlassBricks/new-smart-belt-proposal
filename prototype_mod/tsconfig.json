@@ -21,6 +21,11 @@
     "noImplicitSelf": true,
     "sourceMapTraceback": true
   },
-  "include": ["control.ts", "data-updates.ts", "common/**/*.ts", "mod-scripts/**/*.ts"],
+  "include": [
+    "control.ts",
+    "data-final-fixes.ts",
+    "common/**/*.ts",
+    "mod-scripts/**/*.ts"
+  ],
   "exclude": ["ts-only/"]
 }

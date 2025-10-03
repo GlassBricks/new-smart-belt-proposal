@@ -70,12 +70,13 @@ export class SimulatedWorld implements World {
 
   inputDirectionAt(position: TilePosition): Direction | undefined {
     const entity = this.get(position)
-    if (!(entity instanceof Belt)) {
-      const belt = this.getBelt(position)
-      return belt ? belt.primaryInputDirection() : undefined
+    if (entity instanceof Belt) {
+      return beltCurvedInputDirection(this, position, entity.direction)
     }
-
-    return beltCurvedInputDirection(this, position, entity.direction)
+    if (entity instanceof BeltConnectable) {
+      return entity.primaryInputDirection()
+    }
+    return undefined
   }
 
   canFastReplaceBelt(position: TilePosition): boolean {
@@ -248,13 +249,13 @@ export class SimulatedWorld implements World {
     } else if (entity instanceof Splitter) {
       return new Splitter(
         transformDirection(transform, entity.direction),
-        entity.tier,
+        entity.name,
       )
     } else if (entity instanceof LoaderLike) {
       return new LoaderLike(
         transformDirection(transform, entity.direction),
         entity.isInput,
-        entity.tier,
+        entity.name,
       )
     } else {
       return entity
@@ -283,13 +284,13 @@ export class SimulatedWorld implements World {
       } else if (entity instanceof Splitter) {
         newEntity = new Splitter(
           oppositeDirection(entity.direction),
-          entity.tier,
+          entity.name,
         )
       } else if (entity instanceof LoaderLike) {
         newEntity = new LoaderLike(
           oppositeDirection(entity.direction),
           !entity.isInput,
-          entity.tier,
+          entity.name,
         )
       } else {
         newEntity = entity
