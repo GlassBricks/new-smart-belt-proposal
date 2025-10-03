@@ -9,7 +9,7 @@
     "clean-mod": "rm mod/**/*.lua",
     "build-mod": "tstl",
     "watch-mod": "tstl --watch",
-    "publish-mod": "bun run clean-mod && bun run build-mod && export $(xargs <.env) && cd mod && fmtk publish"
+    "publish-mod": "export $(xargs <.env) && cd mod && fmtk publish"
   },
   "devDependencies": {
     "@types/bun": "latest",
