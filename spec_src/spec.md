@@ -38,20 +38,10 @@ Tries to pinpoint what it means for smart belt to be "correct". Try comparing th
 - **Complete**: Creates a valid belt line if possible (from below rules). Always notifies the player with an error if not.
 - **Non-interference**: ALL non-integrated entities and belts should be untouched. This means not changing the rotation of another belt.
 
-
 ### Desired capabilities
 
 - Supports belt weaving (underground belts of different tiers don't interfere).
 - Support "naturally" continuing existing belt lines.
-
-#### Unpaired underground belts
-
-New underground belts are always placed as a pair; no lonely underground belts.
-
-However, for existing unpaired underground belts, we currently just always fast-replace them and treat it like belt.
-This might break existing side-loads.
-Supporting the former (preserving side loads) would be more complicated, and not too much of a value add.
-We relegate this to a potential future extension/modification.
 
 ## Motivating examples
 
@@ -284,6 +274,7 @@ This won't satisfy everyone in every single situation, but seems a decent compro
 it's possible to tell at a glance what behavior you'll get; you can still override the default behavior by dragging twice in these cases.
 
 # THE SPEC
+
 
 Starting to make things formal, handling all cases shown earlier.
 

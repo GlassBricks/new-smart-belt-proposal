@@ -2,10 +2,10 @@
 
 A proposal for a new, improved, and fixed version of Factorio smart belt!
 
-The main file is [smart_belt_spec.md](smart_belt_spec.md), formalizing goals.
-**See also: [the forum post discussion](https://forums.factorio.com/viewtopic.php?p=678133#p678133)**, where open questions are being discussed!
+UPDATE: MOD IS PUBLISHED! See
 
-This repo will later have a prototype implementation, both abstractly (for initial test cases), then a mod implementation.
+The main prototype implementation is in ./prototype_mod.
+**See also: [the forum post discussion](https://forums.factorio.com/viewtopic.php?p=678133#p678133)**, where open questions are being discussed!
 
 ### Comments and critiques are welcome!
 Feel free to open an issue or a pull request.

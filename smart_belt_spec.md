@@ -151,6 +151,9 @@ it's possible to tell at a glance what behavior you'll get; you can still overri
 
 # THE SPEC
 
+# IMPORTANT: This spec is outdated. It turns out there's a lot more details in the implementation that needed to be ironed out.
+Refer to [[prototype_mod/src/common/smart_belt/]] instead!
+
 Starting to make things formal, handling all cases shown earlier.
 
 ## Obstacle/tile classification
