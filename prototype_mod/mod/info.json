@@ -1,8 +1,8 @@
 {
   "name": "smarter-belt",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "title": "Smarter belt",
-  "description": "A better smart belt implementation and proposal",
+  "description": "A prototype for a Better Smart Belt!",
   "homepage": "https://github.com/GlassBricks/new-smart-belt-proposal/",
   "author": "GlassBricks",
   "factorio_version": "2.0",
