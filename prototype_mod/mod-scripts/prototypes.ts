@@ -5,11 +5,10 @@ export const ALL_BELT_TYPES = [
   "transport-belt",
   "underground-belt",
   "splitter",
-  // todo
-  // "lane-splitter",
-  // "linked-belt",
-  // "loader-1x1",
-  // "loader",
+  "lane-splitter",
+  "linked-belt",
+  "loader-1x1",
+  "loader",
 ] as const
 export type AllBeltTypes = (typeof ALL_BELT_TYPES)[number]
 

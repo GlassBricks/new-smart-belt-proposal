@@ -73,7 +73,7 @@ script.on_event(defines.events.on_player_cursor_stack_changed, (event) => {
   const player = game.get_player(event.player_index)!
   const stack = player.cursor_stack
   if (stack && stack.valid_for_read && stack.name.startsWith("smarter-")) {
-    stack.count = 100
+    stack.count = 42
   }
 })
 

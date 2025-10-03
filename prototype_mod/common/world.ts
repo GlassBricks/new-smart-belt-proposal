@@ -20,13 +20,20 @@ export interface ReadonlyWorld {
   get(position: TilePosition): EntityLike | undefined
   outputDirectionAt(position: TilePosition): Direction | undefined
   inputDirectionAt(position: TilePosition): Direction | undefined
-  canPlaceOrFastReplace(position: TilePosition, beltDirection: Direction): boolean
+  canPlaceOrFastReplace(
+    position: TilePosition,
+    beltDirection: Direction,
+  ): boolean
 }
 
 export interface World extends ReadonlyWorld {
   mine(pos: TilePosition): void
 
-  tryBuild(position: TilePosition, entity: Belt | UndergroundBelt): boolean
+  tryBuild(
+    position: TilePosition,
+    entity: Belt | UndergroundBelt,
+    isFirst?: boolean,
+  ): boolean
 
   flipUg(position: TilePosition): void
   upgradeUg(position: TilePosition, tier: BeltTier): void
@@ -91,11 +98,12 @@ export class WorldOps extends ReadonlyWorldOps {
     position: TilePosition,
     direction: Direction,
     tier: BeltTier,
+    isFirst?: boolean,
   ): TileHistory | undefined {
     let history = this.beltConnectionsAt(position)
 
     const newBelt = new Belt(direction, tier)
-    if (this.world.tryBuild(position, newBelt)) {
+    if (this.world.tryBuild(position, newBelt, isFirst)) {
       return [position, history]
     }
   }
@@ -105,11 +113,12 @@ export class WorldOps extends ReadonlyWorldOps {
     direction: Direction,
     isInput: boolean,
     tier: BeltTier,
+    isFirst?: boolean,
   ): TileHistory | undefined {
     let history = this.beltConnectionsAt(position)
 
     const newUg = new UndergroundBelt(direction, isInput, tier)
-    if (this.world.tryBuild(position, newUg)) {
+    if (this.world.tryBuild(position, newUg, isFirst)) {
       return [position, history]
     }
   }

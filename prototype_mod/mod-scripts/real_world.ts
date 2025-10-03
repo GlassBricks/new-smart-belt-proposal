@@ -13,6 +13,7 @@ import {
   BeltTier,
   CollidingEntity,
   ImpassableTile,
+  LoaderLike,
   Splitter,
   UndergroundBelt,
 } from "../common/belts"
@@ -78,6 +79,7 @@ function findBeltAtTile(
 ): LuaEntity | undefined {
   const beltEntity = surface.find_entities_filtered({
     position: toMapPosition(position),
+    radius: 0,
     type: ALL_BELT_TYPES,
     limit: 1,
   })[0]
@@ -171,17 +173,38 @@ export class RealWorld implements World {
           )
         )
       }
-      case "splitter": {
+      case "splitter":
+      case "lane-splitter": {
         return new Splitter(
           translateDirection(beltEntity.direction),
           beltEntity.name,
         )
       }
+      case "loader":
+      case "loader-1x1": {
+        return new LoaderLike(
+          translateDirection(beltEntity.direction),
+          beltEntity.loader_type == "input",
+          beltEntity.name,
+        )
+      }
+      case "linked-belt": {
+        return new LoaderLike(
+          translateDirection(beltEntity.direction),
+          beltEntity.linked_belt_type == "input",
+          beltEntity.name,
+        )
+      }
+
       default:
         assertNever(type)
     }
   }
-  tryBuild(position: TilePosition, entity: Belt | UndergroundBelt): boolean {
+  tryBuild(
+    position: TilePosition,
+    entity: Belt | UndergroundBelt,
+    isFirst?: boolean,
+  ): boolean {
     const entityPosition = toMapPosition(position)
     const luaEntity = this.surface.create_entity({
       name: entity.name,
@@ -196,6 +219,7 @@ export class RealWorld implements World {
           : entity.isInput === false
             ? "output"
             : undefined,
+      undo_index: isFirst ? 0 : 1,
     })
     const built = luaEntity !== undefined && luaEntity.valid
     if (built) {
@@ -222,9 +246,11 @@ export class RealWorld implements World {
     const entity = findBeltAtTile(this.surface, position)
     if (
       entity &&
+      entity.valid &&
       entity.type == "underground-belt" &&
       entity.name != tier.undergroundName
     ) {
+      const name = entity.name
       const pair = entity.neighbours as LuaEntity | undefined
       const mapPosition = entity.position
       const pairPosition = pair?.position
@@ -243,12 +269,12 @@ export class RealWorld implements World {
       if (pair?.valid) pair?.apply_upgrade()
 
       this.surface.play_sound({
-        path: "entity-build/" + entity.name,
+        path: "entity-build/" + name,
         position: mapPosition,
       })
       if (pairPosition) {
         this.surface.play_sound({
-          path: "entity-build/" + pair.name,
+          path: "entity-build/" + name,
           position: pairPosition,
         })
       }

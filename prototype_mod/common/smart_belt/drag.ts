@@ -54,7 +54,7 @@ export class LineDrag {
       : undefined
 
     if (canPlace) {
-      worldOps.placeBelt(startPos, beltDirection, tier)
+      worldOps.placeBelt(startPos, beltDirection, tier, true)
     } else {
       errorHandler.handleError(startPos, ActionError.EntityInTheWay)
     }
