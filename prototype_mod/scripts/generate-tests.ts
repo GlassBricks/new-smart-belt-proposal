@@ -58,7 +58,12 @@ function generateTestFile(fileStem: string, testCases: TestCaseYaml[]): string {
 
 async function main() {
   const testSuiteDir = join(import.meta.dir, "..", "..", "test_suite")
-  const generatedDir = join(import.meta.dir, "..", "bun", "generated")
+  const generatedDir = join(
+    import.meta.dir,
+    "..",
+    "ts-only",
+    "generated",
+  )
 
   console.log(`Reading test suite from: ${testSuiteDir}`)
   console.log(`Generating tests to: ${generatedDir}`)

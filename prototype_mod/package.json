@@ -6,6 +6,7 @@
   "scripts": {
     "test": "bun test",
     "generate-tests": "bun run scripts/generate-tests.ts",
+    "generate-blueprint": "bun run scripts/generate-blueprint.ts",
     "clean-mod": "rm mod/**/*.lua",
     "build-mod": "tstl",
     "watch-mod": "tstl --watch",
@@ -20,6 +21,7 @@
     "typescript": "5.9.3"
   },
   "dependencies": {
+    "@jensforstmann/factorio-blueprint-tools": "^2.1.0",
     "factoriomod-debug": "^2.0.9",
     "js-yaml": "^4.1.0"
   },

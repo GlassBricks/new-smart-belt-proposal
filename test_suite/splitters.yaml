@@ -7,8 +7,8 @@
   after: "> >s >s >"
 
 - name: Other direction splitter is obstacle
-  before: _ <s _ ^s _ _ vs _
-  after: ">i <s _ ^s >o >i vs >o >"
+  before: _ <s _ ^s X _ _ vs X
+  after: "2>i <s _ ^s X 2>o 2>i vs X 2>o 2>"
 
 - name: Splitter with blocked entrance is not integrated
   before: _ X >s

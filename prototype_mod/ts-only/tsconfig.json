@@ -21,6 +21,9 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false,
-    "noImplicitOverride": true
-  }
+    "noImplicitOverride": true,
+    "rootDir": ".."
+  },
+  "include": ["../**/*.ts"],
+  "exclude": ["../mod/**/*"]
 }

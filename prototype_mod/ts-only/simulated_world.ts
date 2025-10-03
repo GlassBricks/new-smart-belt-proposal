@@ -81,7 +81,7 @@ export class SimulatedWorld implements World {
     return undefined
   }
 
-  canFastReplaceBelt(position: TilePosition): boolean {
+  canPlaceOrFastReplace(position: TilePosition): boolean {
     const entity = this.get(position)
     if (!entity) {
       return true

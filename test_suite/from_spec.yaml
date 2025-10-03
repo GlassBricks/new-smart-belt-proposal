@@ -125,8 +125,8 @@
     _ v < <o _ _ _ <i <
     _ v
   after: |
-    2> 2> 2> 2> 2> 2> 2> 2>i v 2>o
-    _ v < <o _ _ _ <i <
+    _ _ _ _  _ _ _ _  v _
+    2>i v < <o 2>o 2> 2>i <i < 2>o
     _ v
 
 ### Impassable obstacles (should give errors)
