@@ -39,7 +39,7 @@ impl<'a> LineDrag<'a> {
         belt_direction: Direction,
     ) -> LineDrag<'a> {
         let mut errors = Vec::new();
-        let can_place = world.can_place_belt_on_tile(start_pos);
+        let can_place = world.can_place_or_fast_replace_belt(start_pos);
         let tile_history = can_place.then(|| (start_pos, world.belt_connections_at(start_pos)));
 
         if can_place {
@@ -86,6 +86,17 @@ impl<'a> LineDrag<'a> {
         self.update_furthest_position(target_pos);
     }
 
+    fn update_furthest_position(&mut self, target_pos: i32) {
+        if target_pos > self.max_pos {
+            self.max_pos = target_pos;
+            self.furthest_pos = target_pos;
+        }
+        if target_pos < self.min_pos {
+            self.min_pos = target_pos;
+            self.furthest_pos = target_pos;
+        }
+    }
+
     fn apply_step(&mut self, step: DragStepResult, direction: DragDirection) {
         let DragStepResult(action, error, next_state) = step;
         eprintln!("action: {:?}", action);
@@ -116,22 +127,5 @@ impl<'a> LineDrag<'a> {
         eprintln!("error: {:?}", error);
         self.errors
             .push((self.ray.get_position(self.next_position(direction)), error));
-    }
-
-    pub fn update_furthest_position(&mut self, target_pos: i32) {
-        if target_pos > self.max_pos {
-            self.max_pos = target_pos;
-            self.furthest_pos = target_pos;
-        }
-        if target_pos < self.min_pos {
-            self.min_pos = target_pos;
-            self.furthest_pos = target_pos;
-        }
-    }
-
-    /// Returns (pivot_position, is_backward)
-    pub fn get_rotation_pivot(&self) -> (TilePosition, bool) {
-        let is_backward = self.max_pos != 0 && self.min_pos == self.furthest_pos;
-        (self.ray.get_position(self.furthest_pos), is_backward)
     }
 }

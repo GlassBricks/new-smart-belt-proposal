@@ -63,9 +63,10 @@ pub trait ReadonlyWorld {
 /// Trait for mutable world operations
 pub trait World: ReadonlyWorld {
     fn set(&mut self, position: TilePosition, entity: Box<dyn Entity>);
-    fn remove(&mut self, position: TilePosition);
+    fn mine(&mut self, position: TilePosition);
     fn flip_ug(&mut self, position: TilePosition) -> bool;
-    fn upgrade_ug_checked(&mut self, position: TilePosition, new_tier: BeltTier);
+    fn upgrade_ug(&mut self, position: TilePosition, new_tier: BeltTier);
+    fn upgrade_splitter(&mut self, position: TilePosition, tier: BeltTier);
 
     // Helper methods needed by drag operations
     fn can_place_belt_on_tile(&self, position: TilePosition) -> bool {
@@ -103,7 +104,7 @@ impl WorldImpl {
         self.get(position).and_then(|e| e.as_belt_connectable_dyn())
     }
 
-    pub fn can_place_belt_on_tile(&self, position: TilePosition) -> bool {
+    pub fn can_place_or_fast_replace_belt(&self, position: TilePosition) -> bool {
         if let Some(entity) = self.get(position) {
             entity.as_colliding().is_none()
         } else {
@@ -178,7 +179,7 @@ impl WorldImpl {
         }
     }
 
-    pub fn upgrade_ug_checked(&mut self, position: TilePosition, new_tier: BeltTier) {
+    fn upgrade_ug_checked(&mut self, position: TilePosition, new_tier: BeltTier) {
         let (pair_ug, other_pos) = {
             let Some((other_pos, ug, pair_ug)) = self.get_ug_pair_both_mut(position) else {
                 return;
@@ -193,6 +194,16 @@ impl WorldImpl {
             .get_ug_pair(other_pos, &pair_ug)
             .expect("upgrading removed ug pair");
         assert_eq!(new_pos, position, "Upgrading changed ug pair position");
+    }
+
+    fn upgrade_splitter(&mut self, position: TilePosition, tier: BeltTier) {
+        let Some(splitter) = self
+            .get_mut(position)
+            .and_then(|entity| (entity as &mut dyn Any).downcast_mut::<Splitter>())
+        else {
+            return;
+        };
+        splitter.tier = tier;
     }
 
     fn remove(&mut self, position: TilePosition) {
@@ -263,7 +274,7 @@ impl World for WorldImpl {
         WorldImpl::set(self, position, entity)
     }
 
-    fn remove(&mut self, position: TilePosition) {
+    fn mine(&mut self, position: TilePosition) {
         WorldImpl::remove(self, position)
     }
 
@@ -271,8 +282,11 @@ impl World for WorldImpl {
         WorldImpl::flip_ug(self, position)
     }
 
-    fn upgrade_ug_checked(&mut self, position: TilePosition, new_tier: BeltTier) {
+    fn upgrade_ug(&mut self, position: TilePosition, new_tier: BeltTier) {
         WorldImpl::upgrade_ug_checked(self, position, new_tier)
+    }
+    fn upgrade_splitter(&mut self, position: TilePosition, tier: BeltTier) {
+        WorldImpl::upgrade_splitter(self, position, tier)
     }
 }
 

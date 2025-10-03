@@ -82,7 +82,7 @@ impl<'a> LineDrag<'a> {
                     self.ray.get_position(new_output_pos),
                 );
 
-                self.world.remove(previous_output_world_pos);
+                self.world.mine(previous_output_world_pos);
 
                 if let Some(tile_history) = self.world.place_underground_belt(
                     new_output_world_pos,
@@ -142,7 +142,7 @@ impl<'a> LineDrag<'a> {
     }
 }
 impl WorldImpl {
-    pub fn set_if_not_eq<T: BeltConnectable + PartialEq>(
+    fn set_if_not_eq<T: BeltConnectable + PartialEq>(
         &mut self,
         position: TilePosition,
         entity: Box<T>,
