@@ -2,7 +2,7 @@ use crate::Direction;
 use crate::belts::{Belt, BeltConnectableEnum, BeltTier, LoaderLike, Splitter, UndergroundBelt};
 use std::fmt::Debug;
 
-use super::{DragWorldView, drag::DragDirection};
+use super::{DragDirection, DragWorldView};
 
 /// Every tile we encounter is classified as exactly one of the following:
 #[derive(Debug, Clone, PartialEq)]

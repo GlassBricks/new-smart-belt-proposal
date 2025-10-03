@@ -4,9 +4,10 @@ use std::collections::HashSet;
 
 use crate::belts::{BELT_TIERS, Belt, BeltTier, LoaderLike, Splitter, UndergroundBelt};
 use crate::geometry::Ray;
+use crate::world::{ReadonlyWorld, World};
 use crate::{BoundingBox, Impassable};
 use crate::{
-    Colliding, Direction, Entity, TilePosition, Transform, World, pos,
+    Colliding, Direction, Entity, TilePosition, Transform, WorldImpl, pos,
     smart_belt::{LineDrag, action, action::Error},
 };
 use anyhow::{Context, Result, bail};
@@ -17,15 +18,15 @@ use serde::{Deserialize, Deserializer};
 pub struct DragTestCase {
     pub name: String,
     pub entities: TestCaseEntities,
-    pub after_for_reverse: Option<World>,
+    pub after_for_reverse: Option<WorldImpl>,
     pub not_reversible: bool,
     pub forward_back: bool,
 }
 
 #[derive(Debug, Clone)]
 pub struct TestCaseEntities {
-    pub before: World,
-    pub after: World,
+    pub before: WorldImpl,
+    pub after: WorldImpl,
     pub leftmost_pos: TilePosition,
     pub start_pos: TilePosition,
     pub belt_direction: Direction,
@@ -174,7 +175,7 @@ fn transform_test_case(test: &TestCaseEntities, transform: &Transform) -> TestCa
 
 fn flip_test_case_unchecked(
     test: &TestCaseEntities,
-    after_for_reverse: Option<&World>,
+    after_for_reverse: Option<&WorldImpl>,
 ) -> TestCaseEntities {
     TestCaseEntities {
         before: test.before.flip_all_entities(),
@@ -187,7 +188,7 @@ fn flip_test_case_unchecked(
 
 fn flip_test_case(
     test: &TestCaseEntities,
-    after_for_reverse: Option<&World>,
+    after_for_reverse: Option<&WorldImpl>,
 ) -> Result<TestCaseEntities> {
     let flipped = flip_test_case_unchecked(test, after_for_reverse);
     let bounds = test.bounds();
@@ -206,7 +207,7 @@ fn run_test_case(
     test: &TestCaseEntities,
     wiggle: bool,
     forward_back: bool,
-) -> (World, HashSet<(TilePosition, Error)>) {
+) -> (WorldImpl, HashSet<(TilePosition, Error)>) {
     eprintln!("Starting test case\n");
 
     let TestCaseEntities {
@@ -277,7 +278,7 @@ fn run_forward_back(drag: &mut LineDrag, leftmost_pos: TilePosition, end_pos: Ti
     drag.interpolate_to(leftmost_pos);
 }
 
-impl World {
+impl WorldImpl {
     fn max_x(&self) -> i32 {
         self.entities.keys().map(|pos| pos.x).max().unwrap_or(0)
     }
@@ -443,10 +444,10 @@ fn parse_word(input: &str) -> Result<Option<Box<dyn Entity>>> {
     }))
 }
 
-pub type WorldParse = (World, Vec<TilePosition>);
+pub type WorldParse = (WorldImpl, Vec<TilePosition>);
 
 pub fn parse_world(input: &str) -> Result<WorldParse> {
-    let mut world = World::new();
+    let mut world = WorldImpl::new();
     let mut markers = Vec::new();
     for (y, line) in input.lines().enumerate() {
         let words = line.split_whitespace();
@@ -528,7 +529,7 @@ fn print_entity(entity: &dyn Entity) -> String {
     }
 }
 
-fn print_world(world: &World, bounds: BoundingBox, markers: &[TilePosition]) -> String {
+fn print_world(world: &WorldImpl, bounds: BoundingBox, markers: &[TilePosition]) -> String {
     if bounds.is_empty() {
         return "<Empty>".to_string();
     }
@@ -775,7 +776,7 @@ after: "2>\t^\tX"
 
     #[test]
     fn test_print_world() {
-        let mut world = World::new();
+        let mut world = WorldImpl::new();
         world.set(pos(0, 0), Belt::new(Direction::East, BELT_TIERS[0]));
         world.set(
             pos(1, 0),

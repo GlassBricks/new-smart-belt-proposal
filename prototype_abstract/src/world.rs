@@ -4,30 +4,119 @@ use dyn_clone::clone_box;
 use euclid::vec2;
 
 use crate::{
-    Belt, BeltConnectable, BeltConnectableEnum, BeltTier, BoundingBox, Entity, LoaderLike,
-    Splitter, TilePosition, Transform, UndergroundBelt, smart_belt::belt_curving::BeltCurveView,
+    Belt, BeltConnectable, BeltConnectableEnum, BeltTier, BoundingBox, Direction, Entity,
+    LoaderLike, Splitter, TilePosition, Transform, UndergroundBelt,
 };
 
+/// Trait for read-only world queries, including belt curvature logic
+pub trait ReadonlyWorld {
+    // Entity queries
+    fn get(&self, position: TilePosition) -> Option<&dyn Entity>;
+    fn get_belt(&self, position: TilePosition) -> Option<BeltConnectableEnum<'_>>;
+    fn get_ug_pair(
+        &self,
+        position: TilePosition,
+        underground: &UndergroundBelt,
+    ) -> Option<(TilePosition, &UndergroundBelt)>;
+
+    // Belt curvature queries (from BeltCurveView)
+    fn output_direction_at(&self, position: TilePosition) -> Option<Direction>;
+    fn input_direction_at(&self, position: TilePosition) -> Option<Direction>;
+
+    // Derived queries with default implementations
+    fn belt_connections_at(&self, position: TilePosition) -> BeltConnections {
+        BeltConnections {
+            input: self.input_direction_at(position),
+            output: self.output_direction_at(position),
+        }
+    }
+
+    fn belt_curved_input_direction(
+        &self,
+        position: TilePosition,
+        belt_direction: Direction,
+    ) -> Direction {
+        let has_input_in = |direction: Direction| {
+            let query_pos = position - direction.to_vector();
+            self.output_direction_at(query_pos) == Some(direction)
+        };
+
+        if has_input_in(belt_direction) {
+            return belt_direction;
+        }
+        match (
+            has_input_in(belt_direction.rotate_cw()),
+            has_input_in(belt_direction.rotate_ccw()),
+        ) {
+            (true, false) => belt_direction.rotate_cw(),
+            (false, true) => belt_direction.rotate_ccw(),
+            _ => belt_direction,
+        }
+    }
+
+    fn belt_is_curved_at(&self, position: TilePosition, belt: &Belt) -> bool {
+        self.input_direction_at(position)
+            .is_some_and(|d| d.axis() != belt.direction.axis())
+    }
+}
+
+/// Trait for mutable world operations
+pub trait World: ReadonlyWorld {
+    fn set(&mut self, position: TilePosition, entity: Box<dyn Entity>);
+    fn remove(&mut self, position: TilePosition);
+    fn flip_ug(&mut self, position: TilePosition) -> bool;
+    fn upgrade_ug_checked(&mut self, position: TilePosition, new_tier: BeltTier);
+
+    // Helper methods needed by drag operations
+    fn can_place_belt_on_tile(&self, position: TilePosition) -> bool {
+        if let Some(entity) = self.get(position) {
+            entity.as_colliding().is_none()
+        } else {
+            true
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct BeltConnections {
+    pub input: Option<Direction>,
+    pub output: Option<Direction>,
+}
+
 #[derive(Debug, Default, PartialEq, Clone)]
-pub struct World {
+pub struct WorldImpl {
     pub entities: HashMap<TilePosition, Box<dyn Entity>>,
 }
 
-impl World {
+impl WorldImpl {
     pub fn new() -> Self {
-        World {
+        WorldImpl {
             entities: HashMap::new(),
         }
     }
 
-    pub fn get(&self, position: TilePosition) -> Option<&dyn Entity> {
-        self.entities.get(&position).map(|e| e.as_ref())
-    }
     pub fn get_mut(&mut self, position: TilePosition) -> Option<&mut dyn Entity> {
         self.entities.get_mut(&position).map(|e| e.as_mut())
     }
 
-    pub fn set(&mut self, position: TilePosition, mut entity: Box<dyn Entity>) {
+    pub fn get_belt_dyn(&self, position: TilePosition) -> Option<&dyn BeltConnectable> {
+        self.get(position).and_then(|e| e.as_belt_connectable_dyn())
+    }
+
+    pub fn can_place_belt_on_tile(&self, position: TilePosition) -> bool {
+        if let Some(entity) = self.get(position) {
+            entity.as_colliding().is_none()
+        } else {
+            true
+        }
+    }
+
+    pub fn bounds(&self) -> BoundingBox {
+        let basic_bb = BoundingBox::from_points(self.entities.keys());
+        BoundingBox::new(basic_bb.min, basic_bb.max + vec2(1, 1))
+    }
+
+    fn set(&mut self, position: TilePosition, mut entity: Box<dyn Entity>) {
         if let Some(ug) = (entity.deref_mut() as &mut dyn Any).downcast_mut::<UndergroundBelt>() {
             self.handle_underground_belt(position, ug);
         }
@@ -106,24 +195,11 @@ impl World {
         assert_eq!(new_pos, position, "Upgrading changed ug pair position");
     }
 
-    pub fn remove(&mut self, position: TilePosition) {
+    fn remove(&mut self, position: TilePosition) {
         self.entities.remove(&position);
     }
 
-    pub fn bounds(&self) -> BoundingBox {
-        let basic_bb = BoundingBox::from_points(self.entities.keys());
-        BoundingBox::new(basic_bb.min, basic_bb.max + vec2(1, 1))
-    }
-
-    pub fn get_belt_dyn(&self, position: TilePosition) -> Option<&dyn BeltConnectable> {
-        self.get(position).and_then(|e| e.as_belt_connectable_dyn())
-    }
-
-    pub fn get_belt(&self, position: TilePosition) -> Option<BeltConnectableEnum<'_>> {
-        self.get(position).and_then(|e| e.as_belt_connectable())
-    }
-
-    pub fn get_ug_pair(
+    fn get_ug_pair(
         &self,
         position: TilePosition,
         underground: &UndergroundBelt,
@@ -146,13 +222,57 @@ impl World {
         }
         None
     }
+}
 
-    pub fn can_place_belt_on_tile(&self, position: TilePosition) -> bool {
-        if let Some(entity) = self.get(position) {
-            entity.as_colliding().is_none()
+// Implement ReadonlyWorld trait for WorldImpl
+impl ReadonlyWorld for WorldImpl {
+    fn get(&self, position: TilePosition) -> Option<&dyn Entity> {
+        self.entities.get(&position).map(|e| e.as_ref())
+    }
+
+    fn get_belt(&self, position: TilePosition) -> Option<BeltConnectableEnum<'_>> {
+        self.get(position).and_then(|e| e.as_belt_connectable())
+    }
+
+    fn get_ug_pair(
+        &self,
+        position: TilePosition,
+        underground: &UndergroundBelt,
+    ) -> Option<(TilePosition, &UndergroundBelt)> {
+        WorldImpl::get_ug_pair(self, position, underground)
+    }
+
+    fn output_direction_at(&self, position: TilePosition) -> Option<Direction> {
+        self.get_belt(position)
+            .and_then(|e| e.as_dyn().output_direction())
+    }
+
+    fn input_direction_at(&self, position: TilePosition) -> Option<Direction> {
+        let entity = self.get_belt(position)?;
+        if let BeltConnectableEnum::Belt(belt) = entity {
+            Some(self.belt_curved_input_direction(position, belt.direction))
         } else {
-            true
+            entity.as_dyn().primary_input_direction()
         }
+    }
+}
+
+// Implement World trait for WorldImpl
+impl World for WorldImpl {
+    fn set(&mut self, position: TilePosition, entity: Box<dyn Entity>) {
+        WorldImpl::set(self, position, entity)
+    }
+
+    fn remove(&mut self, position: TilePosition) {
+        WorldImpl::remove(self, position)
+    }
+
+    fn flip_ug(&mut self, position: TilePosition) -> bool {
+        WorldImpl::flip_ug(self, position)
+    }
+
+    fn upgrade_ug_checked(&mut self, position: TilePosition, new_tier: BeltTier) {
+        WorldImpl::upgrade_ug_checked(self, position, new_tier)
     }
 }
 
@@ -176,9 +296,9 @@ impl Transform {
     }
 }
 
-impl World {
+impl WorldImpl {
     pub fn transform_world(&self, transform: &Transform) -> Self {
-        let mut new_world = World::new();
+        let mut new_world = WorldImpl::new();
 
         for (&pos, entity) in &self.entities {
             let new_pos = transform.transform_position(pos);
@@ -190,7 +310,7 @@ impl World {
     }
 
     pub fn flip_all_entities(&self) -> Self {
-        let mut new_world = World::new();
+        let mut new_world = WorldImpl::new();
 
         for (&pos, entity) in &self.entities {
             let entity: &dyn crate::Entity = entity.as_ref();
@@ -246,26 +366,26 @@ mod tests {
 
     #[test]
     fn test_belt_input_direction_no_relative_belt() {
-        World::new().assert_belt_input_direction(pos(1, 1), East, East);
+        WorldImpl::new().assert_belt_input_direction(pos(1, 1), East, East);
     }
 
     #[test]
     fn test_belt_input_direction_input_left() {
-        World::new()
+        WorldImpl::new()
             .belt_at(pos(1, 0), South, YELLOW_BELT)
             .assert_belt_input_direction(pos(1, 1), East, South);
     }
 
     #[test]
     fn test_belt_input_direction_input_right() {
-        World::new()
+        WorldImpl::new()
             .belt_at(pos(1, 2), North, YELLOW_BELT)
             .assert_belt_input_direction(pos(1, 1), East, North);
     }
 
     #[test]
     fn test_belt_input_direction_input_left_and_backwards() {
-        World::new()
+        WorldImpl::new()
             .belt_at(pos(1, 0), South, YELLOW_BELT) // left input
             .belt_at(pos(0, 1), East, YELLOW_BELT) // backwards input
             .assert_belt_input_direction(pos(1, 1), East, East);
@@ -273,7 +393,7 @@ mod tests {
 
     #[test]
     fn test_belt_input_direction_input_left_and_right() {
-        World::new()
+        WorldImpl::new()
             .belt_at(pos(1, 0), South, YELLOW_BELT) // left input
             .belt_at(pos(1, 2), North, YELLOW_BELT) // right input
             .assert_belt_input_direction(pos(1, 1), East, East);
@@ -282,29 +402,29 @@ mod tests {
     #[test]
     fn test_belt_input_direction_different_orientations() {
         // Test with North-facing belt
-        World::new()
+        WorldImpl::new()
             .belt_at(pos(2, 1), West, YELLOW_BELT) // right of north-facing belt
             .assert_belt_input_direction(pos(1, 1), North, West);
 
         // Test with South-facing belt
-        World::new()
+        WorldImpl::new()
             .belt_at(pos(0, 1), East, YELLOW_BELT) // right of south-facing belt
             .assert_belt_input_direction(pos(1, 1), South, East);
 
         // Test with West-facing belt
-        World::new()
+        WorldImpl::new()
             .belt_at(pos(1, 2), North, YELLOW_BELT) // right of west-facing belt
             .assert_belt_input_direction(pos(1, 1), West, North);
     }
 
     #[test]
     fn test_belt_input_direction_non_matching_outputs() {
-        World::new()
+        WorldImpl::new()
             .belt_at(pos(1, 0), North, YELLOW_BELT) // outputs north, not south
             .assert_belt_input_direction(pos(1, 1), East, East);
     }
 
-    impl World {
+    impl WorldImpl {
         fn belt_at(mut self, pos: TilePosition, direction: Direction, tier: BeltTier) -> Self {
             self.set(pos, Belt::new(direction, tier));
             self
@@ -367,14 +487,14 @@ mod tests {
 
         fn with_world<F>(mut self, func: F) -> Self
         where
-            F: FnOnce(&mut World),
+            F: FnOnce(&mut WorldImpl),
         {
             func(&mut self);
             self
         }
     }
 
-    impl World {
+    impl WorldImpl {
         /// Assert that an underground belt at search_pos finds its pair at expected_pair_pos
         fn expect_underground_pair_from_pos(
             self,
@@ -461,7 +581,7 @@ mod tests {
         )],
     ) {
         for (input_pos, input_dir, output_pos, output_dir, tier, should_find) in test_cases {
-            let builder = World::new()
+            let builder = WorldImpl::new()
                 .input_underground_at(*input_pos, *input_dir, *tier)
                 .output_underground_at(*output_pos, *output_dir, *tier);
 
@@ -485,7 +605,7 @@ mod tests {
     }
     #[test]
     fn test_get_paired_underground_basic_pair() {
-        World::new()
+        WorldImpl::new()
             .input_underground_at(pos(1, 1), East, YELLOW_BELT)
             .output_underground_at(pos(3, 1), East, YELLOW_BELT)
             .expect_underground_pair_from_pos(pos(1, 1), pos(3, 1), true);
@@ -493,14 +613,14 @@ mod tests {
 
     #[test]
     fn test_get_paired_underground_no_pair() {
-        World::new()
+        WorldImpl::new()
             .input_underground_at(pos(1, 1), East, YELLOW_BELT)
             .expect_no_underground_pair_from_pos(pos(1, 1));
     }
 
     #[test]
     fn test_get_paired_underground_wrong_tier() {
-        World::new()
+        WorldImpl::new()
             .input_underground_at(pos(1, 1), East, YELLOW_BELT)
             .output_underground_at(pos(3, 1), East, RED_BELT)
             .expect_no_underground_pair_from_pos(pos(1, 1));
@@ -508,7 +628,7 @@ mod tests {
 
     #[test]
     fn test_get_paired_underground_wrong_direction() {
-        World::new()
+        WorldImpl::new()
             .input_underground_at(pos(1, 1), East, YELLOW_BELT)
             .output_underground_at(pos(3, 1), West, YELLOW_BELT)
             .expect_no_underground_pair_from_pos(pos(1, 1));
@@ -517,7 +637,7 @@ mod tests {
     #[test]
     fn test_get_paired_underground_max_distance() {
         let max_distance = YELLOW_BELT.underground_distance as i32;
-        World::new()
+        WorldImpl::new()
             .input_underground_at(pos(1, 1), East, YELLOW_BELT)
             .output_underground_at(pos(1 + max_distance, 1), East, YELLOW_BELT)
             .expect_underground_pair_from_pos(pos(1, 1), pos(1 + max_distance, 1), true);
@@ -526,7 +646,7 @@ mod tests {
     #[test]
     fn test_get_paired_underground_exceeds_max_distance() {
         let max_distance = YELLOW_BELT.underground_distance as i32;
-        World::new()
+        WorldImpl::new()
             .input_underground_at(pos(1, 1), East, YELLOW_BELT)
             .output_underground_at(pos(1 + max_distance + 1, 1), East, YELLOW_BELT)
             .expect_no_underground_pair_from_pos(pos(1, 1));
@@ -534,7 +654,7 @@ mod tests {
 
     #[test]
     fn test_placing_paired_underground_may_flip() {
-        World::new()
+        WorldImpl::new()
             .input_underground_at(pos(1, 1), East, YELLOW_BELT)
             .input_underground_at(pos(3, 1), West, YELLOW_BELT)
             .expect_underground_pair_from_pos(pos(1, 1), pos(3, 1), true);
@@ -542,7 +662,7 @@ mod tests {
 
     #[test]
     fn test_get_paired_underground_blocked_by_same_direction() {
-        World::new()
+        WorldImpl::new()
             .input_underground_at(pos(1, 1), East, YELLOW_BELT)
             .input_underground_at(pos(3, 1), East, YELLOW_BELT)
             .output_underground_at(pos(5, 1), East, YELLOW_BELT)
@@ -551,7 +671,7 @@ mod tests {
 
     #[test]
     fn test_get_paired_underground_blocked_by_same_direction_with_valid_pair_after() {
-        World::new()
+        WorldImpl::new()
             .input_underground_at(pos(1, 1), East, YELLOW_BELT)
             .input_underground_at(pos(2, 1), East, YELLOW_BELT)
             .output_underground_at(pos(4, 1), East, YELLOW_BELT)
@@ -560,7 +680,7 @@ mod tests {
 
     #[test]
     fn test_get_paired_underground_blocked_by_same_direction_different_tier() {
-        World::new()
+        WorldImpl::new()
             .input_underground_at(pos(1, 1), East, YELLOW_BELT)
             .input_underground_at(pos(3, 1), East, RED_BELT)
             .output_underground_at(pos(5, 1), East, YELLOW_BELT)
@@ -569,7 +689,7 @@ mod tests {
 
     #[test]
     fn test_get_paired_underground_different_directions() {
-        World::new()
+        WorldImpl::new()
             .input_underground_at(pos(1, 1), South, YELLOW_BELT)
             .output_underground_at(pos(1, 3), South, YELLOW_BELT)
             .expect_underground_pair_from_pos(pos(1, 1), pos(1, 3), true);
@@ -577,7 +697,7 @@ mod tests {
 
     #[test]
     fn test_get_paired_underground_output_to_input() {
-        World::new()
+        WorldImpl::new()
             .output_underground_at(pos(3, 1), East, YELLOW_BELT)
             .input_underground_at(pos(1, 1), East, YELLOW_BELT)
             .with_world(|world| {
@@ -595,7 +715,7 @@ mod tests {
 
     #[test]
     fn test_get_paired_underground_finds_closest() {
-        World::new()
+        WorldImpl::new()
             .input_underground_at(pos(1, 1), East, YELLOW_BELT)
             .output_underground_at(pos(3, 1), East, YELLOW_BELT)
             .output_underground_at(pos(5, 1), East, YELLOW_BELT)
@@ -605,13 +725,13 @@ mod tests {
     #[test]
     fn test_get_paired_underground_different_belt_tiers() {
         let red_distance = RED_BELT.underground_distance as i32;
-        World::new()
+        WorldImpl::new()
             .input_underground_at(pos(1, 1), East, RED_BELT)
             .output_underground_at(pos(1 + red_distance, 1), East, RED_BELT)
             .expect_underground_pair_from_pos(pos(1, 1), pos(1 + red_distance, 1), true);
 
         let blue_distance = BLUE_BELT.underground_distance as i32;
-        World::new()
+        WorldImpl::new()
             .input_underground_at(pos(10, 1), East, BLUE_BELT)
             .output_underground_at(pos(10 + blue_distance, 1), East, BLUE_BELT)
             .expect_underground_pair_from_pos(pos(10, 1), pos(10 + blue_distance, 1), true);
@@ -619,7 +739,7 @@ mod tests {
 
     #[test]
     fn test_get_paired_underground_blocked_by_entity() {
-        World::new()
+        WorldImpl::new()
             .input_underground_at(pos(1, 1), East, YELLOW_BELT)
             .belt_at(pos(2, 1), East, YELLOW_BELT)
             .output_underground_at(pos(4, 1), East, YELLOW_BELT)
@@ -629,13 +749,13 @@ mod tests {
     #[test]
     fn test_get_paired_underground_various_orientations() {
         // West-facing pair
-        World::new()
+        WorldImpl::new()
             .input_underground_at(pos(3, 1), West, YELLOW_BELT)
             .output_underground_at(pos(1, 1), West, YELLOW_BELT)
             .expect_underground_pair_from_pos(pos(3, 1), pos(1, 1), true);
 
         // North-facing pair
-        World::new()
+        WorldImpl::new()
             .input_underground_at(pos(1, 3), North, YELLOW_BELT)
             .output_underground_at(pos(1, 1), North, YELLOW_BELT)
             .expect_underground_pair_from_pos(pos(1, 3), pos(1, 1), true);
@@ -643,7 +763,7 @@ mod tests {
 
     #[test]
     fn test_get_paired_underground_minimum_distance() {
-        World::new()
+        WorldImpl::new()
             .input_underground_at(pos(1, 1), East, YELLOW_BELT)
             .output_underground_at(pos(2, 1), East, YELLOW_BELT)
             .expect_underground_pair_from_pos(pos(1, 1), pos(2, 1), true);
@@ -651,7 +771,7 @@ mod tests {
 
     #[test]
     fn test_get_paired_underground_no_entity_at_position() {
-        World::new()
+        WorldImpl::new()
             .input_underground_at(pos(1, 1), East, YELLOW_BELT)
             .belt_at(pos(2, 1), East, YELLOW_BELT)
             .expect_no_underground_pair_from_pos(pos(1, 1));
@@ -659,7 +779,7 @@ mod tests {
 
     #[test]
     fn test_complex_belt_network() {
-        World::new()
+        WorldImpl::new()
             .belt_at(pos(0, 0), East, YELLOW_BELT)
             .belt_at(pos(1, 0), East, YELLOW_BELT)
             .input_underground_at(pos(2, 0), East, YELLOW_BELT)
@@ -685,7 +805,7 @@ mod tests {
 
     #[test]
     fn test_flip_ug() {
-        World::new()
+        WorldImpl::new()
             .input_underground_at(pos(1, 1), East, YELLOW_BELT)
             .output_underground_at(pos(3, 1), East, YELLOW_BELT)
             .expect_underground_pair_from_pos(pos(1, 1), pos(3, 1), true)

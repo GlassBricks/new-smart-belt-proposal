@@ -1,16 +1,16 @@
 use crate::{
-    Belt, BeltConnectableEnum, Direction, Entity, Ray, UndergroundBelt, World,
-    smart_belt::belt_curving::{BeltCurveView, TileHistory, TileHistoryView},
+    Belt, BeltConnectableEnum, Direction, Entity, Ray, UndergroundBelt,
+    smart_belt::belt_curving::{TileHistory, TileHistoryView},
+    world::ReadonlyWorld,
 };
 
-use super::drag::DragDirection;
+use super::DragDirection;
 
 /**
 World view for TileClassifier.
 
 Handles geometric transformations, and belt shapes.
 */
-#[derive(Debug)]
 pub(super) struct DragWorldView<'a> {
     history_view: TileHistoryView<'a>,
     ray: Ray,
@@ -19,7 +19,7 @@ pub(super) struct DragWorldView<'a> {
 
 impl<'a> DragWorldView<'a> {
     pub fn new(
-        world: &'a World,
+        world: &'a dyn ReadonlyWorld,
         ray: Ray,
         tile_history: Option<TileHistory>,
         direction: DragDirection,

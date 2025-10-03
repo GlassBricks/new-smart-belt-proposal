@@ -1,10 +1,6 @@
-use crate::{Belt, Direction, Entity, TilePosition, UndergroundBelt, World};
+use crate::world::{BeltConnections, ReadonlyWorld};
+use crate::{Belt, BeltConnectableEnum, Direction, Entity, TilePosition, UndergroundBelt};
 
-#[derive(Debug, Clone, Copy)]
-pub struct BeltConnections {
-    pub input: Option<Direction>,
-    pub output: Option<Direction>,
-}
 pub type TileHistory = (TilePosition, BeltConnections);
 
 pub trait BeltCurveView {
@@ -48,30 +44,13 @@ pub trait BeltCurveView {
     }
 }
 
-impl BeltCurveView for World {
-    fn output_direction_at(&self, position: TilePosition) -> Option<Direction> {
-        self.get_belt_dyn(position)
-            .and_then(|e| e.output_direction())
-    }
-
-    fn input_direction_at(&self, position: TilePosition) -> Option<Direction> {
-        let entity = self.get_belt_dyn(position)?;
-        if let Some(belt) = (entity as &dyn Entity).as_belt() {
-            Some(self.belt_curved_input_direction(position, belt.direction))
-        } else {
-            entity.primary_input_direction()
-        }
-    }
-}
-
-#[derive(Debug)]
 pub struct TileHistoryView<'a> {
-    world: &'a World,
+    world: &'a dyn ReadonlyWorld,
     tile_history: Option<TileHistory>,
 }
 
 impl<'a> TileHistoryView<'a> {
-    pub fn new(world: &'a World, tile_history: Option<TileHistory>) -> Self {
+    pub fn new(world: &'a dyn ReadonlyWorld, tile_history: Option<TileHistory>) -> Self {
         Self {
             world,
             tile_history,
@@ -91,7 +70,22 @@ impl<'a> TileHistoryView<'a> {
     }
 }
 
-impl<'a> BeltCurveView for TileHistoryView<'a> {
+impl<'a> ReadonlyWorld for TileHistoryView<'a> {
+    fn get(&self, position: TilePosition) -> Option<&dyn Entity> {
+        self.world.get(position)
+    }
+
+    fn get_belt(&self, position: TilePosition) -> Option<BeltConnectableEnum<'_>> {
+        self.world.get_belt(position)
+    }
+
+    fn get_ug_pair(
+        &self,
+        position: TilePosition,
+        underground: &UndergroundBelt,
+    ) -> Option<(TilePosition, &UndergroundBelt)> {
+        self.world.get_ug_pair(position, underground)
+    }
     fn output_direction_at(&self, position: TilePosition) -> Option<Direction> {
         if let Some((history_position, dirs)) = &self.tile_history
             && *history_position == position

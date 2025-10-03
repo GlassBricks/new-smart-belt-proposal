@@ -2,10 +2,11 @@ use std::any::Any;
 
 use serde::Deserialize;
 
-use super::{LineDrag, drag::DragDirection};
+use super::{DragDirection, LineDrag};
 use crate::belts::{Belt, BeltTier, UndergroundBelt};
-use crate::smart_belt::belt_curving::{BeltCurveView, TileHistory};
-use crate::{BeltConnectable, Direction, Splitter, TilePosition, World};
+use crate::smart_belt::belt_curving::TileHistory;
+use crate::world::{ReadonlyWorld, World, WorldImpl};
+use crate::{BeltConnectable, Direction, Splitter, TilePosition};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Action {
@@ -18,9 +19,7 @@ pub enum Action {
         last_output_pos: i32,
         new_output_pos: i32,
     },
-    IntegrateUndergroundPair {
-        do_upgrade: bool,
-    },
+    IntegrateUndergroundPair,
     IntegrateSplitter,
     None,
 }
@@ -94,20 +93,39 @@ impl<'a> LineDrag<'a> {
                     self.set_tile_history(Some(tile_history));
                 }
             }
-            Action::IntegrateUndergroundPair {
-                do_upgrade: upgrade,
-            } => {
-                let ug = self
-                    .world
-                    .get(world_pos)
-                    .and_then(|e| (e as &dyn Any).downcast_ref::<UndergroundBelt>())
-                    .expect("Expected UndergroundBelt at position");
-                let (is_input, tier) = (ug.is_input, ug.tier);
+            Action::IntegrateUndergroundPair => {
+                let (is_input, tier) = {
+                    let ug = self
+                        .world
+                        .get(world_pos)
+                        .and_then(|e| (e as &dyn Any).downcast_ref::<UndergroundBelt>())
+                        .expect("Expected UndergroundBelt at position");
+                    (ug.is_input, ug.tier)
+                };
+
                 if is_input != (direction == DragDirection::Forward) {
                     self.world.flip_ug(world_pos);
                 }
-                if upgrade && tier != self.tier {
-                    self.world.upgrade_ug_checked(world_pos, self.tier);
+
+                if tier != self.tier {
+                    let output_world_pos = {
+                        let ug = self
+                            .world
+                            .get(world_pos)
+                            .and_then(|e| (e as &dyn Any).downcast_ref::<UndergroundBelt>())
+                            .expect("Expected UndergroundBelt at position");
+                        self.world
+                            .get_ug_pair(world_pos, ug)
+                            .expect("Expected underground pair")
+                            .0
+                    };
+                    let output_pos = self.ray.ray_position(output_world_pos);
+
+                    if self.can_upgrade_underground(direction, output_pos) {
+                        self.world.upgrade_ug_checked(world_pos, self.tier);
+                    } else {
+                        self.add_error(Error::CannotUpgradeUnderground, direction);
+                    }
                 }
             }
             Action::IntegrateSplitter => {
@@ -123,7 +141,7 @@ impl<'a> LineDrag<'a> {
         }
     }
 }
-impl World {
+impl WorldImpl {
     pub fn set_if_not_eq<T: BeltConnectable + PartialEq>(
         &mut self,
         position: TilePosition,

@@ -1,8 +1,8 @@
 use anyhow::Result;
 use euclid::{Point2D, Rect, Size2D, Vector2D};
 use prototype_abstract::{
-    BeltConnectableEnum, BoundingBox, Direction, Entity, Splitter, TilePosition, World,
-    smart_belt::belt_curving::BeltCurveView as _,
+    BeltConnectableEnum, BoundingBox, Direction, Entity, ReadonlyWorld as _, Splitter,
+    TilePosition, WorldImpl as World,
 };
 use std::path::Path;
 use tiny_skia::{Pixmap, PremultipliedColorU8};
@@ -398,7 +398,9 @@ pub fn get_tail_pos(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use prototype_abstract::{Belt, Splitter, UndergroundBelt, World, belts::YELLOW_BELT, pos};
+    use prototype_abstract::{
+        Belt, Splitter, UndergroundBelt, World as _, WorldImpl as World, belts::YELLOW_BELT, pos,
+    };
 
     #[test]
     fn test_render_empty_world() {

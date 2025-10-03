@@ -1,38 +1,17 @@
-use super::{DragState, Error};
+use super::{DragDirection, DragState, Error};
 use crate::TilePosition;
 use crate::belts::BeltTier;
 use crate::smart_belt::DragWorldView;
-use crate::smart_belt::belt_curving::{BeltCurveView, TileHistory};
-use crate::{Direction, Ray, World, smart_belt::Action};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DragDirection {
-    Forward,
-    Backward,
-}
-
-impl DragDirection {
-    pub fn direction_multiplier(self) -> i32 {
-        match self {
-            DragDirection::Forward => 1,
-            DragDirection::Backward => -1,
-        }
-    }
-
-    pub fn swap_if_backwards<T>(&self, a: T, b: T) -> (T, T) {
-        match self {
-            DragDirection::Forward => (a, b),
-            DragDirection::Backward => (b, a),
-        }
-    }
-}
+use crate::smart_belt::belt_curving::TileHistory;
+use crate::world::{ReadonlyWorld, WorldImpl};
+use crate::{Direction, Ray, smart_belt::Action};
 
 pub struct DragStepResult(pub Action, pub Option<Error>, pub DragState);
 
 /// Handles dragging in a straight line (no rotations).
 #[derive(Debug)]
 pub struct LineDrag<'a> {
-    pub(super) world: &'a mut World,
+    pub(super) world: &'a mut WorldImpl,
     pub(super) ray: Ray,
     pub(super) tier: BeltTier,
     pub(super) last_state: DragState,
@@ -44,13 +23,17 @@ pub struct LineDrag<'a> {
     // See belt_curving.rs for more info
     tile_history: Option<TileHistory>,
     pub(super) errors: Vec<(TilePosition, Error)>,
+    // Position tracking for rotation support
+    max_pos: i32,
+    min_pos: i32,
+    furthest_pos: i32,
 }
 
 impl<'a> LineDrag<'a> {
     /// Starts a drag.
     /// Note: the very first click may fast-replace something, forcing something to be overwritten.
     pub fn start_drag(
-        world: &'a mut World,
+        world: &'a mut WorldImpl,
         tier: BeltTier,
         start_pos: TilePosition,
         belt_direction: Direction,
@@ -75,6 +58,9 @@ impl<'a> LineDrag<'a> {
             last_position: 0,
             tile_history,
             errors,
+            max_pos: 0,
+            min_pos: 0,
+            furthest_pos: 0,
         }
     }
 
@@ -97,6 +83,7 @@ impl<'a> LineDrag<'a> {
             let result = self.last_state.step(self, DragDirection::Backward);
             self.apply_step(result, DragDirection::Backward);
         }
+        self.update_furthest_position(target_pos);
     }
 
     fn apply_step(&mut self, step: DragStepResult, direction: DragDirection) {
@@ -125,9 +112,26 @@ impl<'a> LineDrag<'a> {
         DragWorldView::new(self.world, self.ray, self.tile_history, direction)
     }
 
-    fn add_error(&mut self, error: Error, direction: DragDirection) {
+    pub(super) fn add_error(&mut self, error: Error, direction: DragDirection) {
         eprintln!("error: {:?}", error);
         self.errors
             .push((self.ray.get_position(self.next_position(direction)), error));
+    }
+
+    pub fn update_furthest_position(&mut self, target_pos: i32) {
+        if target_pos > self.max_pos {
+            self.max_pos = target_pos;
+            self.furthest_pos = target_pos;
+        }
+        if target_pos < self.min_pos {
+            self.min_pos = target_pos;
+            self.furthest_pos = target_pos;
+        }
+    }
+
+    /// Returns (pivot_position, is_backward)
+    pub fn get_rotation_pivot(&self) -> (TilePosition, bool) {
+        let is_backward = self.max_pos != 0 && self.min_pos == self.furthest_pos;
+        (self.ray.get_position(self.furthest_pos), is_backward)
     }
 }

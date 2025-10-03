@@ -13,11 +13,11 @@ use comrak::{
 };
 use image_renderer::{ImageRenderer, get_tail_pos};
 
-use prototype_abstract::{Splitter, World, bounds_new, pos};
+use prototype_abstract::{ReadonlyWorld as _, Splitter, World, WorldImpl, bounds_new, pos};
 
 #[derive(Clone)]
 struct FacImg {
-    world: World,
+    world: WorldImpl,
     width: usize,
     height: usize,
 }
@@ -45,7 +45,7 @@ impl FromStr for FacImg {
     }
 }
 
-fn apply_splitter_completion(world: &mut World) -> Result<()> {
+fn apply_splitter_completion(world: &mut WorldImpl) -> Result<()> {
     let bounds = world.bounds();
     if bounds.is_empty() {
         return Ok(());

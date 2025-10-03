@@ -1,7 +1,8 @@
 use crate::Impassable;
 use crate::smart_belt::DragStepResult;
+use crate::world::ReadonlyWorld;
 
-use super::{Action, LineDrag, TileClassifier, TileType, action::Error, drag::DragDirection};
+use super::{Action, DragDirection, LineDrag, TileClassifier, TileType, action::Error};
 
 /// The state of the current drag we store. Needs to work in both directions.
 #[derive(Debug, Clone)]
@@ -92,21 +93,12 @@ impl DragState {
         direction: DragDirection,
         output_pos: i32,
     ) -> DragStepResult {
-        let can_upgrade = ctx.can_upgrade_underground(direction, output_pos);
-        let action = Action::IntegrateUndergroundPair {
-            do_upgrade: can_upgrade,
-        };
-        // This error can maybe be moved to the action itself
-        let error = if !can_upgrade {
-            Some(Error::CannotUpgradeUnderground)
-        } else {
-            None
-        };
+        let action = Action::IntegrateUndergroundPair;
         let (input_pos, output_pos) =
             direction.swap_if_backwards(ctx.next_position(direction), output_pos);
         DragStepResult(
             action,
-            error,
+            None,
             DragState::PassThrough {
                 left_pos: input_pos,
                 right_pos: output_pos,
@@ -349,7 +341,11 @@ impl<'a> LineDrag<'a> {
     }
 
     /// Checks if an existing underground can be upgraded/integrated.
-    fn can_upgrade_underground(&self, direction: DragDirection, output_pos: i32) -> bool {
+    pub(super) fn can_upgrade_underground(
+        &self,
+        direction: DragDirection,
+        output_pos: i32,
+    ) -> bool {
         let input_pos = self.next_position(direction);
 
         self.check_underground_path(input_pos, output_pos, input_pos)
