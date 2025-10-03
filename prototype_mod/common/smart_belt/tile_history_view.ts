@@ -1,6 +1,6 @@
 import { beltCurvedInputDirection, type BeltConnections } from "../belt_curving"
+import type { BeltCollider } from "../belts"
 import { Belt, BeltConnectable, UndergroundBelt } from "../belts"
-import type { Entity } from "../belts"
 import type { Direction, TilePosition } from "../geometry"
 import { ReadonlyWorldOps, type ReadonlyWorld } from "../world"
 
@@ -11,8 +11,15 @@ export class TileHistoryView implements ReadonlyWorld {
     private tileHistory: TileHistory | undefined,
   ) {}
 
-  get(position: TilePosition): Entity | undefined {
+  get(position: TilePosition): BeltCollider | undefined {
     return this.world.get(position)
+  }
+
+  canPlaceOrFastReplace(
+    position: TilePosition,
+    beltDirection: Direction,
+  ): boolean {
+    return this.world.canPlaceOrFastReplace(position, beltDirection)
   }
 
   getUgPairPos(

@@ -2,13 +2,13 @@ import * as yaml from "js-yaml"
 import {
   Belt,
   BeltConnectable,
-  Colliding,
-  Impassable,
+  CollidingEntity,
+  ImpassableTile,
   LoaderLike,
   Splitter,
   UndergroundBelt,
+  type BeltCollider,
   type BeltTier,
-  type Entity,
 } from "../common/belts"
 import {
   boundsUnion,
@@ -107,15 +107,15 @@ export function parseWorld(input: string): WorldParse {
   return [world, markers]
 }
 
-function parseWord(input: string): Entity | undefined {
+function parseWord(input: string): BeltCollider | undefined {
   if (input === "" || input === "_") {
     return undefined
   }
   if (input === "X") {
-    return new Colliding("X")
+    return new CollidingEntity("X")
   }
   if (input === "#") {
-    return new Impassable("#")
+    return new ImpassableTile("#")
   }
 
   let i = 0
@@ -190,7 +190,7 @@ export function directionFromChar(char: string): Direction | undefined {
   }
 }
 
-function printEntity(entity: Entity): string {
+function printEntity(entity: BeltCollider): string {
   if (entity instanceof Belt) {
     const tierNum = BELT_TIERS.indexOf(entity.tier) + 1
     const dirChar = directionToChar(entity.direction)
@@ -216,9 +216,9 @@ function printEntity(entity: Entity): string {
     return tierNum === 1
       ? `${dirChar}${typeChar}`
       : `${tierNum}${dirChar}${typeChar}`
-  } else if (entity instanceof Colliding) {
+  } else if (entity instanceof CollidingEntity) {
     return "X"
-  } else if (entity instanceof Impassable) {
+  } else if (entity instanceof ImpassableTile) {
     return "#"
   } else {
     return "?"
@@ -360,18 +360,6 @@ function getEntities(serde: TestCaseSerialized): TestCaseEntities {
   }
 }
 
-class TestErrorHandler implements ErrorHandler {
-  private errors: Array<[TilePosition, ActionError]> = []
-
-  handleError(position: TilePosition, error: ActionError): void {
-    this.errors.push([position, error])
-  }
-
-  getErrors(): Array<[TilePosition, ActionError]> {
-    return this.errors
-  }
-}
-
 export function runTestCase(
   test: TestCaseEntities,
   wiggle: boolean,
@@ -389,6 +377,13 @@ export function runTestCase(
   }
 
   const result = test.before.clone()
+  class TestErrorHandler implements ErrorHandler {
+    errors: Array<[TilePosition, ActionError]> = []
+
+    handleError(position: TilePosition, error: ActionError): void {
+      this.errors.push([position, error])
+    }
+  }
   const errorHandler = new TestErrorHandler()
   const drag = LineDrag.startDrag(
     result,
@@ -407,7 +402,7 @@ export function runTestCase(
   }
 
   const errors = new Set<string>()
-  for (const [position, error] of errorHandler.getErrors()) {
+  for (const [position, error] of errorHandler.errors) {
     errors.add(serializeError(position, error))
   }
 

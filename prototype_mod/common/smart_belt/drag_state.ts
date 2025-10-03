@@ -1,8 +1,12 @@
-import { Impassable, UndergroundBelt, type BeltTier } from "../belts"
+import { ImpassableTile, UndergroundBelt, type BeltTier } from "../belts"
 import { directionAxis, getRayPosition, type Ray } from "../geometry"
 import type { World } from "../world"
 import { Action, ActionError } from "./action"
-import { directionMultiplier, DragDirection, swapIfBackwards } from "./drag"
+import {
+  directionMultiplier,
+  DragDirection,
+  swapIfBackwards,
+} from "./DragDirection"
 import { TileClassifier } from "./tile_classification"
 import type { TileHistory } from "./tile_history_view"
 import { DragWorldView } from "./world_view"
@@ -339,7 +343,7 @@ function canBuildUnderground(
       return undefined
     }
 
-    if (entity instanceof Impassable) {
+    if (entity instanceof ImpassableTile) {
       return ActionError.CannotTraversePastTile
     }
 

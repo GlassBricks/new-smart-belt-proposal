@@ -1,11 +1,56 @@
 import {
   LuaPlayer,
   LuaSurface,
-  MapPosition,
   OnBuiltEntityEvent,
   OnPreBuildEvent,
-  TilePosition,
+  PlayerIndex,
 } from "factorio:runtime"
+import { Direction, TilePosition } from "../common/geometry"
+import { FullDrag } from "../common/smart_belt/drag"
+import { beltTierFromBeltName } from "./prototypes"
+import {
+  RealErrorHandler,
+  RealWorld,
+  toTilePosition,
+  translateDirection,
+} from "./real_world"
+
+interface PlayerDragData {
+  preBuildData?: {
+    mode: defines.build_mode
+    createdByMoving: boolean
+  }
+  drag?: FullDrag
+  previousDirection?: Direction
+}
+declare const storage: {
+  players: Record<PlayerIndex, PlayerDragData>
+}
+script.on_configuration_changed(() => {
+  storage.players ??= {}
+})
+
+function getPlayerData(player: PlayerIndex): PlayerDragData {
+  if (!storage.players) {
+    storage.players = {}
+  }
+  if (!storage.players[player]) {
+    storage.players[player] = {}
+  }
+  return storage.players[player]
+}
+script.on_event(defines.events.on_pre_build, (event: OnPreBuildEvent) => {
+  const player = game.get_player(event.player_index)!
+  const surface = player.surface
+  const stack = player.cursor_stack
+  if (stack && stack.valid_for_read && stack.name.startsWith("smarter-")) {
+    const data = getPlayerData(player.index)
+    data.preBuildData = {
+      mode: event.build_mode,
+      createdByMoving: event.created_by_moving,
+    }
+  }
+})
 
 script.on_event(defines.events.on_built_entity, (event: OnBuiltEntityEvent) => {
   const entity = event.entity
@@ -13,36 +58,59 @@ script.on_event(defines.events.on_built_entity, (event: OnBuiltEntityEvent) => {
   const isGhost = entity.name == "entity-ghost"
   const name = isGhost ? entity.ghost_name : entity.name
   if (!name.startsWith("smarter-")) return
+  const player = game.get_player(event.player_index)!
+  const surface = entity.surface
+  const pos = toTilePosition(entity.position)
+  const direction = translateDirection(entity.direction)
   entity.destroy()
+
+  const beltName = name.substring(8)
+
+  handlePlayerBuilt(player, beltName, surface, pos, direction)
 })
 
-script.on_event(defines.events.on_pre_build, (event: OnPreBuildEvent) => {
+script.on_event(defines.events.on_player_cursor_stack_changed, (event) => {
   const player = game.get_player(event.player_index)!
-  const surface = player.surface
   const stack = player.cursor_stack
   if (stack && stack.valid_for_read && stack.name.startsWith("smarter-")) {
-    handleEntityBuilt(
-      player,
-      stack.name.substring("smarter-".length),
-      event.build_mode,
-      surface,
-      event.position,
-      event.direction,
-    )
+    stack.count = 100
   }
 })
 
-function handleEntityBuilt(
+function handlePlayerBuilt(
   player: LuaPlayer,
   name: string,
-  mode: defines.build_mode,
   surface: LuaSurface,
-  position: MapPosition,
-  direction: defines.direction,
+  pos: TilePosition,
+  direction: Direction,
 ) {
-  const tilePosition: TilePosition = {
-    x: Math.floor(position.x),
-    y: Math.floor(position.y),
+  const data = getPlayerData(player.index)
+  if (!data.preBuildData) return
+  const { createdByMoving } = data.preBuildData
+
+  const tier = beltTierFromBeltName(name)
+  if (!tier) {
+    return
   }
-  game.print("" + name + serpent.block(tilePosition))
+
+  const world = new RealWorld(player.surface, tier, player)
+  const errHandler = new RealErrorHandler(surface, player, world)
+
+  const existingDrag = createdByMoving ? data.drag : undefined
+
+  if (!existingDrag) {
+    const drag = FullDrag.startDrag(tier, pos, direction, world, errHandler)
+    data.drag = drag
+  } else {
+    if (data.previousDirection != direction) {
+      data.previousDirection = direction
+      existingDrag.rotate(world, errHandler, pos)
+    } else {
+      existingDrag.interpolateTo(world, errHandler, pos)
+    }
+  }
 }
+
+script.on_nth_tick(60 * 5, () => {
+  game.reload_mods()
+})

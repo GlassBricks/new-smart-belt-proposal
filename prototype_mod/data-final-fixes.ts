@@ -1,14 +1,18 @@
+import { PrototypeData } from "factorio:common"
 import {
-  Data,
+  CollisionMaskConnector,
   ItemPrototype,
+  ModData,
   SimpleEntityWithOwnerPrototype,
   TrivialSmokePrototype,
 } from "factorio:prototype"
 
-declare const data: Data
+declare const data: PrototypeData
 
-for (const [name, beltEntity] of pairs(data.raw["transport-belt"])) {
-  if (!beltEntity.related_underground_belt) continue
+const undergroundCollisionMasks: Record<string, CollisionMaskConnector> = {}
+
+for (const [name, beltProto] of pairs(data.raw["transport-belt"])) {
+  if (!beltProto.related_underground_belt) continue
   let beltItem = data.raw.item[name]!
   let newItem: ItemPrototype = {
     type: "item",
@@ -20,7 +24,7 @@ for (const [name, beltEntity] of pairs(data.raw["transport-belt"])) {
         tint: [0.5, 0.8, 0.5],
       },
     ],
-    localised_name: ["", "Smarter ", ["entity-name." + beltEntity.name]],
+    localised_name: ["", "Smarter ", ["entity-name." + beltProto.name]],
     subgroup: "belt",
     order: "z[smarter-belt]" + beltItem.order,
     place_result: "smarter-" + name,
@@ -30,17 +34,9 @@ for (const [name, beltEntity] of pairs(data.raw["transport-belt"])) {
   let newEntity: SimpleEntityWithOwnerPrototype = {
     type: "simple-entity-with-owner",
     name: "smarter-" + name,
-    icon: beltEntity.icon,
-    icon_size: beltEntity.icon_size,
-    order: beltEntity.order,
-    collision_box: [
-      [-0.4, -0.4],
-      [0.4, 0.4],
-    ],
-    selection_box: [
-      [-0.4, -0.4],
-      [0.4, 0.4],
-    ],
+    icon: beltProto.icon,
+    icon_size: beltProto.icon_size,
+    order: beltProto.order,
     collision_mask: {
       layers: {},
     },
@@ -74,15 +70,25 @@ for (const [name, beltEntity] of pairs(data.raw["transport-belt"])) {
       smoke_name: "smarter-belt-empty-smoke",
     },
   }
-  const smoke: TrivialSmokePrototype = {
-    type: "trivial-smoke",
-    name: "smarter-belt-empty-smoke",
-    animation: {
-      filename: "__core__/graphics/empty.png",
-      size: [1, 1],
-      frame_count: 8,
-    },
-    duration: 1,
-  }
-  data.extend([newEntity, newItem, smoke])
+  let ugProto =
+    data.raw["underground-belt"][beltProto.related_underground_belt]!
+  undergroundCollisionMasks[ugProto.name] =
+    ugProto.underground_collision_mask ?? { layers: {} }
 }
+
+const smoke: TrivialSmokePrototype = {
+  type: "trivial-smoke",
+  name: "smarter-belt-empty-smoke",
+  animation: {
+    filename: "__core__/graphics/empty.png",
+    size: [1, 1],
+    frame_count: 8,
+  },
+  duration: 1,
+}
+const ugProtoData: ModData = {
+  type: "mod-data",
+  name: "smarter-belt-underground-collision-masks",
+  data: undergroundCollisionMasks,
+}
+data.extend([smoke, ugProtoData])

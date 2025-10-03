@@ -1,6 +1,6 @@
 import { beltIsCurvedAt } from "../belt_curving"
 import { Belt, BeltConnectable, UndergroundBelt } from "../belts"
-import { Entity } from "../belts"
+import { BeltCollider } from "../belts"
 import {
   Direction,
   getRayPosition,
@@ -10,7 +10,7 @@ import {
   type TilePosition,
 } from "../geometry"
 import type { ReadonlyWorld } from "../world"
-import { DragDirection } from "./drag"
+import { DragDirection } from "./DragDirection"
 
 import { TileHistoryView, type TileHistory } from "./tile_history_view"
 
@@ -40,7 +40,7 @@ export class DragWorldView {
       : oppositeDirection(this.ray.direction)
   }
 
-  getEntity(position: number): Entity | undefined {
+  getEntity(position: number): BeltCollider | undefined {
     return this.historyView.get(getRayPosition(this.ray, position))
   }
 

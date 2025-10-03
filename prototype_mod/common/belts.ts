@@ -1,17 +1,16 @@
 import type { Direction } from "./geometry"
 import { oppositeDirection } from "./geometry"
 
-// Only for the purposes of belt interaction.
-export interface Entity {
+export interface BeltCollider {
   readonly type: string
   readonly name: string
 }
 
-export class Colliding implements Entity {
+export class CollidingEntity implements BeltCollider {
   readonly type = "Colliding" as const
   constructor(readonly name: string) {}
 }
-export class Impassable implements Entity {
+export class ImpassableTile implements BeltCollider {
   readonly type = "Impassable" as const
   constructor(readonly name: string) {}
 }
@@ -23,7 +22,7 @@ export interface BeltTier {
   readonly undergroundDistance: number
 }
 
-export abstract class BeltConnectable implements Entity {
+export abstract class BeltConnectable implements BeltCollider {
   abstract readonly type: string
   abstract readonly name: string
   abstract readonly direction: Direction
@@ -86,7 +85,7 @@ export class UndergroundBelt extends BeltConnectable {
     readonly tier: BeltTier,
   ) {
     super()
-    this.name = tier.beltName
+    this.name = tier.undergroundName
   }
 
   hasOutput(): boolean {

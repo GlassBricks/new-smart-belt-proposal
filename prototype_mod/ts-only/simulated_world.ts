@@ -5,15 +5,17 @@ import {
   LoaderLike,
   Splitter,
   UndergroundBelt,
+  type BeltCollider,
   type BeltTier,
-  type Entity,
 } from "../common/belts"
-import type { BoundingBox, Direction, TilePosition } from "../common/geometry"
 import {
   boundsNew,
+  Direction,
   oppositeDirection,
   pos,
   posEquals,
+  type BoundingBox,
+  type TilePosition,
 } from "../common/geometry"
 import { ReadonlyWorldOps, type World } from "../common/world"
 import {
@@ -25,7 +27,7 @@ import {
 } from "./test-utils"
 
 export class SimulatedWorld implements World {
-  private entities: Map<string, Entity>
+  private entities: Map<string, BeltCollider>
 
   constructor() {
     this.entities = new Map()
@@ -39,11 +41,11 @@ export class SimulatedWorld implements World {
     return positionToKey(pos)
   }
 
-  get(position: TilePosition): Entity | undefined {
+  get(position: TilePosition): BeltCollider | undefined {
     return this.entities.get(this.posKey(position)) ?? undefined
   }
 
-  set(position: TilePosition, entity: Entity): void {
+  set(position: TilePosition, entity: BeltCollider): void {
     if (entity instanceof UndergroundBelt) {
       const flipped = this.handleUndergroundBelt(position, entity)
       if (flipped) {
@@ -91,6 +93,15 @@ export class SimulatedWorld implements World {
     this.upgradeUgChecked(position, tier)
   }
 
+  upgradeSplitter(position: TilePosition, newName: string): void {
+    const entity = this.get(position)
+    if (!(entity instanceof Splitter)) {
+      return
+    }
+    const newEntity = new Splitter(entity.direction, newName)
+    this.setWithoutHandling(position, newEntity)
+  }
+
   flipUg(position: TilePosition): boolean {
     const entity = this.get(position)
     if (!(entity instanceof UndergroundBelt)) {
@@ -112,7 +123,10 @@ export class SimulatedWorld implements World {
     return true
   }
 
-  private setWithoutHandling(position: TilePosition, entity: Entity): void {
+  private setWithoutHandling(
+    position: TilePosition,
+    entity: BeltCollider,
+  ): void {
     this.entities.set(this.posKey(position), entity)
   }
 
@@ -187,11 +201,11 @@ export class SimulatedWorld implements World {
     }
   }
 
-  remove(position: TilePosition): void {
+  mine(position: TilePosition): void {
     this.entities.delete(this.posKey(position))
   }
 
-  getEntities(): IterableIterator<[TilePosition, Entity]> {
+  getEntities(): IterableIterator<[TilePosition, BeltCollider]> {
     const self = this
     return (function* () {
       for (const [key, entity] of self.entities) {
@@ -234,7 +248,10 @@ export class SimulatedWorld implements World {
     return newWorld
   }
 
-  private transformEntity(transform: Transform, entity: Entity): Entity {
+  private transformEntity(
+    transform: Transform,
+    entity: BeltCollider,
+  ): BeltCollider {
     if (entity instanceof Belt) {
       return new Belt(
         transformDirection(transform, entity.direction),
@@ -271,7 +288,7 @@ export class SimulatedWorld implements World {
       const y = parts[1]!
       const oldPos = pos(x, y)
 
-      let newEntity: Entity
+      let newEntity: BeltCollider
       if (entity instanceof Belt) {
         const inputDirection = this.inputDirectionAt(oldPos)!
         newEntity = new Belt(oppositeDirection(inputDirection), entity.tier)

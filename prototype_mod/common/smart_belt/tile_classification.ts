@@ -7,7 +7,8 @@ import {
   type BeltTier,
 } from "../belts"
 import { Direction, directionAxis } from "../geometry"
-import { DragDirection, directionMultiplier } from "./drag"
+
+import { directionMultiplier, DragDirection } from "./DragDirection"
 
 import type { DragContext } from "./drag_state"
 import { DragWorldView } from "./world_view"

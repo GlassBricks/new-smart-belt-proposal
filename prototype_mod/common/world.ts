@@ -4,7 +4,7 @@ import {
   BeltConnectable,
   UndergroundBelt,
   type BeltTier,
-  type Entity as EntityLike,
+  type BeltCollider as EntityLike,
 } from "./belts"
 import {
   addVec,
@@ -20,15 +20,17 @@ export interface ReadonlyWorld {
   get(position: TilePosition): EntityLike | undefined
   outputDirectionAt(position: TilePosition): Direction | undefined
   inputDirectionAt(position: TilePosition): Direction | undefined
-  canFastReplaceBelt(position: TilePosition, beltDirection: Direction): boolean
+  canPlaceOrFastReplace(position: TilePosition, beltDirection: Direction): boolean
 }
 
 export interface World extends ReadonlyWorld {
-  tryBuild(position: TilePosition, entity: BeltConnectable): boolean
-  remove(pos: TilePosition): void
+  mine(pos: TilePosition): void
+
+  tryBuild(position: TilePosition, entity: Belt | UndergroundBelt): boolean
 
   flipUg(position: TilePosition): void
   upgradeUg(position: TilePosition, tier: BeltTier): void
+  upgradeSplitter(position: TilePosition, newName: string): void
 }
 
 export class ReadonlyWorldOps {
