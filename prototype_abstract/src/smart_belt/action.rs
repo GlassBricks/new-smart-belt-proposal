@@ -34,8 +34,13 @@ pub enum Error {
 }
 
 impl<'a> LineDrag<'a> {
-    pub fn apply_action(&mut self, action: Action, direction: DragDirection) {
-        let position = self.next_position(direction);
+    pub fn apply_action(
+        &mut self,
+        action: Action,
+        direction: DragDirection,
+        error_handler: &mut dyn FnMut(TilePosition, Error),
+    ) {
+        let position = self.create_context(direction).next_position();
         let world_pos = self.ray.get_position(position);
         match action {
             Action::None => {}
@@ -115,10 +120,11 @@ impl<'a> LineDrag<'a> {
                     };
                     let output_pos = self.ray.ray_position(output_world_pos);
 
-                    if self.can_upgrade_underground(direction, output_pos) {
+                    let ctx = self.create_context(direction);
+                    if super::drag_state::can_upgrade_underground(&ctx, output_pos) {
                         self.world.upgrade_ug(world_pos, self.tier);
                     } else {
-                        self.add_error(Error::CannotUpgradeUnderground, direction);
+                        self.add_error(Error::CannotUpgradeUnderground, direction, error_handler);
                     }
                 }
             }

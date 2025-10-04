@@ -240,23 +240,24 @@ fn run_test_case(
     let mut result = test.before.clone();
     let mut errors = Vec::new();
     {
+        let mut error_handler = |pos, err| {
+            errors.push((pos, err));
+        };
         let mut drag = LineDrag::start_drag(
             &mut result,
             tier,
             start_pos,
             belt_direction,
             belt_direction,
-            |pos, err| {
-                errors.push((pos, err));
-            },
+            &mut error_handler,
         );
 
         match test_variant {
             TestVariant::Normal => {
-                drag.interpolate_to(end_pos);
+                drag.interpolate_to(end_pos, &mut error_handler);
             }
             TestVariant::ForwardBack => {
-                run_forward_back(&mut drag, leftmost_pos, end_pos);
+                run_forward_back(&mut drag, leftmost_pos, end_pos, &mut error_handler);
             }
             TestVariant::Wiggle => {
                 run_wiggle(
@@ -266,10 +267,18 @@ fn run_test_case(
                     belt_direction,
                     &ray,
                     end_pos_ray,
+                    &mut error_handler,
                 );
             }
             TestVariant::MegaWiggle => {
-                run_mega_wiggle(&mut drag, start_pos, end_pos, belt_direction, end_pos_ray);
+                run_mega_wiggle(
+                    &mut drag,
+                    start_pos,
+                    end_pos,
+                    belt_direction,
+                    end_pos_ray,
+                    &mut error_handler,
+                );
             }
         }
     }
@@ -285,19 +294,20 @@ fn run_wiggle(
     drag_direction: Direction,
     ray: &Ray,
     end_pos_ray: i32,
+    error_handler: &mut dyn FnMut(TilePosition, Error),
 ) {
     let dir_vec = drag_direction.to_vector();
     let mut current_pos = start_pos;
 
     while ray.ray_position(current_pos) + 2 < end_pos_ray {
         let forward_2 = current_pos + dir_vec * 2;
-        drag.interpolate_to(forward_2);
+        drag.interpolate_to(forward_2, error_handler);
         let back_1 = current_pos + dir_vec;
-        drag.interpolate_to(back_1);
+        drag.interpolate_to(back_1, error_handler);
         current_pos = back_1
     }
     if ray.ray_position(current_pos) != end_pos_ray {
-        drag.interpolate_to(end_pos);
+        drag.interpolate_to(end_pos, error_handler);
     }
 }
 
@@ -307,22 +317,28 @@ fn run_mega_wiggle(
     end_pos: TilePosition,
     drag_direction: Direction,
     end_pos_ray: i32,
+    error_handler: &mut dyn FnMut(TilePosition, Error),
 ) {
     let dir_vec = drag_direction.to_vector();
 
     let mut n = 1;
     while n < end_pos_ray {
         let forward_n = start_pos + dir_vec * n;
-        drag.interpolate_to(forward_n);
-        drag.interpolate_to(start_pos);
+        drag.interpolate_to(forward_n, error_handler);
+        drag.interpolate_to(start_pos, error_handler);
         n += 1;
     }
-    drag.interpolate_to(end_pos);
+    drag.interpolate_to(end_pos, error_handler);
 }
 
-fn run_forward_back(drag: &mut LineDrag, leftmost_pos: TilePosition, end_pos: TilePosition) {
-    drag.interpolate_to(end_pos);
-    drag.interpolate_to(leftmost_pos);
+fn run_forward_back(
+    drag: &mut LineDrag,
+    leftmost_pos: TilePosition,
+    end_pos: TilePosition,
+    error_handler: &mut dyn FnMut(TilePosition, Error),
+) {
+    drag.interpolate_to(end_pos, error_handler);
+    drag.interpolate_to(leftmost_pos, error_handler);
 }
 
 impl WorldImpl {

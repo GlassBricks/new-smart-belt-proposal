@@ -27,31 +27,31 @@ pub(super) struct TileClassifier<'a> {
     /// Defined only if it's currently possible to create an underground at some earlier point.
     underground_input_pos: Option<i32>,
     last_position: i32,
+    direction: DragDirection,
 }
 
 impl<'a> TileClassifier<'a> {
     pub fn new(
-        world_view: DragWorldView<'a>,
-        last_position: i32,
+        ctx: &'a super::DragContext,
         can_enter_next_tile: bool,
         underground_input_pos: Option<i32>,
-        tier: BeltTier,
     ) -> Self {
         Self {
-            world_view,
-            tier,
+            world_view: ctx.drag_world_view(),
+            tier: ctx.tier,
             can_enter_next_tile,
             underground_input_pos,
-            last_position,
+            last_position: ctx.last_position,
+            direction: ctx.direction,
         }
     }
 
     // Util methods
     fn drag_direction(&self) -> DragDirection {
-        self.world_view.direction
+        self.direction
     }
     fn direction_multiplier(&self) -> i32 {
-        self.drag_direction().direction_multiplier()
+        self.direction.direction_multiplier()
     }
     fn next_position(&self) -> i32 {
         self.last_position + self.direction_multiplier()
