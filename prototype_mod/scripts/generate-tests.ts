@@ -21,6 +21,7 @@ function generateTestFile(fileStem: string, testCases: TestCaseYaml[]): string {
   code += `import {\n`
   code += `  checkTestCaseAllTransforms,\n`
   code += `  parseTestCase,\n`
+  code += `  TestVariant,\n`
   code += `  type DragTestCase,\n`
   code += `} from "../test_case";\n\n`
 
@@ -43,7 +44,7 @@ function generateTestFile(fileStem: string, testCases: TestCaseYaml[]): string {
       code += `\n  test("${sanitizedName}${variant.suffix}", () => {\n`
       code += `    const yamlContent = ${JSON.stringify(yamlContent)};\n`
       code += `    const testCase: DragTestCase = parseTestCase(yamlContent);\n`
-      code += `    const error = checkTestCaseAllTransforms(testCase, ${variant.reverse}, ${variant.wiggle});\n`
+      code += `    const error = checkTestCaseAllTransforms(testCase, ${variant.reverse}, TestVariant.${variant.variantType});\n`
       code += `    if (error !== undefined) {\n`
       code += `      throw new Error(error);\n`
       code += `    }\n`
@@ -58,12 +59,7 @@ function generateTestFile(fileStem: string, testCases: TestCaseYaml[]): string {
 
 async function main() {
   const testSuiteDir = join(import.meta.dir, "..", "..", "test_suite")
-  const generatedDir = join(
-    import.meta.dir,
-    "..",
-    "ts-only",
-    "generated",
-  )
+  const generatedDir = join(import.meta.dir, "..", "ts-only", "generated")
 
   console.log(`Reading test suite from: ${testSuiteDir}`)
   console.log(`Generating tests to: ${generatedDir}`)

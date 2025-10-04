@@ -4,20 +4,22 @@ Informal spec is in spec_src/spec.md.
 
 ## Rust Prototype
 The main prototype implementation is a rust crate, with tests.
-Rust was chosen, to allow the prototype to be mostly but not completely functional.
-
-## Main logic
 - All the "main" logic is in `prototype_abstract/src/smart_belt/*.rs`.
-- This ENTIRE CRATE was recently ported to prototype_mod/, written in typescript, setup using bun.sh; so also see `prototype_mod`.
 
-- Testing is mainly done through the a test suite, test cases defined in `./test_suite/*.yaml`, parsed and processed by `prototype_abstract/src/test_case.rs`. A build script gathers these, and generates normal rust integration tests.
-- The goal is to get enough tests to get 100% code and branch coverage for `smart_belt/*`
+## TS/mod prototype
+There's another prototype, which is mostly a direct port of the rust prototype.
+This is written in typescript, setup using bun.sh, in `prototype_mod`.
 
-## Other modules
+Part of this is compiled with TypescriptToLua, to create an actual Factorio mod.
+This creates 3 subdirs for different parts:
+`prototype_mod/common/`, `prototype_mod/ts_only/`, and `prototype_mod/scripts` (mod-only).
 
-- Other things in `src/prototype_abstract/src/` contain a simplified abstraction of Factorio.
-- For unit tests for these. Keep tests very BRIEF. Don't test every corner case, only a few interesting cases.
-- If there is already decent test coverage, DO NOT add new tests.
+## Testing
+Testing is mainly done through the a test suite, test cases defined in `test_suite/*.yaml`.
+These are turned into runnable tests.
+The rust version generates tests using build.rs.
+The TS version generates test using a script, `generate-tests.ts`.
+There is no equivalent for the mod version.
 
 ## Code style
 Strongly prefer functional programming style.

@@ -36,21 +36,47 @@ export function sanitizeTestName(name: string): string {
 export interface TestVariant {
   suffix: string
   reverse: boolean
-  wiggle: boolean
+  variantType: "Normal" | "Wiggle" | "MegaWiggle" | "ForwardBack"
 }
 
 export function getTestVariants(flags: TestCaseFlags): TestVariant[] {
-  const variants: TestVariant[] = [
-    { suffix: "", reverse: false, wiggle: false },
-  ]
+  const variants: TestVariant[] = []
 
-  if (!flags.not_reversible) {
-    variants.push({ suffix: "_reverse", reverse: true, wiggle: false })
-  }
-  if (!flags.forward_back) {
-    variants.push({ suffix: "_wiggle", reverse: false, wiggle: true })
+  if (flags.forward_back) {
+    variants.push({ suffix: "", reverse: false, variantType: "ForwardBack" })
     if (!flags.not_reversible) {
-      variants.push({ suffix: "_wiggle_reverse", reverse: true, wiggle: true })
+      variants.push({
+        suffix: "_reverse",
+        reverse: true,
+        variantType: "ForwardBack",
+      })
+    }
+  } else {
+    variants.push({ suffix: "", reverse: false, variantType: "Normal" })
+    if (!flags.not_reversible) {
+      variants.push({
+        suffix: "_reverse",
+        reverse: true,
+        variantType: "Normal",
+      })
+    }
+    variants.push({ suffix: "_wiggle", reverse: false, variantType: "Wiggle" })
+    variants.push({
+      suffix: "_mega_wiggle",
+      reverse: false,
+      variantType: "MegaWiggle",
+    })
+    if (!flags.not_reversible) {
+      variants.push({
+        suffix: "_wiggle_reverse",
+        reverse: true,
+        variantType: "Wiggle",
+      })
+      variants.push({
+        suffix: "_mega_wiggle_reverse",
+        reverse: true,
+        variantType: "MegaWiggle",
+      })
     }
   }
 

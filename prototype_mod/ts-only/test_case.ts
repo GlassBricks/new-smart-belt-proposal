@@ -37,6 +37,13 @@ import {
   type Transform,
 } from "./test-utils"
 
+export enum TestVariant {
+  Normal,
+  Wiggle,
+  MegaWiggle,
+  ForwardBack,
+}
+
 export interface DragTestCase {
   name: string
   entities: TestCaseEntities
@@ -362,8 +369,7 @@ function getEntities(serde: TestCaseSerialized): TestCaseEntities {
 
 export function runTestCase(
   test: TestCaseEntities,
-  wiggle: boolean,
-  forwardBack: boolean,
+  testVariant: TestVariant,
 ): [SimulatedWorld, Set<string>] {
   const { leftmostPos, startPos, beltDirection, endPos, tier } = test
 
@@ -393,12 +399,27 @@ export function runTestCase(
     errorHandler,
   )
 
-  if (wiggle) {
-    runWiggle(drag, result, errorHandler, startPos, endPos, beltDirection, ray)
-  } else if (forwardBack) {
-    runForwardBack(drag, result, errorHandler, leftmostPos, endPos)
-  } else {
-    drag.interpolateTo(result, errorHandler, endPos)
+  switch (testVariant) {
+    case TestVariant.MegaWiggle:
+      runMegaWiggle(drag, result, errorHandler, startPos, endPos, beltDirection)
+      break
+    case TestVariant.Wiggle:
+      runWiggle(
+        drag,
+        result,
+        errorHandler,
+        startPos,
+        endPos,
+        beltDirection,
+        ray,
+      )
+      break
+    case TestVariant.ForwardBack:
+      runForwardBack(drag, result, errorHandler, leftmostPos, endPos)
+      break
+    case TestVariant.Normal:
+      drag.interpolateTo(result, errorHandler, endPos)
+      break
   }
 
   const errors = new Set<string>()
@@ -439,6 +460,28 @@ function runWiggle(
   }
 }
 
+function runMegaWiggle(
+  drag: LineDrag,
+  world: SimulatedWorld,
+  errorHandler: ErrorHandler,
+  startPos: TilePosition,
+  endPos: TilePosition,
+  dragDirection: Direction,
+): void {
+  const ray = createRay(startPos, dragDirection)
+  const endPosRay = rayDistance(ray, endPos)
+  const dirVec = directionToVector(dragDirection)
+
+  let n = 1
+  while (n < endPosRay) {
+    const forwardN = pos(startPos.x + dirVec.x * n, startPos.y + dirVec.y * n)
+    drag.interpolateTo(world, errorHandler, forwardN)
+    drag.interpolateTo(world, errorHandler, startPos)
+    n += 1
+  }
+  drag.interpolateTo(world, errorHandler, endPos)
+}
+
 function runForwardBack(
   drag: LineDrag,
   world: SimulatedWorld,
@@ -453,17 +496,17 @@ function runForwardBack(
 export function checkTestCase(
   test: TestCaseEntities,
   reverse: boolean,
-  wiggle: boolean,
-  forwardBack: boolean,
+  testVariant: TestVariant,
 ): string | undefined {
   const testToRun = reverse ? flipTestCase(test, undefined) : test
 
-  const [result, actualErrors] = runTestCase(testToRun, wiggle, forwardBack)
+  const [result, actualErrors] = runTestCase(testToRun, testVariant)
 
   const expectedWorld = testToRun.after
   const expectedErrors = testToRun.expectedErrors
 
-  const nonEmptySubsetOnly = wiggle
+  const nonEmptySubsetOnly =
+    testVariant === TestVariant.Wiggle || testVariant === TestVariant.MegaWiggle
 
   const errorsMatch = nonEmptySubsetOnly
     ? expectedErrors.size === 0
@@ -559,7 +602,7 @@ function setsEqual<T>(a: Set<T>, b: Set<T>): boolean {
 export function checkTestCaseAllTransforms(
   test: DragTestCase,
   reverse: boolean,
-  wiggle: boolean,
+  testVariant: TestVariant,
 ): string | undefined {
   const transforms = allUniqueTransforms()
 
@@ -576,17 +619,40 @@ export function checkTestCaseAllTransforms(
         )
       : transformedTest
 
-    const testName = reverse
-      ? wiggle
-        ? `[transform ${i}] [flip] [wiggle]`
-        : `[transform ${i}] [flip]`
-      : wiggle
-        ? `[transform ${i}] [wiggle]`
-        : test.forwardBack
-          ? `[transform ${i}] [forward_back]`
-          : `[transform ${i}]`
+    let testName: string
+    if (reverse) {
+      switch (testVariant) {
+        case TestVariant.Wiggle:
+          testName = `[transform ${i}] [flip] [wiggle]`
+          break
+        case TestVariant.MegaWiggle:
+          testName = `[transform ${i}] [flip] [mega_wiggle]`
+          break
+        case TestVariant.ForwardBack:
+          testName = `[transform ${i}] [flip] [forward_back]`
+          break
+        case TestVariant.Normal:
+          testName = `[transform ${i}] [flip]`
+          break
+      }
+    } else {
+      switch (testVariant) {
+        case TestVariant.Wiggle:
+          testName = `[transform ${i}] [wiggle]`
+          break
+        case TestVariant.MegaWiggle:
+          testName = `[transform ${i}] [mega_wiggle]`
+          break
+        case TestVariant.ForwardBack:
+          testName = `[transform ${i}] [forward_back]`
+          break
+        case TestVariant.Normal:
+          testName = `[transform ${i}]`
+          break
+      }
+    }
 
-    const error = checkTestCase(testToCheck, false, wiggle, test.forwardBack)
+    const error = checkTestCase(testToCheck, false, testVariant)
     if (error !== undefined) {
       return `${testName}\n${error}`
     }
