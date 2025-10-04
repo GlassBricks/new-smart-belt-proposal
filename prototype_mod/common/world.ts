@@ -8,10 +8,10 @@ import {
 } from "./belts"
 import {
   addVec,
+  Direction,
   directionToVector,
   mulVec,
   oppositeDirection,
-  type Direction,
   type TilePosition,
 } from "./geometry"
 import type { TileHistory } from "./smart_belt/tile_history_view"
@@ -29,11 +29,7 @@ export interface ReadonlyWorld {
 export interface World extends ReadonlyWorld {
   mine(pos: TilePosition): void
 
-  tryBuild(
-    position: TilePosition,
-    entity: Belt | UndergroundBelt,
-    isFirst?: boolean,
-  ): boolean
+  tryBuild(position: TilePosition, entity: Belt | UndergroundBelt): boolean
 
   flipUg(position: TilePosition): void
   upgradeUg(position: TilePosition, tier: BeltTier): void
@@ -98,12 +94,11 @@ export class WorldOps extends ReadonlyWorldOps {
     position: TilePosition,
     direction: Direction,
     tier: BeltTier,
-    isFirst?: boolean,
   ): TileHistory | undefined {
     let history = this.beltConnectionsAt(position)
 
     const newBelt = new Belt(direction, tier)
-    if (this.world.tryBuild(position, newBelt, isFirst)) {
+    if (this.world.tryBuild(position, newBelt)) {
       return [position, history]
     }
   }
@@ -113,12 +108,20 @@ export class WorldOps extends ReadonlyWorldOps {
     direction: Direction,
     isInput: boolean,
     tier: BeltTier,
-    isFirst?: boolean,
+    verifyDirection: boolean,
   ): TileHistory | undefined {
     let history = this.beltConnectionsAt(position)
+    const result = this.world.tryBuild(
+      position,
+      new UndergroundBelt(direction, isInput, tier),
+    )
 
-    const newUg = new UndergroundBelt(direction, isInput, tier)
-    if (this.world.tryBuild(position, newUg, isFirst)) {
+    const belt = this.world.get(position)
+    if (belt instanceof UndergroundBelt && belt.direction != direction) {
+      this.world.flipUg(position)
+    }
+
+    if (result) {
       return [position, history]
     }
   }

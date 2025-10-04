@@ -157,7 +157,6 @@ export class SimulatedWorld implements World {
     }
 
     if (pairUg.isInput === ug.isInput) {
-      console.debug("Flipping at", position)
       return ug.flip()
     }
 

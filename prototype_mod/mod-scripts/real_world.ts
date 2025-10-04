@@ -121,6 +121,7 @@ export class RealWorld implements World {
     private surface: LuaSurface,
     private tier: BeltTier,
     private player: LuaPlayer,
+    private isFirst: boolean,
   ) {}
 
   get(position: TilePosition): BeltCollider | undefined {
@@ -200,11 +201,7 @@ export class RealWorld implements World {
         assertNever(type)
     }
   }
-  tryBuild(
-    position: TilePosition,
-    entity: Belt | UndergroundBelt,
-    isFirst?: boolean,
-  ): boolean {
+  tryBuild(position: TilePosition, entity: Belt | UndergroundBelt): boolean {
     const entityPosition = toMapPosition(position)
     const luaEntity = this.surface.create_entity({
       name: entity.name,
@@ -219,8 +216,9 @@ export class RealWorld implements World {
           : entity.isInput === false
             ? "output"
             : undefined,
-      undo_index: isFirst ? 0 : 1,
+      undo_index: this.isFirst ? 0 : 1,
     })
+    this.isFirst = false
     const built = luaEntity !== undefined && luaEntity.valid
     if (built) {
       this.surface.play_sound({

@@ -142,3 +142,7 @@
   before: "<o *_ <i < <"
   after: "<o > <i < < *>"
   expected_errors: [cannot_traverse_past_entity]
+
+- name: Pantabo's into backwards ug belt
+  before: "_ X X <i"
+  after: ">i X X >o >"

@@ -93,10 +93,15 @@ function handlePlayerBuilt(
     return
   }
 
-  const world = new RealWorld(player.surface, tier, player)
-  const errHandler = new RealErrorHandler(surface, player, world)
-
   const existingDrag = createdByMoving ? data.drag : undefined
+
+  const world = new RealWorld(
+    player.surface,
+    tier,
+    player,
+    existingDrag === undefined,
+  )
+  const errHandler = new RealErrorHandler(surface, player, world)
 
   if (!existingDrag) {
     const drag = FullDrag.startDrag(tier, pos, direction, world, errHandler)

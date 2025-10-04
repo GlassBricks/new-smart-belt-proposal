@@ -6,7 +6,7 @@ use super::{DragDirection, LineDrag};
 use crate::belts::{Belt, BeltTier, UndergroundBelt};
 use crate::smart_belt::belt_curving::TileHistory;
 use crate::world::{ReadonlyWorld, World, WorldImpl};
-use crate::{BeltConnectable, Direction, Splitter, TilePosition};
+use crate::{BeltConnectable, Direction, TilePosition};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Action {
@@ -62,6 +62,7 @@ impl<'a> LineDrag<'a> {
                     self.ray.direction,
                     direction == DragDirection::Forward,
                     self.tier,
+                    false,
                 );
 
                 if let Some(tile_history) = self.world.place_underground_belt(
@@ -69,6 +70,7 @@ impl<'a> LineDrag<'a> {
                     self.ray.direction,
                     direction == DragDirection::Backward,
                     self.tier,
+                    true,
                 ) {
                     self.set_tile_history(Some(tile_history));
                 }
@@ -89,6 +91,7 @@ impl<'a> LineDrag<'a> {
                     self.ray.direction,
                     direction == DragDirection::Backward,
                     self.tier,
+                    false,
                 ) {
                     self.set_tile_history(Some(tile_history));
                 }
@@ -122,21 +125,14 @@ impl<'a> LineDrag<'a> {
                     let output_pos = self.ray.ray_position(output_world_pos);
 
                     if self.can_upgrade_underground(direction, output_pos) {
-                        self.world.upgrade_ug_checked(world_pos, self.tier);
+                        self.world.upgrade_ug(world_pos, self.tier);
                     } else {
                         self.add_error(Error::CannotUpgradeUnderground, direction);
                     }
                 }
             }
             Action::IntegrateSplitter => {
-                let splitter = self
-                    .world
-                    .get_mut(world_pos)
-                    .and_then(|e| (e as &mut dyn Any).downcast_mut::<Splitter>())
-                    .expect("Expected Splitter at position");
-                if splitter.tier != self.tier {
-                    splitter.tier = self.tier;
-                }
+                self.world.upgrade_splitter(world_pos, self.tier);
             }
         }
     }
@@ -174,7 +170,16 @@ impl WorldImpl {
         direction: Direction,
         is_input: bool,
         tier: BeltTier,
+        verify_direction: bool,
     ) -> Option<TileHistory> {
-        self.set_if_not_eq(position, UndergroundBelt::new(direction, is_input, tier))
+        let result = self.set_if_not_eq(position, UndergroundBelt::new(direction, is_input, tier));
+        if verify_direction
+            && let Some(get) = self.get(position)
+            && let Some(ug) = get.as_underground_belt()
+            && ug.direction != direction
+        {
+            self.flip_ug(position);
+        }
+        result
     }
 }

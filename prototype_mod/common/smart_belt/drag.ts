@@ -54,7 +54,7 @@ export class LineDrag {
       : undefined
 
     if (canPlace) {
-      worldOps.placeBelt(startPos, beltDirection, tier, true)
+      worldOps.placeBelt(startPos, beltDirection, tier)
     } else {
       errorHandler.handleError(startPos, ActionError.EntityInTheWay)
     }
@@ -170,6 +170,7 @@ export class LineDrag {
           this.ray.direction,
           direction === DragDirection.Forward,
           this.tier,
+          false,
         )
 
         const tileHistory = worldOps.placeUndergroundBelt(
@@ -177,6 +178,7 @@ export class LineDrag {
           this.ray.direction,
           direction === DragDirection.Backward,
           this.tier,
+          true,
         )
         if (tileHistory !== undefined) {
           this.setTileHistory(tileHistory)
@@ -198,6 +200,7 @@ export class LineDrag {
           this.ray.direction,
           direction === DragDirection.Backward,
           this.tier,
+          false,
         )
         if (tileHistory !== undefined) {
           this.setTileHistory(tileHistory)
