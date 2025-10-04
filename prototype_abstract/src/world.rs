@@ -114,7 +114,7 @@ impl WorldImpl {
             if entity.as_colliding().is_some() {
                 false
             } else if let Some(belt) = entity.as_belt() {
-                belt.direction != direction.opposite()
+                allow_fast_replace || belt.direction != direction.opposite()
             } else {
                 allow_fast_replace
             }

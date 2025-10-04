@@ -34,24 +34,31 @@ export class LineDrag {
   maxPos: number = 0
   minPos: number = 0
   rotationPivotDirection: DragDirection = DragDirection.Forward
+  furthestPlacementDirection: DragDirection = DragDirection.Forward
   private constructor(
     public ray: Ray,
     private tier: BeltTier,
     private lastState: DragState,
     private lastPosition: number,
     private tileHistory: TileHistory | undefined,
+    private lastEndTileHistory: TileHistory | undefined,
   ) {}
 
-  static startDrag(
+  private static newDrag(
     world: World,
+    errorHandler: ErrorHandler,
     tier: BeltTier,
     startPos: TilePosition,
     beltDirection: Direction,
     firstBeltDirection: Direction,
-    errorHandler: ErrorHandler,
+    allowFastReplace: boolean,
   ): LineDrag {
     const worldOps = new WorldOps(world)
-    const canPlace = world.canPlaceOrFastReplace(startPos, beltDirection)
+    const canPlace = world.canPlaceOrFastReplace(
+      startPos,
+      beltDirection,
+      allowFastReplace,
+    )
     const tileHistory: TileHistory | undefined = canPlace
       ? [startPos, worldOps.beltConnectionsAt(startPos)]
       : undefined
@@ -70,6 +77,25 @@ export class LineDrag {
       initialState,
       0,
       tileHistory,
+      undefined,
+    )
+  }
+
+  static startDrag(
+    world: World,
+    errorHandler: ErrorHandler,
+    tier: BeltTier,
+    startPos: TilePosition,
+    beltDirection: Direction,
+  ): LineDrag {
+    return LineDrag.newDrag(
+      world,
+      errorHandler,
+      tier,
+      startPos,
+      beltDirection,
+      beltDirection,
+      true,
     )
   }
 
@@ -85,13 +111,13 @@ export class LineDrag {
     const targetPos = rayDistance(this.ray, newPosition)
 
     while (this.lastPosition < targetPos) {
-      const ctx = this.createContext(world)
+      const ctx = this.createContext(world, DragDirection.Forward)
       const result = takeStep(this.lastState, ctx, DragDirection.Forward)
       this.applyStep(world, errorHandler, result, DragDirection.Forward)
     }
 
     while (this.lastPosition > targetPos) {
-      const ctx = this.createContext(world)
+      const ctx = this.createContext(world, DragDirection.Backward)
       const result = takeStep(this.lastState, ctx, DragDirection.Backward)
       this.applyStep(world, errorHandler, result, DragDirection.Backward)
     }
@@ -120,6 +146,57 @@ export class LineDrag {
     ]
   }
 
+  rotate(
+    world: World,
+    errorHandler: ErrorHandler,
+    cursorPos: TilePosition,
+  ): boolean {
+    const turnDirection = rayRelativeDirection(this.ray, cursorPos)
+    if (turnDirection === undefined) {
+      return false
+    }
+
+    const [pivot, backward] = this.getRotationPivot()
+    const oldDirection = this.ray.direction
+    const newBeltDirection = backward
+      ? oppositeDirection(turnDirection)
+      : turnDirection
+    const firstBeltDirection = backward ? oldDirection : turnDirection
+
+    const lastTileHistory =
+      this.tileHistory !== undefined &&
+      this.furthestPlacementPos() === this.lastPosition
+        ? this.tileHistory
+        : undefined
+
+    const newLineDrag = LineDrag.newDrag(
+      world,
+      errorHandler,
+      this.tier,
+      pivot,
+      newBeltDirection,
+      firstBeltDirection,
+      false,
+    )
+    newLineDrag.lastEndTileHistory = lastTileHistory
+    newLineDrag.interpolateTo(world, errorHandler, cursorPos)
+
+    // Copy state from new drag to this
+    this.ray = newLineDrag.ray
+    this.lastState = newLineDrag.lastState
+    this.lastPosition = newLineDrag.lastPosition
+    this.tileHistory = newLineDrag.tileHistory
+    this.lastEndTileHistory = newLineDrag.lastEndTileHistory
+    this.maxPlacementPos = newLineDrag.maxPlacementPos
+    this.minPlacementPos = newLineDrag.minPlacementPos
+    this.maxPos = newLineDrag.maxPos
+    this.minPos = newLineDrag.minPos
+    this.rotationPivotDirection = newLineDrag.rotationPivotDirection
+    this.furthestPlacementDirection = newLineDrag.furthestPlacementDirection
+
+    return true
+  }
+
   private applyStep(
     world: World,
     errorHandler: ErrorHandler,
@@ -127,6 +204,11 @@ export class LineDrag {
     direction: DragDirection,
   ): void {
     let [action, nextState, err] = step
+    const nextPosition = this.nextPosition(direction)
+    if (action.type !== "None") {
+      this.updateFurthestPlacement(nextPosition, direction, world)
+    }
+
     this.applyAction(world, errorHandler, action, direction)
 
     const deferred = deferredError(this.lastState, direction)
@@ -140,20 +222,31 @@ export class LineDrag {
 
     this.lastState = nextState
     this.lastPosition = this.nextPosition(direction)
+  }
 
-    if (action.type !== "None") {
-      this.updateFurthestPlacement(this.lastPosition, direction)
-    }
+  private storeTileHistory(position: number, world: World): void {
+    const worldOps = new WorldOps(world)
+    const worldPos = getRayPosition(this.ray, position)
+    this.tileHistory = [worldPos, worldOps.beltConnectionsAt(worldPos)]
   }
 
   private updateFurthestPlacement(
     position: number,
     direction: DragDirection,
+    world: World,
   ): void {
     if (direction === DragDirection.Forward) {
-      this.maxPlacementPos = Math.max(this.maxPlacementPos, position)
+      if (position > this.maxPlacementPos) {
+        this.maxPlacementPos = position
+        this.storeTileHistory(position, world)
+        this.furthestPlacementDirection = DragDirection.Forward
+      }
     } else {
-      this.minPlacementPos = Math.min(this.minPlacementPos, position)
+      if (position < this.minPlacementPos) {
+        this.minPlacementPos = position
+        this.storeTileHistory(position, world)
+        this.furthestPlacementDirection = DragDirection.Backward
+      }
     }
   }
 
@@ -296,15 +389,28 @@ export class LineDrag {
     errorHandler.handleError(worldPos, error)
   }
 
-  private createContext(world: World): DragContext {
+  private furthestPlacementPos(): number {
+    return this.furthestPlacementDirection === DragDirection.Forward
+      ? this.maxPlacementPos
+      : this.minPlacementPos
+  }
+
+  private createContext(world: World, direction: DragDirection): DragContext {
+    const tileHistory: TileHistory[] = [
+      ...(this.tileHistory ? [this.tileHistory] : []),
+      ...(this.lastEndTileHistory ? [this.lastEndTileHistory] : []),
+    ]
+    const furthestPlacementPos =
+      direction === DragDirection.Forward
+        ? this.maxPlacementPos
+        : this.minPlacementPos
     return {
       world: world,
       ray: this.ray,
       tier: this.tier,
       lastPosition: this.lastPosition,
-      tileHistory: this.tileHistory,
-      maxPlacementPos: this.maxPlacementPos,
-      minPlacementPos: this.minPlacementPos,
+      tileHistory,
+      furthestPlacementPos,
     }
   }
 }
@@ -338,66 +444,4 @@ function canUpgradeUnderground(
   }
 
   return true
-}
-
-@tryRegister
-export class FullDrag {
-  private currentLine!: LineDrag
-  private constructor(
-    private tier: BeltTier,
-    private startPos: TilePosition,
-  ) {}
-
-  static startDrag(
-    tier: BeltTier,
-    startPos: TilePosition,
-    beltDirection: Direction,
-    world: World,
-    errorHandler: ErrorHandler,
-  ): FullDrag {
-    const drag = new FullDrag(tier, startPos)
-    drag.currentLine = LineDrag.startDrag(
-      world,
-      drag.tier,
-      drag.startPos,
-      beltDirection,
-      beltDirection,
-      errorHandler,
-    )
-    return drag
-  }
-
-  public interpolateTo(
-    world: World,
-    errorHandler: ErrorHandler,
-    pos: TilePosition,
-  ) {
-    this.currentLine.interpolateTo(world, errorHandler, pos)
-  }
-
-  public rotate(
-    world: World,
-    errorHandler: ErrorHandler,
-    pos: TilePosition,
-  ): boolean {
-    let turnDirection = rayRelativeDirection(this.currentLine.ray, pos)
-    if (turnDirection === undefined) {
-      return false
-    }
-    let [pivot, backward] = this.currentLine.getRotationPivot()
-    let oldDirection = this.currentLine.ray.direction
-    let newBeltDirection = !backward
-      ? turnDirection
-      : oppositeDirection(turnDirection)
-    this.currentLine = LineDrag.startDrag(
-      world,
-      this.tier,
-      pivot,
-      newBeltDirection,
-      backward ? oldDirection : newBeltDirection,
-      errorHandler,
-    )
-    this.currentLine.interpolateTo(world, errorHandler, pos)
-    return true
-  }
 }

@@ -1,6 +1,5 @@
 import { beltIsCurvedAt } from "../belt_curving"
-import { Belt, BeltConnectable, UndergroundBelt } from "../belts"
-import { BeltCollider } from "../belts"
+import { Belt, BeltCollider, BeltConnectable, UndergroundBelt } from "../belts"
 import {
   Direction,
   getRayPosition,
@@ -22,7 +21,7 @@ export class DragWorldView {
   constructor(
     world: ReadonlyWorld,
     ray: Ray,
-    tileHistory: TileHistory | undefined,
+    tileHistory: TileHistory[],
     direction: DragDirection,
   ) {
     this.historyView = new TileHistoryView(world, tileHistory)

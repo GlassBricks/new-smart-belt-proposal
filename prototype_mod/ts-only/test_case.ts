@@ -393,10 +393,10 @@ export function runTestCase(
   const errorHandler = new TestErrorHandler()
   const drag = LineDrag.startDrag(
     result,
+    errorHandler,
     tier,
     startPos,
     beltDirection,
-    errorHandler,
   )
 
   switch (testVariant) {

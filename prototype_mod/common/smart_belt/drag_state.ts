@@ -95,9 +95,8 @@ export interface DragContext {
   ray: Ray
   tier: BeltTier
   lastPosition: number
-  tileHistory: TileHistory | undefined
-  maxPlacementPos: number
-  minPlacementPos: number
+  tileHistory: TileHistory[]
+  furthestPlacementPos: number
 }
 
 export function takeStep(
@@ -319,12 +318,8 @@ function integrateUndergroundPair(
 
   const inputPos = ctx.lastPosition + directionMultiplier(direction)
   const [leftPos, rightPos] = swapIfBackwards(direction, inputPos, outputPos)
-  const furthestPos =
-    direction === DragDirection.Forward
-      ? ctx.maxPlacementPos
-      : ctx.minPlacementPos
 
-  if (outputPos === furthestPos) {
+  if (outputPos === ctx.furthestPlacementPos) {
     // This is an ug we placed (probably)! Extend instead of integrate.
     return [
       action,

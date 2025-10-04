@@ -8,7 +8,7 @@ export type TileHistory = [TilePosition, BeltConnections]
 export class TileHistoryView implements ReadonlyWorld {
   constructor(
     private world: ReadonlyWorld,
-    private tileHistory: TileHistory | undefined,
+    private tileHistory: TileHistory[],
   ) {}
 
   get(position: TilePosition): BeltCollider | undefined {
@@ -18,8 +18,13 @@ export class TileHistoryView implements ReadonlyWorld {
   canPlaceOrFastReplace(
     position: TilePosition,
     beltDirection: Direction,
+    allowFastReplace: boolean,
   ): boolean {
-    return this.world.canPlaceOrFastReplace(position, beltDirection)
+    return this.world.canPlaceOrFastReplace(
+      position,
+      beltDirection,
+      allowFastReplace,
+    )
   }
 
   getUgPairPos(
@@ -32,23 +37,19 @@ export class TileHistoryView implements ReadonlyWorld {
   }
 
   outputDirectionAt(position: TilePosition): Direction | undefined {
-    if (
-      this.tileHistory &&
-      this.tileHistory[0].x === position.x &&
-      this.tileHistory[0].y === position.y
-    ) {
-      return this.tileHistory[1].output
+    for (const [pos, connections] of this.tileHistory) {
+      if (pos.x === position.x && pos.y === position.y) {
+        return connections.output
+      }
     }
     return this.world.outputDirectionAt(position)
   }
 
   inputDirectionAt(position: TilePosition): Direction | undefined {
-    if (
-      this.tileHistory &&
-      this.tileHistory[0].x === position.x &&
-      this.tileHistory[0].y === position.y
-    ) {
-      return this.tileHistory[1].input
+    for (const [pos, connections] of this.tileHistory) {
+      if (pos.x === position.x && pos.y === position.y) {
+        return connections.input
+      }
     }
 
     const entity = this.get(position)

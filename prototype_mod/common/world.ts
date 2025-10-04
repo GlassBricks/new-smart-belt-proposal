@@ -23,6 +23,7 @@ export interface ReadonlyWorld {
   canPlaceOrFastReplace(
     position: TilePosition,
     beltDirection: Direction,
+    allowFastReplace: boolean,
   ): boolean
 }
 

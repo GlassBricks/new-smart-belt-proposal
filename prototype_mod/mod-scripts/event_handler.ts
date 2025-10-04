@@ -6,7 +6,6 @@ import {
   PlayerIndex,
 } from "factorio:runtime"
 import { Direction, TilePosition } from "../common/geometry"
-import { FullDrag } from "../common/smart_belt/drag"
 import { beltTierFromBeltName } from "./prototypes"
 import {
   RealErrorHandler,
@@ -20,7 +19,7 @@ interface PlayerDragData {
     mode: defines.build_mode
     createdByMoving: boolean
   }
-  drag?: FullDrag
+  drag?: LineDrag
   previousDirection?: Direction
 }
 declare const storage: {
@@ -106,7 +105,7 @@ function handlePlayerBuilt(
   const errHandler = new RealErrorHandler(surface, player, world)
 
   if (!existingDrag) {
-    const drag = FullDrag.startDrag(tier, pos, direction, world, errHandler)
+    const drag = LineDrag.startDrag(world, errHandler, tier, pos, direction)
     data.drag = drag
   } else {
     if (data.previousDirection != direction) {

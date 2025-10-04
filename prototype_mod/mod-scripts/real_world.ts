@@ -17,7 +17,7 @@ import {
   Splitter,
   UndergroundBelt,
 } from "../common/belts"
-import { Direction, TilePosition } from "../common/geometry"
+import { Direction, oppositeDirection, TilePosition } from "../common/geometry"
 import { ActionError, ErrorHandler } from "../common/smart_belt"
 import { World } from "../common/world"
 import {
@@ -481,13 +481,19 @@ export class RealWorld implements World {
   canPlaceOrFastReplace(
     position: TilePosition,
     beltDirection: Direction,
+    allowFastReplace: boolean,
   ): boolean {
     const existingEntity = this.get(position)
-    if (
-      existingEntity instanceof Belt &&
-      existingEntity.direction == beltDirection
-    ) {
-      return true
+    if (existingEntity) {
+      if (existingEntity instanceof CollidingEntity) {
+        return false
+      }
+      if (existingEntity instanceof Belt) {
+        return existingEntity.direction !== oppositeDirection(beltDirection)
+      }
+      if (!allowFastReplace) {
+        return false
+      }
     }
     const mapPosition = toMapPosition(position)
     const params = {
@@ -502,7 +508,8 @@ export class RealWorld implements World {
         build_check_type: this.isGhostBuild
           ? defines.build_check_type.manual_ghost
           : defines.build_check_type.manual,
-      }) || this.surface.can_fast_replace(params)
+      }) ||
+      (allowFastReplace && this.surface.can_fast_replace(params))
     )
   }
   private orderUpgrade(luaEntity: LuaEntity, target: string) {

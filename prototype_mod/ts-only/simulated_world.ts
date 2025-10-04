@@ -2,6 +2,7 @@ import { beltCurvedInputDirection } from "../common/belt_curving"
 import {
   Belt,
   BeltConnectable,
+  CollidingEntity,
   LoaderLike,
   Splitter,
   UndergroundBelt,
@@ -81,12 +82,25 @@ export class SimulatedWorld implements World {
     return undefined
   }
 
-  canPlaceOrFastReplace(position: TilePosition): boolean {
+  canPlaceOrFastReplace(
+    position: TilePosition,
+    beltDirection: Direction,
+    allowFastReplace: boolean,
+  ): boolean {
     const entity = this.get(position)
     if (!entity) {
       return true
     }
-    return entity instanceof BeltConnectable
+    if (entity instanceof CollidingEntity) {
+      return false
+    }
+    if (entity instanceof Belt) {
+      return (
+        allowFastReplace ||
+        entity.direction !== oppositeDirection(beltDirection)
+      )
+    }
+    return allowFastReplace
   }
 
   upgradeUg(position: TilePosition, tier: BeltTier): void {
