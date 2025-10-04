@@ -14,6 +14,14 @@ use anyhow::{Context, Result, bail};
 use itertools::Itertools;
 use serde::{Deserialize, Deserializer};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TestVariant {
+    Normal,
+    Wiggle,
+    MegaWiggle,
+    ForwardBack,
+}
+
 #[derive(Debug, Clone)]
 pub struct DragTestCase {
     pub name: String,
@@ -44,8 +52,7 @@ impl TestCaseEntities {
 fn check_test_case(
     test: &TestCaseEntities,
     reverse: bool,
-    wiggle: bool,
-    forward_back: bool,
+    test_variant: TestVariant,
 ) -> anyhow::Result<()> {
     let test = if reverse {
         flip_test_case(test, None)?
@@ -53,12 +60,13 @@ fn check_test_case(
         test.clone()
     };
 
-    let (result, actual_errors) = run_test_case(&test, wiggle, forward_back);
+    let (result, actual_errors) = run_test_case(&test, test_variant);
 
     let expected_world = &test.after;
     let expected_errors = &test.expected_errors;
 
-    let non_empty_subset_only = wiggle;
+    let non_empty_subset_only =
+        matches!(test_variant, TestVariant::Wiggle | TestVariant::MegaWiggle);
 
     let errors_match = if non_empty_subset_only {
         if expected_errors.is_empty() {
@@ -126,7 +134,7 @@ Got errors:
 pub fn check_test_case_all_transforms(
     test: &DragTestCase,
     reverse: bool,
-    wiggle: bool,
+    test_variant: TestVariant,
 ) -> Result<()> {
     for (i, transform) in Transform::all_unique_transforms().iter().enumerate() {
         let transformed_test = transform_test_case(&test.entities, transform);
@@ -141,16 +149,19 @@ pub fn check_test_case_all_transforms(
             transformed_test
         };
 
-        let test_name = match (reverse, wiggle, test.forward_back) {
-            (true, true, _) => format!("[transform {}] [flip] [wiggle]", i),
-            (true, false, _) => format!("[transform {}] [flip]", i),
-            (false, true, false) => format!("[transform {}] [wiggle]", i),
-            (false, false, true) => format!("[transform {}] [forward_back]", i),
-            (false, false, false) => format!("[transform {}]", i),
-            _ => unreachable!(),
+        let test_name = match (reverse, test_variant) {
+            (true, TestVariant::Wiggle) => format!("[transform {}] [flip] [wiggle]", i),
+            (true, TestVariant::MegaWiggle) => {
+                format!("[transform {}] [flip] [mega_wiggle]", i)
+            }
+            (true, TestVariant::ForwardBack) => format!("[transform {}] [flip] [forward_back]", i),
+            (true, TestVariant::Normal) => format!("[transform {}] [flip]", i),
+            (false, TestVariant::Wiggle) => format!("[transform {}] [wiggle]", i),
+            (false, TestVariant::MegaWiggle) => format!("[transform {}] [mega_wiggle]", i),
+            (false, TestVariant::ForwardBack) => format!("[transform {}] [forward_back]", i),
+            (false, TestVariant::Normal) => format!("[transform {}]", i),
         };
-        check_test_case(&test_to_check, false, wiggle, test.forward_back)
-            .with_context(|| test_name)?;
+        check_test_case(&test_to_check, false, test_variant).with_context(|| test_name)?;
     }
 
     Ok(())
@@ -205,8 +216,7 @@ fn flip_test_case(
 }
 fn run_test_case(
     test: &TestCaseEntities,
-    wiggle: bool,
-    forward_back: bool,
+    test_variant: TestVariant,
 ) -> (WorldImpl, HashSet<(TilePosition, Error)>) {
     eprintln!("Starting test case\n");
 
@@ -230,19 +240,26 @@ fn run_test_case(
     let mut result = test.before.clone();
     let mut drag = LineDrag::start_drag(&mut result, tier, start_pos, belt_direction);
 
-    if wiggle {
-        run_wiggle(
-            &mut drag,
-            start_pos,
-            end_pos,
-            belt_direction,
-            &ray,
-            end_pos_ray,
-        );
-    } else if forward_back {
-        run_forward_back(&mut drag, leftmost_pos, end_pos);
-    } else {
-        drag.interpolate_to(end_pos);
+    match test_variant {
+        TestVariant::MegaWiggle => {
+            run_mega_wiggle(&mut drag, start_pos, end_pos, belt_direction, end_pos_ray);
+        }
+        TestVariant::Wiggle => {
+            run_wiggle(
+                &mut drag,
+                start_pos,
+                end_pos,
+                belt_direction,
+                &ray,
+                end_pos_ray,
+            );
+        }
+        TestVariant::ForwardBack => {
+            run_forward_back(&mut drag, leftmost_pos, end_pos);
+        }
+        TestVariant::Normal => {
+            drag.interpolate_to(end_pos);
+        }
     }
 
     let errors = drag.get_errors().iter().cloned().collect();
@@ -271,6 +288,25 @@ fn run_wiggle(
     if ray.ray_position(current_pos) != end_pos_ray {
         drag.interpolate_to(end_pos);
     }
+}
+
+fn run_mega_wiggle(
+    drag: &mut LineDrag,
+    start_pos: TilePosition,
+    end_pos: TilePosition,
+    drag_direction: Direction,
+    end_pos_ray: i32,
+) {
+    let dir_vec = drag_direction.to_vector();
+
+    let mut n = 1;
+    while n < end_pos_ray {
+        let forward_n = start_pos + dir_vec * n;
+        drag.interpolate_to(forward_n);
+        drag.interpolate_to(start_pos);
+        n += 1;
+    }
+    drag.interpolate_to(end_pos);
 }
 
 fn run_forward_back(drag: &mut LineDrag, leftmost_pos: TilePosition, end_pos: TilePosition) {

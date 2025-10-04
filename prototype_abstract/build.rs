@@ -77,15 +77,25 @@ fn main() {
                 });
 
             // Build list of test variants to generate based on flags
-            let mut test_fns = vec![("run_test_case", "")];
+            let mut test_fns = vec![];
 
-            if !flags.not_reversible {
-                test_fns.push(("run_test_case_reverse", "_reverse"));
-            }
-            if !flags.forward_back {
+            if flags.forward_back {
+                // For forward_back tests, generate ForwardBack variants
+                test_fns.push(("run_test_case_forward_back", ""));
+                if !flags.not_reversible {
+                    test_fns.push(("run_test_case_forward_back_reverse", "_reverse"));
+                }
+            } else {
+                // For normal tests, generate normal and wiggle variants
+                test_fns.push(("run_test_case", ""));
+                if !flags.not_reversible {
+                    test_fns.push(("run_test_case_reverse", "_reverse"));
+                }
                 test_fns.push(("run_test_case_wiggle", "_wiggle"));
+                test_fns.push(("run_test_case_mega_wiggle", "_mega_wiggle"));
                 if !flags.not_reversible {
                     test_fns.push(("run_test_case_wiggle_reverse", "_wiggle_reverse"));
+                    test_fns.push(("run_test_case_mega_wiggle_reverse", "_mega_wiggle_reverse"));
                 }
             }
 
