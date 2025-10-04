@@ -283,8 +283,8 @@ export class RealWorld implements World {
           }
         }
       }
-      if (realEntity) {
-        this.orderUpgrade(realEntity, entity.name)
+      if (luaEntity) {
+        this.orderUpgrade(luaEntity, entity.name)
       } else {
         // create ghost
         luaEntity = this.surface.create_entity({
@@ -295,7 +295,7 @@ export class RealWorld implements World {
           player: this.player,
           force: this.player.force,
           type: inOutType,
-          fast_replace: true,
+          fast_replace: !realEntity,
           undo_index: this.isFirst ? 0 : 1,
         })
       }
@@ -323,9 +323,9 @@ export class RealWorld implements World {
   upgradeUg(position: TilePosition, tier: BeltTier): void {
     const entity = findBeltAtTile(this.surface, position, true)
     if (!entity || !entity.valid) return
-    const name =
-      entity.name == "entity-ghost" ? entity.ghost_type : entity.ghost_name
-    if (name != tier.undergroundName) return
+    const type = entity.type == "entity-ghost" ? entity.ghost_type : entity.type
+    if (type != "underground-belt") return
+    const name = entity.type == "entity-ghost" ? entity.ghost_name : entity.name
 
     const pair = entity.neighbours as LuaEntity | undefined
     const mapPosition = entity.position
@@ -405,7 +405,7 @@ export class RealWorld implements World {
       name: this.tier.beltName,
       position: mapPosition,
       direction: revTranslateDirection(beltDirection),
-      force: "player",
+      force: this.player.force
     }
     return (
       this.surface.can_place_entity({
