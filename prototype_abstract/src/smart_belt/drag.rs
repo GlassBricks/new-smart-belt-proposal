@@ -1,3 +1,5 @@
+use std::cmp::{max, min};
+
 use super::{DragDirection, DragState, Error};
 use crate::TilePosition;
 use crate::belts::BeltTier;
@@ -22,11 +24,17 @@ pub struct LineDrag<'a> {
     // one tile (the last placed output belt).
     // See belt_curving.rs for more info
     tile_history: Option<TileHistory>,
+
+    // Last entity built tracking, for "resuming" underground belt
+    pub(super) max_placement_pos: i32,
+    pub(super) min_placement_pos: i32,
+
+    // Position tracking for rotation: how far have we dragged?
+    pub(super) max_pos: i32,
+    pub(super) min_pos: i32,
+    pub(super) rotation_pivot_direction: DragDirection,
+
     pub(super) errors: Vec<(TilePosition, Error)>,
-    // Position tracking for rotation support
-    max_pos: i32,
-    min_pos: i32,
-    furthest_pos: i32,
 }
 
 impl<'a> LineDrag<'a> {
@@ -57,10 +65,12 @@ impl<'a> LineDrag<'a> {
             last_state: initial_state,
             last_position: 0,
             tile_history,
-            errors,
+            max_placement_pos: 0,
+            min_placement_pos: 0,
             max_pos: 0,
             min_pos: 0,
-            furthest_pos: 0,
+            rotation_pivot_direction: DragDirection::Forward,
+            errors,
         }
     }
 
@@ -89,11 +99,11 @@ impl<'a> LineDrag<'a> {
     fn update_furthest_position(&mut self, target_pos: i32) {
         if target_pos > self.max_pos {
             self.max_pos = target_pos;
-            self.furthest_pos = target_pos;
+            self.rotation_pivot_direction = DragDirection::Forward;
         }
         if target_pos < self.min_pos {
             self.min_pos = target_pos;
-            self.furthest_pos = target_pos;
+            self.rotation_pivot_direction = DragDirection::Backward;
         }
     }
 
@@ -112,6 +122,18 @@ impl<'a> LineDrag<'a> {
         eprintln!("Next state: {:?}\n", next_state);
         self.last_state = next_state;
         self.last_position = self.next_position(direction);
+
+        if action != Action::None {
+            self.update_furthest_placement(self.last_position, direction)
+        }
+    }
+
+    fn update_furthest_placement(&mut self, position: i32, direction: DragDirection) {
+        if direction == DragDirection::Forward {
+            self.max_placement_pos = max(self.max_placement_pos, position);
+        } else {
+            self.min_placement_pos = min(self.min_placement_pos, position);
+        }
     }
 
     pub(super) fn set_tile_history(&mut self, tile_history: Option<TileHistory>) {

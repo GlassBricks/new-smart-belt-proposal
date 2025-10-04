@@ -8,7 +8,7 @@ use crate::smart_belt::belt_curving::TileHistory;
 use crate::world::{ReadonlyWorld, World, WorldImpl};
 use crate::{BeltConnectable, Direction, TilePosition};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Action {
     PlaceBelt,
     CreateUnderground {

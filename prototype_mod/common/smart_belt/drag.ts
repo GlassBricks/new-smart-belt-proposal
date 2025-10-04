@@ -29,9 +29,11 @@ export interface ErrorHandler {
 
 @tryRegister
 export class LineDrag {
+  maxPlacementPos: number = 0
+  minPlacementPos: number = 0
   maxPos: number = 0
   minPos: number = 0
-  furthestPos: number = 0
+  rotationPivotDirection: DragDirection = DragDirection.Forward
   private constructor(
     public ray: Ray,
     private tier: BeltTier,
@@ -98,18 +100,22 @@ export class LineDrag {
   updateFurthestPosition(targetPos: number): void {
     if (targetPos > this.maxPos) {
       this.maxPos = targetPos
-      this.furthestPos = targetPos
+      this.rotationPivotDirection = DragDirection.Forward
     }
     if (targetPos < this.minPos) {
       this.minPos = targetPos
-      this.furthestPos = targetPos
+      this.rotationPivotDirection = DragDirection.Backward
     }
   }
 
   getRotationPivot(): [position: TilePosition, isBackward: boolean] {
+    const furthestPos =
+      this.rotationPivotDirection === DragDirection.Forward
+        ? this.maxPos
+        : this.minPos
     return [
-      getRayPosition(this.ray, this.furthestPos),
-      this.maxPos != 0 && this.minPos == this.furthestPos,
+      getRayPosition(this.ray, furthestPos),
+      this.rotationPivotDirection === DragDirection.Backward,
     ]
   }
 
@@ -133,6 +139,21 @@ export class LineDrag {
 
     this.lastState = nextState
     this.lastPosition = this.nextPosition(direction)
+
+    if (action.type !== "None") {
+      this.updateFurthestPlacement(this.lastPosition, direction)
+    }
+  }
+
+  private updateFurthestPlacement(
+    position: number,
+    direction: DragDirection,
+  ): void {
+    if (direction === DragDirection.Forward) {
+      this.maxPlacementPos = Math.max(this.maxPlacementPos, position)
+    } else {
+      this.minPlacementPos = Math.min(this.minPlacementPos, position)
+    }
   }
 
   private applyAction(
@@ -281,6 +302,8 @@ export class LineDrag {
       tier: this.tier,
       lastPosition: this.lastPosition,
       tileHistory: this.tileHistory,
+      maxPlacementPos: this.maxPlacementPos,
+      minPlacementPos: this.minPlacementPos,
     }
   }
 }

@@ -93,17 +93,35 @@ impl DragState {
         direction: DragDirection,
         output_pos: i32,
     ) -> DragStepResult {
-        let action = Action::IntegrateUndergroundPair;
-        let (input_pos, output_pos) =
-            direction.swap_if_backwards(ctx.next_position(direction), output_pos);
-        DragStepResult(
-            action,
-            None,
-            DragState::PassThrough {
-                left_pos: input_pos,
-                right_pos: output_pos,
-            },
-        )
+        let input_pos = ctx.next_position(direction);
+        let (left_pos, right_pos) = direction.swap_if_backwards(input_pos, output_pos);
+        let furthest_pos = if direction == DragDirection::Forward {
+            ctx.max_placement_pos
+        } else {
+            ctx.min_placement_pos
+        };
+        eprintln!("input_pos: {input_pos}, output_pos: {output_pos}, furthest_pos: {furthest_pos}",);
+        if output_pos == furthest_pos {
+            // This is an ug we placed (probably)! Extend instead of integrate.
+            DragStepResult(
+                Action::IntegrateUndergroundPair,
+                None,
+                DragState::BuildingUnderground {
+                    input_pos,
+                    output_pos: Some(output_pos),
+                    direction,
+                },
+            )
+        } else {
+            DragStepResult(
+                Action::IntegrateUndergroundPair,
+                None,
+                DragState::PassThrough {
+                    left_pos,
+                    right_pos,
+                },
+            )
+        }
     }
 
     /// Resolve the belt end shape, after taking into account the direction.

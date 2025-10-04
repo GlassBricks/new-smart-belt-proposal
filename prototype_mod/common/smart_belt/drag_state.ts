@@ -96,6 +96,8 @@ export interface DragContext {
   tier: BeltTier
   lastPosition: number
   tileHistory: TileHistory | undefined
+  maxPlacementPos: number
+  minPlacementPos: number
 }
 
 export function takeStep(
@@ -315,10 +317,22 @@ function integrateUndergroundPair(
 ): DragStepResult {
   const action = Action.IntegrateUndergroundPair()
 
-  const nextPos = ctx.lastPosition + directionMultiplier(direction)
-  const [leftPos, rightPos] = swapIfBackwards(direction, nextPos, outputPos)
+  const inputPos = ctx.lastPosition + directionMultiplier(direction)
+  const [leftPos, rightPos] = swapIfBackwards(direction, inputPos, outputPos)
+  const furthestPos =
+    direction === DragDirection.Forward
+      ? ctx.maxPlacementPos
+      : ctx.minPlacementPos
 
-  return [action, DragState.PassThrough(leftPos, rightPos)]
+  if (outputPos === furthestPos) {
+    // This is an ug we placed (probably)! Extend instead of integrate.
+    return [
+      action,
+      DragState.BuildingUnderground(inputPos, outputPos, direction),
+    ]
+  } else {
+    return [action, DragState.PassThrough(leftPos, rightPos)]
+  }
 }
 
 function canBuildUnderground(
