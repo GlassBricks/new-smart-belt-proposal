@@ -150,10 +150,10 @@ export class LineDrag {
     world: World,
     errorHandler: ErrorHandler,
     cursorPos: TilePosition,
-  ): boolean {
+  ): [newDrag: LineDrag, ok: boolean] {
     const turnDirection = rayRelativeDirection(this.ray, cursorPos)
     if (turnDirection === undefined) {
-      return false
+      return [this, false]
     }
 
     const [pivot, backward] = this.getRotationPivot()
@@ -163,8 +163,10 @@ export class LineDrag {
       : turnDirection
     const firstBeltDirection = backward ? oldDirection : turnDirection
 
+    // lastTileHistory is only for the quick sideload case. If we are backwards, this doesn't apply.
     const lastTileHistory =
       this.tileHistory !== undefined &&
+      !backward && 
       this.furthestPlacementPos() === this.lastPosition
         ? this.tileHistory
         : undefined
@@ -180,21 +182,7 @@ export class LineDrag {
     )
     newLineDrag.lastEndTileHistory = lastTileHistory
     newLineDrag.interpolateTo(world, errorHandler, cursorPos)
-
-    // Copy state from new drag to this
-    this.ray = newLineDrag.ray
-    this.lastState = newLineDrag.lastState
-    this.lastPosition = newLineDrag.lastPosition
-    this.tileHistory = newLineDrag.tileHistory
-    this.lastEndTileHistory = newLineDrag.lastEndTileHistory
-    this.maxPlacementPos = newLineDrag.maxPlacementPos
-    this.minPlacementPos = newLineDrag.minPlacementPos
-    this.maxPos = newLineDrag.maxPos
-    this.minPos = newLineDrag.minPos
-    this.rotationPivotDirection = newLineDrag.rotationPivotDirection
-    this.furthestPlacementDirection = newLineDrag.furthestPlacementDirection
-
-    return true
+    return [newLineDrag, true]
   }
 
   private applyStep(

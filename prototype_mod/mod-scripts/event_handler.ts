@@ -6,6 +6,7 @@ import {
   PlayerIndex,
 } from "factorio:runtime"
 import { Direction, TilePosition } from "../common/geometry"
+import { LineDrag } from "../common/smart_belt"
 import { beltTierFromBeltName } from "./prototypes"
 import {
   RealErrorHandler,
@@ -111,7 +112,8 @@ function handlePlayerBuilt(
     if (data.previousDirection != direction) {
       world.isFirst = true
       data.previousDirection = direction
-      existingDrag.rotate(world, errHandler, pos)
+      const [newDrag, ok] = existingDrag.rotate(world, errHandler, pos)
+      data.drag = newDrag
     } else {
       existingDrag.interpolateTo(world, errHandler, pos)
     }
