@@ -20,7 +20,6 @@ import {
 import { Direction, TilePosition } from "../common/geometry"
 import { ActionError, ErrorHandler } from "../common/smart_belt"
 import { World } from "../common/world"
-import { debugPrint } from "./debugPrint"
 import {
   ALL_BELT_TYPES,
   AllBeltTypes,
@@ -301,7 +300,6 @@ export class RealWorld implements World {
     if (entity.type === "underground-belt") {
       luaEntity = this.handleRealUndergroundBelt(entity, realEntity)
     }
-    debugPrint(this.isFirst)
 
     luaEntity ??= this.surface.create_entity({
       name: entity.name,
