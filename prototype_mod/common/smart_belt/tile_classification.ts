@@ -27,7 +27,6 @@ export class TileClassifier {
 
   constructor(
     ctx: DragContext,
-    direction: DragDirection,
     private canEnterNextTile: boolean,
     private undergroundInputPos: number | undefined,
   ) {
@@ -35,7 +34,7 @@ export class TileClassifier {
       ctx.world,
       ctx.ray,
       ctx.tileHistory,
-      direction,
+      ctx.direction,
     )
     this.lastPosition = ctx.lastPosition
     this.tier = ctx.tier

@@ -112,13 +112,13 @@ export class LineDrag {
 
     while (this.lastPosition < targetPos) {
       const ctx = this.createContext(world, DragDirection.Forward)
-      const result = takeStep(this.lastState, ctx, DragDirection.Forward)
+      const result = takeStep(this.lastState, ctx)
       this.applyStep(world, errorHandler, result, DragDirection.Forward)
     }
 
     while (this.lastPosition > targetPos) {
       const ctx = this.createContext(world, DragDirection.Backward)
-      const result = takeStep(this.lastState, ctx, DragDirection.Backward)
+      const result = takeStep(this.lastState, ctx)
       this.applyStep(world, errorHandler, result, DragDirection.Backward)
     }
     this.updateFurthestPosition(targetPos)
@@ -404,13 +404,16 @@ export class LineDrag {
       direction === DragDirection.Forward
         ? this.maxPlacementPos
         : this.minPlacementPos
+    const nextPosition = this.lastPosition + directionMultiplier(direction)
     return {
       world: world,
       ray: this.ray,
       tier: this.tier,
       lastPosition: this.lastPosition,
+      nextPosition,
       tileHistory,
       furthestPlacementPos,
+      direction,
     }
   }
 }

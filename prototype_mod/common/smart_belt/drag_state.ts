@@ -95,16 +95,14 @@ export interface DragContext {
   ray: Ray
   tier: BeltTier
   lastPosition: number
+  nextPosition: number
   tileHistory: TileHistory[]
   furthestPlacementPos: number
+  direction: DragDirection
 }
 
-export function takeStep(
-  state: DragState,
-  ctx: DragContext,
-  direction: DragDirection,
-): DragStepResult {
-  const dragEnd = getDragEnd(state, ctx.lastPosition, direction)
+export function takeStep(state: DragState, ctx: DragContext): DragStepResult {
+  const dragEnd = getDragEnd(state, ctx.lastPosition, ctx.direction)
   if (dragEnd === undefined) {
     return [Action.None(), state]
   }
@@ -113,36 +111,34 @@ export function takeStep(
     ctx.world,
     ctx.ray,
     ctx.tileHistory,
-    direction,
+    ctx.direction,
   )
 
   const nextTile = new TileClassifier(
     ctx,
-    direction,
     canEnterNextTile(dragEnd),
     undergroundInputPos(dragEnd, ctx.lastPosition),
   ).classifyNextTile()
 
   switch (nextTile) {
     case "Usable":
-      return placeBeltOrUnderground(dragEnd, ctx, direction)
+      return placeBeltOrUnderground(dragEnd, ctx)
     case "Obstacle":
-      return handleObstacle(dragEnd, ctx, direction)
+      return handleObstacle(dragEnd, ctx)
     case "IntegratedSplitter":
       return [Action.IntegrateSplitter(), DragState.OverSplitter()]
     case "ImpassableObstacle":
-      return handleImpassableObstacle(dragEnd, direction)
+      return handleImpassableObstacle(dragEnd, ctx.direction)
     case "IntegratedUnderground": {
-      const nextPosition = ctx.lastPosition + directionMultiplier(direction)
-      const entity = worldView.getEntity(nextPosition)
+      const entity = worldView.getEntity(ctx.nextPosition)
       if (!(entity instanceof UndergroundBelt)) {
         throw new Error("Expected UndergroundBelt for IntegratedUnderground")
       }
-      const outputPos = worldView.getUgPairPos(nextPosition, entity)
+      const outputPos = worldView.getUgPairPos(ctx.nextPosition, entity)
       if (outputPos === undefined) {
         throw new Error("Expected paired underground for IntegratedUnderground")
       }
-      return integrateUndergroundPair(ctx, direction, outputPos)
+      return integrateUndergroundPair(ctx, outputPos)
     }
   }
 }
@@ -221,10 +217,9 @@ function undergroundInputPos(
 function placeBeltOrUnderground(
   dragEnd: DragEndShape,
   ctx: DragContext,
-  direction: DragDirection,
 ): DragStepResult {
   if (dragEnd.type === "TraversingObstacle") {
-    return placeUnderground(ctx, direction, dragEnd.inputPos, dragEnd.outputPos)
+    return placeUnderground(ctx, dragEnd.inputPos, dragEnd.outputPos)
   } else {
     return [Action.PlaceBelt(), DragState.OverBelt()]
   }
@@ -233,7 +228,6 @@ function placeBeltOrUnderground(
 function handleObstacle(
   dragEnd: DragEndShape,
   ctx: DragContext,
-  direction: DragDirection,
 ): DragStepResult {
   let newState: DragState
   let error: ActionError | undefined = undefined
@@ -243,21 +237,21 @@ function handleObstacle(
       newState = DragState.BuildingUnderground(
         ctx.lastPosition,
         undefined,
-        direction,
+        ctx.direction,
       )
       break
     case "ExtendableUnderground":
       newState = DragState.BuildingUnderground(
         dragEnd.inputPos,
         ctx.lastPosition,
-        direction,
+        ctx.direction,
       )
       break
     case "TraversingObstacle":
       newState = DragState.BuildingUnderground(
         dragEnd.inputPos,
         dragEnd.outputPos,
-        direction,
+        ctx.direction,
       )
       break
     case "IntegratedOutput":
@@ -285,14 +279,12 @@ function handleImpassableObstacle(
 
 function placeUnderground(
   ctx: DragContext,
-  direction: DragDirection,
   inputPos: number,
   lastOutputPos: number | undefined,
 ): DragStepResult {
-  const nextPosition = ctx.lastPosition + directionMultiplier(direction)
   const isExtension = lastOutputPos !== undefined
 
-  const error = canBuildUnderground(ctx, inputPos, direction, isExtension)
+  const error = canBuildUnderground(ctx, inputPos, isExtension)
 
   if (error !== undefined) {
     return [Action.PlaceBelt(), DragState.OverBelt(), error]
@@ -300,30 +292,32 @@ function placeUnderground(
 
   const action =
     lastOutputPos !== undefined
-      ? Action.ExtendUnderground(lastOutputPos, nextPosition)
-      : Action.CreateUnderground(inputPos, nextPosition)
+      ? Action.ExtendUnderground(lastOutputPos, ctx.nextPosition)
+      : Action.CreateUnderground(inputPos, ctx.nextPosition)
 
   return [
     action,
-    DragState.BuildingUnderground(inputPos, nextPosition, direction),
+    DragState.BuildingUnderground(inputPos, ctx.nextPosition, ctx.direction),
   ]
 }
 
 function integrateUndergroundPair(
   ctx: DragContext,
-  direction: DragDirection,
   outputPos: number,
 ): DragStepResult {
   const action = Action.IntegrateUndergroundPair()
 
-  const inputPos = ctx.lastPosition + directionMultiplier(direction)
-  const [leftPos, rightPos] = swapIfBackwards(direction, inputPos, outputPos)
+  const [leftPos, rightPos] = swapIfBackwards(
+    ctx.direction,
+    ctx.nextPosition,
+    outputPos,
+  )
 
   if (outputPos === ctx.furthestPlacementPos) {
     // This is an ug we placed (probably)! Extend instead of integrate.
     return [
       action,
-      DragState.BuildingUnderground(inputPos, outputPos, direction),
+      DragState.BuildingUnderground(ctx.nextPosition, outputPos, ctx.direction),
     ]
   } else {
     return [action, DragState.PassThrough(leftPos, rightPos)]
@@ -333,11 +327,9 @@ function integrateUndergroundPair(
 function canBuildUnderground(
   ctx: DragContext,
   inputPos: number,
-  direction: DragDirection,
   isExtension: boolean,
 ): ActionError | undefined {
-  const outputPos = ctx.lastPosition + directionMultiplier(direction)
-  const distance = Math.abs(outputPos - inputPos)
+  const distance = Math.abs(ctx.nextPosition - inputPos)
 
   if (distance > ctx.tier.undergroundDistance) {
     return ActionError.TooFarToConnect
@@ -368,15 +360,15 @@ function canBuildUnderground(
     return undefined
   }
 
-  if (direction === DragDirection.Forward) {
-    for (let pos = startPos + 1; pos <= outputPos - 1; pos++) {
+  if (ctx.direction === DragDirection.Forward) {
+    for (let pos = startPos + 1; pos <= ctx.nextPosition - 1; pos++) {
       const error = checkPos(pos)
       if (error !== undefined) {
         return error
       }
     }
   } else {
-    for (let pos = startPos; pos >= outputPos + 1; pos--) {
+    for (let pos = startPos; pos >= ctx.nextPosition + 1; pos--) {
       const error = checkPos(pos)
       if (error !== undefined) {
         return error
