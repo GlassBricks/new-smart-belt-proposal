@@ -238,33 +238,38 @@ fn run_test_case(
     );
 
     let mut result = test.before.clone();
-    let mut drag = LineDrag::start_drag(&mut result, tier, start_pos, belt_direction);
+    let mut errors = Vec::new();
+    {
+        let mut drag =
+            LineDrag::start_drag(&mut result, tier, start_pos, belt_direction, |pos, err| {
+                errors.push((pos, err));
+            });
 
-    match test_variant {
-        TestVariant::MegaWiggle => {
-            run_mega_wiggle(&mut drag, start_pos, end_pos, belt_direction, end_pos_ray);
-        }
-        TestVariant::Wiggle => {
-            run_wiggle(
-                &mut drag,
-                start_pos,
-                end_pos,
-                belt_direction,
-                &ray,
-                end_pos_ray,
-            );
-        }
-        TestVariant::ForwardBack => {
-            run_forward_back(&mut drag, leftmost_pos, end_pos);
-        }
-        TestVariant::Normal => {
-            drag.interpolate_to(end_pos);
+        match test_variant {
+            TestVariant::Normal => {
+                drag.interpolate_to(end_pos);
+            }
+            TestVariant::ForwardBack => {
+                run_forward_back(&mut drag, leftmost_pos, end_pos);
+            }
+            TestVariant::Wiggle => {
+                run_wiggle(
+                    &mut drag,
+                    start_pos,
+                    end_pos,
+                    belt_direction,
+                    &ray,
+                    end_pos_ray,
+                );
+            }
+            TestVariant::MegaWiggle => {
+                run_mega_wiggle(&mut drag, start_pos, end_pos, belt_direction, end_pos_ray);
+            }
         }
     }
 
-    let errors = drag.get_errors().iter().cloned().collect();
     eprintln!();
-    (result, errors)
+    (result, errors.into_iter().collect())
 }
 
 fn run_wiggle(

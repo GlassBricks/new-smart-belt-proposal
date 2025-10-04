@@ -8,7 +8,6 @@ use crate::{Direction, Ray, smart_belt::Action};
 pub struct DragStepResult(pub Action, pub Option<Error>, pub DragState);
 
 /// Handles dragging in a straight line (no rotations).
-#[derive(Debug)]
 pub struct LineDrag<'a> {
     pub(super) world: &'a mut WorldImpl,
     pub(super) ray: Ray,
@@ -32,7 +31,7 @@ pub struct LineDrag<'a> {
     pub(super) min_pos: i32,
     pub(super) rotation_pivot_direction: DragDirection,
 
-    pub(super) errors: Vec<(TilePosition, Error)>,
+    pub(super) error_handler: Box<dyn FnMut(TilePosition, Error) + 'a>,
 }
 
 impl<'a> LineDrag<'a> {
@@ -43,15 +42,15 @@ impl<'a> LineDrag<'a> {
         tier: BeltTier,
         start_pos: TilePosition,
         belt_direction: Direction,
+        mut error_handler: impl FnMut(TilePosition, Error) + 'a,
     ) -> LineDrag<'a> {
-        let mut errors = Vec::new();
         let can_place = world.can_place_or_fast_replace_belt(start_pos);
         let tile_history = can_place.then(|| world.belt_connections_at(start_pos));
 
         if can_place {
             world.place_belt(start_pos, belt_direction, tier);
         } else {
-            errors.push((start_pos, Error::EntityInTheWay));
+            error_handler(start_pos, Error::EntityInTheWay);
         }
 
         let initial_state = DragState::initial_state(can_place);
@@ -69,12 +68,8 @@ impl<'a> LineDrag<'a> {
             max_pos: 0,
             min_pos: 0,
             rotation_pivot_direction: DragDirection::Forward,
-            errors,
+            error_handler: Box::new(error_handler),
         }
-    }
-
-    pub fn get_errors(self) -> Vec<(TilePosition, Error)> {
-        self.errors
     }
 
     pub fn next_position(&self, direction: DragDirection) -> i32 {
@@ -169,7 +164,7 @@ impl<'a> LineDrag<'a> {
 
     pub(super) fn add_error(&mut self, error: Error, direction: DragDirection) {
         eprintln!("error: {:?}", error);
-        self.errors
-            .push((self.ray.get_position(self.next_position(direction)), error));
+        let position = self.ray.get_position(self.next_position(direction));
+        (self.error_handler)(position, error);
     }
 }
