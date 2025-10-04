@@ -199,7 +199,7 @@ _ _ ^ _ _ _ _ ^ _
 _ ^ _ _ _ ^ _ _ _
 ```
 
-## Older spec
+# Older spec
 
 Below is contents of an earlier draft of the spec. Less explanatory, but still useful.
 

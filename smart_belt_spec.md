@@ -151,7 +151,7 @@ This case *is* handled. This requires considering belt curvature *before* our en
 
 ![](images/spec_10.png)
 
-## Older spec
+# Older spec
 
 Below is contents of an earlier draft of the spec. Less explanatory, but still useful.
 
