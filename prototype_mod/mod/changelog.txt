@@ -2,6 +2,10 @@
 Version: 0.1.2
 Date: ????
   Changes:
+    - Added support for ghost building.
+  Bugfixes:
+    - Fixed a really edge case bug where a created underground belt would be backwards if it paired with an existing one. Thanks pantabo!
+    - Fixed belt corner rotation when dragging backwards.
 ---------------------------------------------------------------------------------------------------
 Version: 0.1.1
 Date: 2025-10-03
