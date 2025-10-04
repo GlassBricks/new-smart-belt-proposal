@@ -46,11 +46,11 @@ pub trait BeltCurveView {
 
 pub struct TileHistoryView<'a> {
     world: &'a dyn ReadonlyWorld,
-    tile_history: Option<TileHistory>,
+    tile_history: Vec<TileHistory>,
 }
 
 impl<'a> TileHistoryView<'a> {
-    pub fn new(world: &'a dyn ReadonlyWorld, tile_history: Option<TileHistory>) -> Self {
+    pub fn new(world: &'a dyn ReadonlyWorld, tile_history: Vec<TileHistory>) -> Self {
         Self {
             world,
             tile_history,
@@ -87,18 +87,18 @@ impl<'a> ReadonlyWorld for TileHistoryView<'a> {
         self.world.get_ug_pair(position, underground)
     }
     fn output_direction_at(&self, position: TilePosition) -> Option<Direction> {
-        if let Some((history_position, dirs)) = &self.tile_history
-            && *history_position == position
-        {
-            dirs.output
-        } else {
-            self.world.output_direction_at(position)
-        }
+        self.tile_history
+            .iter()
+            .find(|(history_position, _)| *history_position == position)
+            .map(|(_, dirs)| dirs.output)
+            .unwrap_or_else(|| self.world.output_direction_at(position))
     }
 
     fn input_direction_at(&self, position: TilePosition) -> Option<Direction> {
-        if let Some((history_position, dirs)) = &self.tile_history
-            && *history_position == position
+        if let Some((_, dirs)) = self
+            .tile_history
+            .iter()
+            .find(|(history_position, _)| *history_position == position)
         {
             dirs.input
         } else {

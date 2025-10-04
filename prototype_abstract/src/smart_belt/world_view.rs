@@ -25,7 +25,7 @@ impl<'a> DragWorldView<'a> {
         direction: DragDirection,
     ) -> Self {
         Self {
-            history_view: TileHistoryView::new(world, tile_history),
+            history_view: TileHistoryView::new(world, tile_history.into_iter().collect()),
             ray,
             direction,
         }
