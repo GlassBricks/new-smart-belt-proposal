@@ -94,13 +94,14 @@ function handlePlayerBuilt(
   }
 
   const existingDrag = createdByMoving ? data.drag : undefined
+  const isFirst = existingDrag === undefined
 
   const world = new RealWorld(
     player.surface,
     tier,
     player,
     mode == defines.build_mode.forced,
-    existingDrag === undefined,
+    isFirst,
   )
   const errHandler = new RealErrorHandler(surface, player, world)
 
@@ -109,6 +110,7 @@ function handlePlayerBuilt(
     data.drag = drag
   } else {
     if (data.previousDirection != direction) {
+      world.isFirst = true
       data.previousDirection = direction
       existingDrag.rotate(world, errHandler, pos)
     } else {

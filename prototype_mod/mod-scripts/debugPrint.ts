@@ -4,7 +4,7 @@ export function debugPrint(...msg: unknown[]) {
     const e = msg[i]
     return typeof e === "string" ? e : serpent.block(e)
   })
-  game.print(msgs.join(","), {
+  game.print(msgs.join(" "), {
     skip: defines.print_skip.never,
   })
 }
