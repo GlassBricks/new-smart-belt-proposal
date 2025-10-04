@@ -240,10 +240,16 @@ fn run_test_case(
     let mut result = test.before.clone();
     let mut errors = Vec::new();
     {
-        let mut drag =
-            LineDrag::start_drag(&mut result, tier, start_pos, belt_direction, |pos, err| {
+        let mut drag = LineDrag::start_drag(
+            &mut result,
+            tier,
+            start_pos,
+            belt_direction,
+            belt_direction,
+            |pos, err| {
                 errors.push((pos, err));
-            });
+            },
+        );
 
         match test_variant {
             TestVariant::Normal => {
