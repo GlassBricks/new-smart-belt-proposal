@@ -109,6 +109,30 @@ impl Ray {
     pub fn snap(&self, position: TilePosition) -> TilePosition {
         self.get_position(self.ray_position(position))
     }
+
+    pub fn relative_direction(&self, position: TilePosition) -> Option<Direction> {
+        let offset = position - self.start_position;
+        match self.direction {
+            Direction::North | Direction::South => {
+                if offset.x == 0 {
+                    None
+                } else if offset.x > 0 {
+                    Some(Direction::East)
+                } else {
+                    Some(Direction::West)
+                }
+            }
+            Direction::East | Direction::West => {
+                if offset.y == 0 {
+                    None
+                } else if offset.y > 0 {
+                    Some(Direction::South)
+                } else {
+                    Some(Direction::North)
+                }
+            }
+        }
+    }
 }
 
 pub fn bounds_new(top_left: TilePosition, bottom_right: TilePosition) -> BoundingBox {

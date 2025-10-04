@@ -12,7 +12,7 @@ This is written in typescript, setup using bun.sh, in `prototype_mod`.
 
 Part of this is compiled with TypescriptToLua, to create an actual Factorio mod.
 This creates 3 subdirs for different parts:
-`prototype_mod/common/`, `prototype_mod/ts_only/`, and `prototype_mod/scripts` (mod-only).
+`prototype_mod/common/`, `prototype_mod/ts_only/`, and `prototype_mod/mod-scripts/` (mod-only).
 
 ## Testing
 Testing is mainly done through the a test suite, test cases defined in `test_suite/*.yaml`.

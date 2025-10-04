@@ -17,7 +17,7 @@ pub mod tile_classification;
 pub mod world_view;
 
 use action::*;
-pub use drag::*;
+pub use drag::{FullDrag, LineDrag};
 pub use drag_direction::DragDirection;
 pub use drag_state::DragState;
 use tile_classification::*;

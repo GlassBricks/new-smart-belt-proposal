@@ -155,6 +155,17 @@ impl<'a> LineDrag<'a> {
         }
     }
 
+    pub fn get_rotation_pivot(&self) -> (TilePosition, bool) {
+        let furthest_pos = match self.rotation_pivot_direction {
+            DragDirection::Forward => self.max_pos,
+            DragDirection::Backward => self.min_pos,
+        };
+        (
+            self.ray.get_position(furthest_pos),
+            self.rotation_pivot_direction == DragDirection::Backward,
+        )
+    }
+
     pub(super) fn drag_world_view(&self, direction: DragDirection) -> DragWorldView<'_> {
         let tile_history = self
             .tile_history
@@ -166,5 +177,136 @@ impl<'a> LineDrag<'a> {
         eprintln!("error: {:?}", error);
         let position = self.ray.get_position(self.next_position(direction));
         (self.error_handler)(position, error);
+    }
+}
+
+pub struct FullDrag {
+    tier: BeltTier,
+    start_pos: TilePosition,
+    ray: Option<Ray>,
+    max_pos: i32,
+    min_pos: i32,
+    rotation_pivot_direction: DragDirection,
+}
+
+impl FullDrag {
+    pub fn new(tier: BeltTier, start_pos: TilePosition) -> Self {
+        Self {
+            tier,
+            start_pos,
+            ray: None,
+            max_pos: 0,
+            min_pos: 0,
+            rotation_pivot_direction: DragDirection::Forward,
+        }
+    }
+
+    pub fn start_drag(
+        &mut self,
+        world: &mut WorldImpl,
+        belt_direction: Direction,
+        error_handler: &mut dyn FnMut(TilePosition, Error),
+    ) {
+        let line_drag = LineDrag::start_drag(
+            world,
+            self.tier,
+            self.start_pos,
+            belt_direction,
+            error_handler,
+        );
+        self.ray = Some(line_drag.ray);
+        self.max_pos = line_drag.max_pos;
+        self.min_pos = line_drag.min_pos;
+        self.rotation_pivot_direction = line_drag.rotation_pivot_direction;
+    }
+
+    pub fn interpolate_to(
+        &mut self,
+        world: &mut WorldImpl,
+        new_position: TilePosition,
+        error_handler: &mut dyn FnMut(TilePosition, Error),
+    ) {
+        let ray = self.ray.expect("Must call start_drag first");
+        let mut line_drag = self.resume_line_drag(world, ray, error_handler);
+        line_drag.interpolate_to(new_position);
+        self.update_from_line_drag(&line_drag);
+    }
+
+    pub fn rotate(
+        &mut self,
+        world: &mut WorldImpl,
+        position: TilePosition,
+        error_handler: &mut dyn FnMut(TilePosition, Error),
+    ) -> bool {
+        let ray = self.ray.expect("Must call start_drag first");
+        let turn_direction = match ray.relative_direction(position) {
+            Some(dir) => dir,
+            None => return false,
+        };
+
+        let (pivot, backward) = self.get_rotation_pivot();
+        let old_direction = ray.direction;
+        let new_belt_direction = if !backward {
+            turn_direction
+        } else {
+            turn_direction.opposite()
+        };
+
+        let first_belt_direction = if backward {
+            old_direction
+        } else {
+            new_belt_direction
+        };
+
+        let mut line_drag =
+            LineDrag::start_drag(world, self.tier, pivot, new_belt_direction, error_handler);
+        line_drag
+            .world
+            .place_belt(pivot, first_belt_direction, self.tier);
+        line_drag.interpolate_to(position);
+        self.update_from_line_drag(&line_drag);
+        self.ray = Some(line_drag.ray);
+        true
+    }
+
+    fn get_rotation_pivot(&self) -> (TilePosition, bool) {
+        let ray = self.ray.expect("Must call start_drag first");
+        let furthest_pos = match self.rotation_pivot_direction {
+            DragDirection::Forward => self.max_pos,
+            DragDirection::Backward => self.min_pos,
+        };
+        (
+            ray.get_position(furthest_pos),
+            self.rotation_pivot_direction == DragDirection::Backward,
+        )
+    }
+
+    fn resume_line_drag<'a>(
+        &self,
+        world: &'a mut WorldImpl,
+        ray: Ray,
+        error_handler: &'a mut dyn FnMut(TilePosition, Error),
+    ) -> LineDrag<'a> {
+        LineDrag {
+            world,
+            ray,
+            tier: self.tier,
+            last_state: DragState::initial_state(true),
+            last_position: 0,
+            tile_history: None,
+            max_placement: 0,
+            min_placement: 0,
+            furthest_placement_direction: DragDirection::Forward,
+            max_pos: self.max_pos,
+            min_pos: self.min_pos,
+            rotation_pivot_direction: self.rotation_pivot_direction,
+            error_handler: Box::new(|pos, err| error_handler(pos, err)),
+        }
+    }
+
+    fn update_from_line_drag(&mut self, line_drag: &LineDrag) {
+        self.max_pos = line_drag.max_pos;
+        self.min_pos = line_drag.min_pos;
+        self.rotation_pivot_direction = line_drag.rotation_pivot_direction;
     }
 }

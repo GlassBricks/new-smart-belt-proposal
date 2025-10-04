@@ -1,5 +1,5 @@
 use crate::Impassable;
-use crate::smart_belt::DragStepResult;
+use crate::smart_belt::drag::DragStepResult;
 use crate::world::ReadonlyWorld;
 
 use super::{Action, DragDirection, LineDrag, TileClassifier, TileType, action::Error};
