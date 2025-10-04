@@ -119,6 +119,6 @@ function handlePlayerBuilt(
   }
 }
 
-script.on_nth_tick(60 * 5, () => {
-  game.reload_mods()
-})
+// script.on_nth_tick(60 * 5, () => {
+//   game.reload_mods()
+// })
