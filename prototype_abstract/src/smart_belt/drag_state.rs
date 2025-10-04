@@ -96,11 +96,10 @@ impl DragState {
         let input_pos = ctx.next_position(direction);
         let (left_pos, right_pos) = direction.swap_if_backwards(input_pos, output_pos);
         let furthest_pos = if direction == DragDirection::Forward {
-            ctx.max_placement_pos
+            ctx.max_placement
         } else {
-            ctx.min_placement_pos
+            ctx.min_placement
         };
-        eprintln!("input_pos: {input_pos}, output_pos: {output_pos}, furthest_pos: {furthest_pos}",);
         if output_pos == furthest_pos {
             // This is an ug we placed (probably)! Extend instead of integrate.
             DragStepResult(

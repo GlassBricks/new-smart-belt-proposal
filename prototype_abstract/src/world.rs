@@ -62,7 +62,7 @@ pub trait ReadonlyWorld {
 
 /// Trait for mutable world operations
 pub trait World: ReadonlyWorld {
-    fn set(&mut self, position: TilePosition, entity: Box<dyn Entity>);
+    fn build(&mut self, position: TilePosition, entity: Box<dyn Entity>);
     fn mine(&mut self, position: TilePosition);
     fn flip_ug(&mut self, position: TilePosition) -> bool;
     fn upgrade_ug(&mut self, position: TilePosition, new_tier: BeltTier);
@@ -270,7 +270,7 @@ impl ReadonlyWorld for WorldImpl {
 
 // Implement World trait for WorldImpl
 impl World for WorldImpl {
-    fn set(&mut self, position: TilePosition, entity: Box<dyn Entity>) {
+    fn build(&mut self, position: TilePosition, entity: Box<dyn Entity>) {
         WorldImpl::set(self, position, entity)
     }
 

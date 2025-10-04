@@ -419,7 +419,7 @@ mod tests {
         let mut world = World::new();
 
         let belt = Belt::new(Direction::East, YELLOW_BELT);
-        world.set(pos(0, 0), belt);
+        world.build(pos(0, 0), belt);
 
         let bounds = prototype_abstract::bounds_new(pos(0, 0), pos(1, 1));
         let pixmap = renderer.render_world(&world, bounds);
@@ -434,16 +434,16 @@ mod tests {
         let mut world = World::new();
 
         let belt = Belt::new(Direction::East, YELLOW_BELT);
-        world.set(pos(0, 0), belt);
+        world.build(pos(0, 0), belt);
 
         let underground_input = UndergroundBelt::new(Direction::East, true, YELLOW_BELT);
-        world.set(pos(1, 0), underground_input);
+        world.build(pos(1, 0), underground_input);
 
         let underground_output = UndergroundBelt::new(Direction::East, false, YELLOW_BELT);
-        world.set(pos(3, 0), underground_output);
+        world.build(pos(3, 0), underground_output);
 
         let splitter = Splitter::new(Direction::East, YELLOW_BELT);
-        world.set(pos(0, 1), splitter);
+        world.build(pos(0, 1), splitter);
 
         let bounds = prototype_abstract::bounds_new(pos(0, 0), pos(4, 2));
         let pixmap = renderer.render_world(&world, bounds);

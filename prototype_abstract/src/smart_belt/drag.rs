@@ -1,11 +1,8 @@
-use std::cmp::{max, min};
-
 use super::{DragDirection, DragState, Error};
-use crate::TilePosition;
 use crate::belts::BeltTier;
 use crate::smart_belt::DragWorldView;
-use crate::smart_belt::belt_curving::TileHistory;
 use crate::world::{ReadonlyWorld, WorldImpl};
+use crate::{BeltConnections, TilePosition};
 use crate::{Direction, Ray, smart_belt::Action};
 
 pub struct DragStepResult(pub Action, pub Option<Error>, pub DragState);
@@ -23,11 +20,12 @@ pub struct LineDrag<'a> {
     // the history of tiles we've replaced. It suffices only to keep track of
     // one tile (the last placed output belt).
     // See belt_curving.rs for more info
-    tile_history: Option<TileHistory>,
+    tile_history: Option<BeltConnections>,
 
     // Last entity built tracking, for "resuming" underground belt
-    pub(super) max_placement_pos: i32,
-    pub(super) min_placement_pos: i32,
+    pub(super) max_placement: i32,
+    pub(super) min_placement: i32,
+    pub(super) furthest_placement_direction: DragDirection,
 
     // Position tracking for rotation: how far have we dragged?
     pub(super) max_pos: i32,
@@ -48,7 +46,7 @@ impl<'a> LineDrag<'a> {
     ) -> LineDrag<'a> {
         let mut errors = Vec::new();
         let can_place = world.can_place_or_fast_replace_belt(start_pos);
-        let tile_history = can_place.then(|| (start_pos, world.belt_connections_at(start_pos)));
+        let tile_history = can_place.then(|| world.belt_connections_at(start_pos));
 
         if can_place {
             world.place_belt(start_pos, belt_direction, tier);
@@ -65,8 +63,9 @@ impl<'a> LineDrag<'a> {
             last_state: initial_state,
             last_position: 0,
             tile_history,
-            max_placement_pos: 0,
-            min_placement_pos: 0,
+            max_placement: 0,
+            min_placement: 0,
+            furthest_placement_direction: DragDirection::Forward,
             max_pos: 0,
             min_pos: 0,
             rotation_pivot_direction: DragDirection::Forward,
@@ -96,20 +95,13 @@ impl<'a> LineDrag<'a> {
         self.update_furthest_position(target_pos);
     }
 
-    fn update_furthest_position(&mut self, target_pos: i32) {
-        if target_pos > self.max_pos {
-            self.max_pos = target_pos;
-            self.rotation_pivot_direction = DragDirection::Forward;
-        }
-        if target_pos < self.min_pos {
-            self.min_pos = target_pos;
-            self.rotation_pivot_direction = DragDirection::Backward;
-        }
-    }
-
     fn apply_step(&mut self, step: DragStepResult, direction: DragDirection) {
         let DragStepResult(action, error, next_state) = step;
         eprintln!("action: {:?}", action);
+        let next_position = self.next_position(direction);
+        if action != Action::None {
+            self.update_furthest_placement(next_position, direction)
+        }
         self.apply_action(action, direction);
 
         if let Some(error) = self.last_state.deferred_error(direction) {
@@ -121,28 +113,58 @@ impl<'a> LineDrag<'a> {
 
         eprintln!("Next state: {:?}\n", next_state);
         self.last_state = next_state;
-        self.last_position = self.next_position(direction);
+        self.last_position = next_position;
+    }
 
-        if action != Action::None {
-            self.update_furthest_placement(self.last_position, direction)
-        }
+    fn store_tile_history(&mut self, position: i32) {
+        let world_pos = self.ray.get_position(position);
+        let tile_history = self.world.belt_connections_at(world_pos);
+        self.tile_history = Some(tile_history);
+        eprintln!("New tile history: {:?}", self.tile_history);
     }
 
     fn update_furthest_placement(&mut self, position: i32, direction: DragDirection) {
-        if direction == DragDirection::Forward {
-            self.max_placement_pos = max(self.max_placement_pos, position);
-        } else {
-            self.min_placement_pos = min(self.min_placement_pos, position);
+        match direction {
+            DragDirection::Forward => {
+                if position > self.max_placement {
+                    self.max_placement = position;
+                    self.store_tile_history(position);
+                    self.furthest_placement_direction = DragDirection::Forward;
+                }
+            }
+            DragDirection::Backward => {
+                if position < self.min_placement {
+                    self.min_placement = position;
+                    self.store_tile_history(position);
+                    self.furthest_placement_direction = DragDirection::Backward;
+                }
+            }
+        };
+    }
+
+    fn update_furthest_position(&mut self, target_pos: i32) {
+        if target_pos > self.max_pos {
+            self.max_pos = target_pos;
+            self.rotation_pivot_direction = DragDirection::Forward;
+        }
+        if target_pos < self.min_pos {
+            self.min_pos = target_pos;
+            self.rotation_pivot_direction = DragDirection::Backward;
         }
     }
 
-    pub(super) fn set_tile_history(&mut self, tile_history: Option<TileHistory>) {
-        eprintln!("New tile history: {:?}", tile_history);
-        self.tile_history = tile_history;
+    pub fn get_furthest_placement(&self) -> i32 {
+        match self.furthest_placement_direction {
+            DragDirection::Forward => self.max_placement,
+            DragDirection::Backward => self.min_placement,
+        }
     }
 
     pub(super) fn drag_world_view(&self, direction: DragDirection) -> DragWorldView<'_> {
-        DragWorldView::new(self.world, self.ray, self.tile_history, direction)
+        let tile_history = self
+            .tile_history
+            .map(|h| (self.ray.get_position(self.get_furthest_placement()), h));
+        DragWorldView::new(self.world, self.ray, tile_history, direction)
     }
 
     pub(super) fn add_error(&mut self, error: Error, direction: DragDirection) {
