@@ -86,7 +86,7 @@ function handlePlayerBuilt(
 ) {
   const data = getPlayerData(player.index)
   if (!data.preBuildData) return
-  const { createdByMoving } = data.preBuildData
+  const { createdByMoving, mode } = data.preBuildData
 
   const tier = beltTierFromBeltName(name)
   if (!tier) {
@@ -99,6 +99,7 @@ function handlePlayerBuilt(
     player.surface,
     tier,
     player,
+    mode == defines.build_mode.forced,
     existingDrag === undefined,
   )
   const errHandler = new RealErrorHandler(surface, player, world)

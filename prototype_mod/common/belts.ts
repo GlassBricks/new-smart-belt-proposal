@@ -55,7 +55,7 @@ export abstract class BeltConnectable implements BeltCollider {
 }
 
 export class Belt extends BeltConnectable {
-  readonly type = "Belt" as const
+  readonly type = "transport-belt" as const
   name: string
 
   constructor(
@@ -76,7 +76,7 @@ export class Belt extends BeltConnectable {
 }
 
 export class UndergroundBelt extends BeltConnectable {
-  readonly type = "UndergroundBelt" as const
+  readonly type = "underground-belt" as const
   name: string
 
   constructor(

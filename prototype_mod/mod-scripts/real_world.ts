@@ -76,13 +76,26 @@ function assertNever(value: never): never {
 function findBeltAtTile(
   surface: LuaSurface,
   position: TilePosition,
+  includeGhosts: boolean,
 ): LuaEntity | undefined {
+  const mapPosition = toMapPosition(position)
   const beltEntity = surface.find_entities_filtered({
-    position: toMapPosition(position),
+    position: mapPosition,
     radius: 0,
     type: ALL_BELT_TYPES,
     limit: 1,
   })[0]
+  if (beltEntity) return beltEntity
+
+  if (includeGhosts) {
+    const ghostEntity = surface.find_entities_filtered({
+      position: mapPosition,
+      radius: 0,
+      type: "entity-ghost",
+      limit: 1,
+    })[0]
+    if (ghostEntity) return ghostEntity
+  }
 
   return beltEntity
 }
@@ -90,6 +103,7 @@ function findBeltCollidingAtTile(
   surface: LuaSurface,
   position: TilePosition,
   beltName: string,
+  isGhostBuild: boolean,
 ): LuaEntity | undefined {
   const beltProto = prototypes.entity[beltName]!
   const beltEntity = surface.find_entities_filtered({
@@ -97,7 +111,66 @@ function findBeltCollidingAtTile(
     collision_mask: beltProto.collision_mask.layers,
     limit: 1,
   })[0]
-  return beltEntity
+  if (beltEntity) return beltEntity
+
+  if (isGhostBuild) {
+    const ghostEntity = surface.find_entities_filtered({
+      position: toMapPosition(position),
+      type: "entity-ghost",
+      limit: 1,
+    })[0]
+    if (ghostEntity) return ghostEntity
+  }
+
+  return undefined
+}
+
+function translateBeltEntity(beltEntity: LuaEntity): BeltCollider | undefined {
+  const type = (
+    beltEntity.type === "entity-ghost" ? beltEntity.ghost_type : beltEntity.type
+  ) as AllBeltTypes
+  const name =
+    beltEntity.type === "entity-ghost" ? beltEntity.ghost_name : beltEntity.name
+  switch (type) {
+    case "transport-belt": {
+      const tier = beltTierFromBeltName(name)
+      return tier && new Belt(translateDirection(beltEntity.direction), tier)
+    }
+    case "underground-belt": {
+      const tier = beltTierFromUndergroundName(name)
+      return (
+        tier &&
+        new UndergroundBelt(
+          translateDirection(beltEntity.direction),
+          beltEntity.belt_to_ground_type == "input",
+          tier,
+        )
+      )
+    }
+    case "splitter":
+    case "lane-splitter": {
+      return new Splitter(translateDirection(beltEntity.direction), name)
+    }
+    case "loader":
+    case "loader-1x1": {
+      return new LoaderLike(
+        translateDirection(beltEntity.direction),
+        beltEntity.loader_type == "input",
+        name,
+      )
+    }
+    case "linked-belt": {
+      return new LoaderLike(
+        translateDirection(beltEntity.direction),
+        beltEntity.linked_belt_type == "input",
+        name,
+      )
+    }
+
+    default:
+      return undefined
+    // assertNever(type)
+  }
 }
 
 function checkForImpassableTile(
@@ -115,27 +188,31 @@ function checkForImpassableTile(
   return undefined
 }
 
-// TODO: ghosts
 export class RealWorld implements World {
   constructor(
     private surface: LuaSurface,
     private tier: BeltTier,
     private player: LuaPlayer,
+    private isGhostBuild: boolean,
     private isFirst: boolean,
   ) {}
 
-  get(position: TilePosition): BeltCollider | undefined {
-    // todo
-    const beltEntity = findBeltAtTile(this.surface, position)
+  getWithGhosts(
+    position: TilePosition,
+    includeGhosts = this.isGhostBuild,
+  ): BeltCollider | undefined {
+    const beltEntity = findBeltAtTile(this.surface, position, includeGhosts)
     if (beltEntity) {
-      return this.translateBeltEntity(beltEntity)
+      return translateBeltEntity(beltEntity)
     }
     if (
       !this.surface.can_place_entity({
         name: this.tier.beltName,
         position,
-        build_check_type: defines.build_check_type.manual,
-        force: "player",
+        build_check_type: this.isGhostBuild
+          ? defines.build_check_type.manual_ghost
+          : defines.build_check_type.manual,
+        force: this.player.force,
       })
     ) {
       const impassableTile = checkForImpassableTile(
@@ -150,136 +227,143 @@ export class RealWorld implements World {
         this.surface,
         position,
         this.tier.beltName,
+        this.isGhostBuild,
       )
       return new CollidingEntity(collidingEntity?.name ?? "<unknown>")
     }
     return undefined
   }
+  get(position: TilePosition): BeltCollider | undefined {
+    const entity = this.getWithGhosts(position)
 
-  private translateBeltEntity(beltEntity: LuaEntity): BeltCollider | undefined {
-    const type = beltEntity.type as AllBeltTypes
-    switch (type) {
-      case "transport-belt": {
-        const tier = beltTierFromBeltName(beltEntity.name)
-        return tier && new Belt(translateDirection(beltEntity.direction), tier)
-      }
-      case "underground-belt": {
-        const tier = beltTierFromUndergroundName(beltEntity.name)
-        return (
-          tier &&
-          new UndergroundBelt(
-            translateDirection(beltEntity.direction),
-            beltEntity.belt_to_ground_type == "input",
-            tier,
-          )
-        )
-      }
-      case "splitter":
-      case "lane-splitter": {
-        return new Splitter(
-          translateDirection(beltEntity.direction),
-          beltEntity.name,
-        )
-      }
-      case "loader":
-      case "loader-1x1": {
-        return new LoaderLike(
-          translateDirection(beltEntity.direction),
-          beltEntity.loader_type == "input",
-          beltEntity.name,
-        )
-      }
-      case "linked-belt": {
-        return new LoaderLike(
-          translateDirection(beltEntity.direction),
-          beltEntity.linked_belt_type == "input",
-          beltEntity.name,
-        )
-      }
-
-      default:
-        assertNever(type)
-    }
+    return entity
   }
+
   tryBuild(position: TilePosition, entity: Belt | UndergroundBelt): boolean {
-    const entityPosition = toMapPosition(position)
-    const luaEntity = this.surface.create_entity({
-      name: entity.name,
-      position: entityPosition,
-      direction: revTranslateDirection(entity.direction),
-      fast_replace: true,
-      player: this.player,
-      force: this.player.force,
-      type:
-        entity.isInput === true
-          ? "input"
-          : entity.isInput === false
-            ? "output"
-            : undefined,
-      undo_index: this.isFirst ? 0 : 1,
-    })
+    const mapPosition = toMapPosition(position)
+    const inOutType =
+      entity.isInput === true
+        ? "input"
+        : entity.isInput === false
+          ? "output"
+          : undefined
+    const direction = revTranslateDirection(entity.direction)
+    let luaEntity: LuaEntity | undefined
+    if (!this.isGhostBuild) {
+      luaEntity = this.surface.create_entity({
+        name: entity.name,
+        position: mapPosition,
+        direction,
+        fast_replace: true,
+        player: this.player,
+        force: this.player.force,
+        type: inOutType,
+        undo_index: this.isFirst ? 0 : 1,
+      })
+    } else {
+      const realEntity = this.surface.find_entities_filtered({
+        type: ["transport-belt", "underground-belt"],
+        position: mapPosition,
+      })[0]
+      if (realEntity && realEntity.type != entity.type) {
+        realEntity.order_deconstruction(this.player.force)
+      } else if (realEntity) {
+        if (entity.type === "transport-belt") {
+          realEntity.direction = direction
+          luaEntity = realEntity
+        } else {
+          const ug = translateBeltEntity(realEntity) as UndergroundBelt
+          if (ug.shapeDirection() == entity.shapeDirection()) {
+            if (ug.direction != entity.direction) {
+              realEntity.rotate()
+            }
+            luaEntity = realEntity
+          } else {
+            realEntity.order_deconstruction(this.player.force)
+          }
+        }
+      }
+      if (realEntity) {
+        this.orderUpgrade(realEntity, entity.name)
+      } else {
+        // create ghost
+        luaEntity = this.surface.create_entity({
+          name: "entity-ghost",
+          inner_name: entity.name,
+          position: mapPosition,
+          direction,
+          player: this.player,
+          force: this.player.force,
+          type: inOutType,
+          fast_replace: true,
+          undo_index: this.isFirst ? 0 : 1,
+        })
+      }
+    }
     this.isFirst = false
+
     const built = luaEntity !== undefined && luaEntity.valid
     if (built) {
-      this.surface.play_sound({
-        path: "entity-build/" + entity.name,
-        position: entityPosition,
-      })
+      this.playBuildSound(mapPosition, entity.name)
     }
     return built
   }
   mine(pos: TilePosition): void {
-    const entity = findBeltAtTile(this.surface, pos)
+    const entity = findBeltAtTile(this.surface, pos, this.isGhostBuild)
     if (entity) {
       this.player.mine_entity(entity)
     }
   }
   flipUg(position: TilePosition): void {
-    const entity = findBeltAtTile(this.surface, position)
+    const entity = findBeltAtTile(this.surface, position, true)
     if (entity && entity.type == "underground-belt") {
       entity.rotate()
     }
   }
   upgradeUg(position: TilePosition, tier: BeltTier): void {
-    const entity = findBeltAtTile(this.surface, position)
-    if (
-      entity &&
-      entity.valid &&
-      entity.type == "underground-belt" &&
-      entity.name != tier.undergroundName
-    ) {
-      const name = entity.name
-      const pair = entity.neighbours as LuaEntity | undefined
-      const mapPosition = entity.position
-      const pairPosition = pair?.position
+    const entity = findBeltAtTile(this.surface, position, true)
+    if (!entity || !entity.valid) return
+    const name =
+      entity.name == "entity-ghost" ? entity.ghost_type : entity.ghost_name
+    if (name != tier.undergroundName) return
 
-      entity.order_upgrade({
+    const pair = entity.neighbours as LuaEntity | undefined
+    const mapPosition = entity.position
+    const pairPosition = pair?.position
+
+    entity.order_upgrade({
+      target: tier.undergroundName,
+      force: this.player.force,
+    })
+    if (pair?.valid) {
+      pair.order_upgrade({
         target: tier.undergroundName,
         force: this.player.force,
       })
-      if (pair?.valid) {
-        pair.order_upgrade({
-          target: tier.undergroundName,
-          force: this.player.force,
-        })
-      }
+    }
+    if (!this.isGhostBuild) {
       if (entity.valid) entity.apply_upgrade()
       if (pair?.valid) pair?.apply_upgrade()
+    }
 
-      this.surface.play_sound({
-        path: "entity-build/" + name,
-        position: mapPosition,
-      })
-      if (pairPosition) {
-        this.surface.play_sound({
-          path: "entity-build/" + name,
-          position: pairPosition,
-        })
-      }
+    this.playBuildSound(mapPosition, name)
+    if (pairPosition) {
+      this.playBuildSound(pairPosition, name)
     }
   }
+
+  private playBuildSound(position: TilePosition, name: string) {
+    if (!this.isGhostBuild) {
+      this.surface.play_sound({
+        path: "entity-build/" + name,
+        position: position,
+      })
+    }
+  }
+
   upgradeSplitter(position: TilePosition, newName: string): void {
-    const entity = findBeltAtTile(this.surface, position)
+    // todo: decide if we actually want this
+    const entity = findBeltAtTile(this.surface, position, false)
     if (entity && entity.type == "splitter" && entity.name != newName) {
       entity.order_upgrade({
         target: newName,
@@ -289,14 +373,14 @@ export class RealWorld implements World {
     }
   }
   outputDirectionAt(position: TilePosition): Direction | undefined {
-    const beltEntity = this.get(position)
+    const beltEntity = this.getWithGhosts(position, true)
     if (beltEntity instanceof BeltConnectable) {
       return beltEntity.outputDirection()
     }
     return undefined
   }
   inputDirectionAt(position: TilePosition): Direction | undefined {
-    const entity = this.get(position)
+    const entity = this.getWithGhosts(position, true)
     if (entity instanceof Belt) {
       return beltCurvedInputDirection(this, position, entity.direction)
     }
@@ -324,9 +408,26 @@ export class RealWorld implements World {
       force: "player",
     }
     return (
-      this.surface.can_place_entity(params) ||
-      this.surface.can_fast_replace(params)
+      this.surface.can_place_entity({
+        ...params,
+        build_check_type: this.isGhostBuild
+          ? defines.build_check_type.manual_ghost
+          : defines.build_check_type.manual,
+      }) || this.surface.can_fast_replace(params)
     )
+  }
+  private orderUpgrade(luaEntity: LuaEntity, target: string) {
+    if (
+      luaEntity.order_upgrade({
+        target: target,
+        force: this.player.force,
+      })
+    ) {
+      this.surface.play_sound({
+        path: "utility/build_ghost_upgrade",
+        position: luaEntity.position,
+      })
+    }
   }
 }
 

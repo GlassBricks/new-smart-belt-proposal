@@ -47,6 +47,7 @@ export class LineDrag {
     tier: BeltTier,
     startPos: TilePosition,
     beltDirection: Direction,
+    firstBeltDirection: Direction,
     errorHandler: ErrorHandler,
   ): LineDrag {
     const worldOps = new WorldOps(world)
@@ -56,7 +57,7 @@ export class LineDrag {
       : undefined
 
     if (canPlace) {
-      worldOps.placeBelt(startPos, beltDirection, tier)
+      worldOps.placeBelt(startPos, firstBeltDirection, tier)
     } else {
       errorHandler.handleError(startPos, ActionError.EntityInTheWay)
     }
@@ -360,6 +361,7 @@ export class FullDrag {
       drag.tier,
       drag.startPos,
       beltDirection,
+      beltDirection,
       errorHandler,
     )
     return drag
@@ -378,16 +380,21 @@ export class FullDrag {
     errorHandler: ErrorHandler,
     pos: TilePosition,
   ): boolean {
-    let newDirection = rayRelativeDirection(this.currentLine.ray, pos)
-    if (newDirection === undefined) {
+    let turnDirection = rayRelativeDirection(this.currentLine.ray, pos)
+    if (turnDirection === undefined) {
       return false
     }
     let [pivot, backward] = this.currentLine.getRotationPivot()
+    let oldDirection = this.currentLine.ray.direction
+    let newBeltDirection = !backward
+      ? turnDirection
+      : oppositeDirection(turnDirection)
     this.currentLine = LineDrag.startDrag(
       world,
       this.tier,
       pivot,
-      !backward ? newDirection : oppositeDirection(newDirection),
+      newBeltDirection,
+      backward ? oldDirection : newBeltDirection,
       errorHandler,
     )
     this.currentLine.interpolateTo(world, errorHandler, pos)
