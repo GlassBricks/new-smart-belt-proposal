@@ -245,11 +245,10 @@ fn run_test_case(
         };
         let mut drag = LineDrag::start_drag(
             &mut result,
+            &mut error_handler,
             tier,
             start_pos,
             belt_direction,
-            belt_direction,
-            &mut error_handler,
         );
 
         match test_variant {

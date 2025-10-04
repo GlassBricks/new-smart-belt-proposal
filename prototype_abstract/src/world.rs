@@ -104,9 +104,20 @@ impl WorldImpl {
         self.get(position).and_then(|e| e.as_belt_connectable_dyn())
     }
 
-    pub fn can_place_or_fast_replace_belt(&self, position: TilePosition) -> bool {
+    pub fn can_place_or_fast_replace_belt(
+        &self,
+        position: TilePosition,
+        direction: Direction,
+        allow_fast_replace: bool,
+    ) -> bool {
         if let Some(entity) = self.get(position) {
-            entity.as_colliding().is_none()
+            if entity.as_colliding().is_some() {
+                false
+            } else if let Some(belt) = entity.as_belt() {
+                belt.direction != direction.opposite()
+            } else {
+                allow_fast_replace
+            }
         } else {
             true
         }

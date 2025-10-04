@@ -46,11 +46,11 @@ pub trait BeltCurveView {
 
 pub struct TileHistoryView<'a> {
     world: &'a dyn ReadonlyWorld,
-    tile_history: Vec<TileHistory>,
+    tile_history: &'a [TileHistory],
 }
 
 impl<'a> TileHistoryView<'a> {
-    pub fn new(world: &'a dyn ReadonlyWorld, tile_history: Vec<TileHistory>) -> Self {
+    pub fn new(world: &'a dyn ReadonlyWorld, tile_history: &'a [TileHistory]) -> Self {
         Self {
             world,
             tile_history,

@@ -21,11 +21,11 @@ impl<'a> DragWorldView<'a> {
     pub fn new(
         world: &'a dyn ReadonlyWorld,
         ray: Ray,
-        tile_history: Option<TileHistory>,
+        tile_history: &'a [TileHistory],
         direction: DragDirection,
     ) -> Self {
         Self {
-            history_view: TileHistoryView::new(world, tile_history.into_iter().collect()),
+            history_view: TileHistoryView::new(world, tile_history),
             ray,
             direction,
         }
