@@ -36,9 +36,9 @@ pub enum Error {
 impl<'a> LineDrag<'a> {
     pub fn apply_action(
         &mut self,
+        error_handler: &mut dyn FnMut(TilePosition, Error),
         action: Action,
         direction: DragDirection,
-        error_handler: &mut dyn FnMut(TilePosition, Error),
     ) {
         let position = self.create_context(direction).next_position();
         let world_pos = self.ray.get_position(position);
@@ -124,7 +124,7 @@ impl<'a> LineDrag<'a> {
                     if super::drag_state::can_upgrade_underground(&ctx, output_pos) {
                         self.world.upgrade_ug(world_pos, self.tier);
                     } else {
-                        self.add_error(Error::CannotUpgradeUnderground, direction, error_handler);
+                        self.add_error(error_handler, Error::CannotUpgradeUnderground, direction);
                     }
                 }
             }

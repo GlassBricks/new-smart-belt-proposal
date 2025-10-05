@@ -166,7 +166,7 @@ export class LineDrag {
     // lastTileHistory is only for the quick sideload case. If we are backwards, this doesn't apply.
     const lastTileHistory =
       this.tileHistory !== undefined &&
-      !backward && 
+      !backward &&
       this.furthestPlacementPos() === this.lastPosition
         ? this.tileHistory
         : undefined
@@ -253,14 +253,7 @@ export class LineDrag {
         break
 
       case "PlaceBelt": {
-        const tileHistory = worldOps.placeBelt(
-          worldPos,
-          this.ray.direction,
-          this.tier,
-        )
-        if (tileHistory !== undefined) {
-          this.setTileHistory(tileHistory)
-        }
+        worldOps.placeBelt(worldPos, this.ray.direction, this.tier)
         break
       }
 
@@ -276,16 +269,13 @@ export class LineDrag {
           false,
         )
 
-        const tileHistory = worldOps.placeUndergroundBelt(
+        worldOps.placeUndergroundBelt(
           outputWorldPos,
           this.ray.direction,
           direction === DragDirection.Backward,
           this.tier,
           true,
         )
-        if (tileHistory !== undefined) {
-          this.setTileHistory(tileHistory)
-        }
         break
       }
 
@@ -298,16 +288,13 @@ export class LineDrag {
 
         world.mine(previousOutputWorldPos)
 
-        const tileHistory = worldOps.placeUndergroundBelt(
+        worldOps.placeUndergroundBelt(
           newOutputWorldPos,
           this.ray.direction,
           direction === DragDirection.Backward,
           this.tier,
           false,
         )
-        if (tileHistory !== undefined) {
-          this.setTileHistory(tileHistory)
-        }
         break
       }
 
@@ -362,10 +349,6 @@ export class LineDrag {
         break
       }
     }
-  }
-
-  private setTileHistory(tileHistory: TileHistory): void {
-    this.tileHistory = tileHistory
   }
 
   private addError(

@@ -5,7 +5,7 @@ use crate::world::{ReadonlyWorld, WorldImpl};
 use crate::{BeltConnections, TilePosition};
 use crate::{Direction, Ray, smart_belt::Action};
 
-pub struct DragStepResult(pub Action, pub Option<Error>, pub DragState);
+pub struct DragStepResult(pub Action, pub DragState, pub Option<Error>);
 
 /// Context for drag operations, containing all read-only state needed for decision-making.
 pub struct DragContext<'a> {
@@ -122,8 +122,8 @@ impl<'a> LineDrag<'a> {
 
     pub fn rotate(
         self,
-        cursor_pos: TilePosition,
         error_handler: &mut dyn FnMut(TilePosition, Error),
+        cursor_pos: TilePosition,
     ) -> (Self, bool) {
         let turn_direction = match self.ray.relative_direction(cursor_pos) {
             Some(dir) => dir,
@@ -159,7 +159,7 @@ impl<'a> LineDrag<'a> {
             false,
         );
         new_line_drag.last_end_tile_history = last_tile_history;
-        new_line_drag.interpolate_to(cursor_pos, error_handler);
+        new_line_drag.interpolate_to(error_handler, cursor_pos);
 
         (self, true)
     }
@@ -167,42 +167,42 @@ impl<'a> LineDrag<'a> {
     /// Main entry point for the drag operation.
     pub fn interpolate_to(
         &mut self,
-        new_position: TilePosition,
         error_handler: &mut dyn FnMut(TilePosition, Error),
+        new_position: TilePosition,
     ) {
         let target_pos = self.ray.ray_position(new_position);
         while self.last_position < target_pos {
             let ctx = self.create_context(DragDirection::Forward);
             let result = self.last_state.step(&ctx);
-            self.apply_step(result, DragDirection::Forward, error_handler);
+            self.apply_step(error_handler, result, DragDirection::Forward);
         }
         while self.last_position > target_pos {
             let ctx = self.create_context(DragDirection::Backward);
             let result = self.last_state.step(&ctx);
-            self.apply_step(result, DragDirection::Backward, error_handler);
+            self.apply_step(error_handler, result, DragDirection::Backward);
         }
         self.update_furthest_position(target_pos);
     }
 
     fn apply_step(
         &mut self,
+        error_handler: &mut dyn FnMut(TilePosition, Error),
         step: DragStepResult,
         direction: DragDirection,
-        error_handler: &mut dyn FnMut(TilePosition, Error),
     ) {
-        let DragStepResult(action, error, next_state) = step;
+        let DragStepResult(action, next_state, error) = step;
         eprintln!("action: {:?}", action);
         let next_position = self.create_context(direction).next_position();
         if action != Action::None {
             self.update_furthest_placement(next_position, direction)
         }
-        self.apply_action(action, direction, error_handler);
+        self.apply_action(error_handler, action, direction);
 
         if let Some(error) = self.last_state.deferred_error(direction) {
-            self.add_error(error, direction, error_handler);
+            self.add_error(error_handler, error, direction);
         }
         if let Some(error) = error {
-            self.add_error(error, direction, error_handler);
+            self.add_error(error_handler, error, direction);
         }
 
         eprintln!("Next state: {:?}\n", next_state);
@@ -290,9 +290,9 @@ impl<'a> LineDrag<'a> {
 
     pub(super) fn add_error(
         &mut self,
+        error_handler: &mut dyn FnMut(TilePosition, Error),
         error: Error,
         direction: DragDirection,
-        error_handler: &mut dyn FnMut(TilePosition, Error),
     ) {
         eprintln!("error: {:?}", error);
         let position = self

@@ -14,7 +14,7 @@ import { DragWorldView } from "./world_view"
 export type DragStepResult = [
   action: Action,
   nextState: DragState,
-  error?: ActionError,
+  error: ActionError | undefined,
 ]
 
 export type DragState =
@@ -104,7 +104,7 @@ export interface DragContext {
 export function takeStep(state: DragState, ctx: DragContext): DragStepResult {
   const dragEnd = getDragEnd(state, ctx.lastPosition, ctx.direction)
   if (dragEnd === undefined) {
-    return [Action.None(), state]
+    return [Action.None(), state, undefined]
   }
 
   const worldView = new DragWorldView(
@@ -126,7 +126,7 @@ export function takeStep(state: DragState, ctx: DragContext): DragStepResult {
     case "Obstacle":
       return handleObstacle(dragEnd, ctx)
     case "IntegratedSplitter":
-      return [Action.IntegrateSplitter(), DragState.OverSplitter()]
+      return [Action.IntegrateSplitter(), DragState.OverSplitter(), undefined]
     case "ImpassableObstacle":
       return handleImpassableObstacle(dragEnd, ctx.direction)
     case "IntegratedUnderground": {
@@ -221,7 +221,7 @@ function placeBeltOrUnderground(
   if (dragEnd.type === "TraversingObstacle") {
     return placeUnderground(ctx, dragEnd.inputPos, dragEnd.outputPos)
   } else {
-    return [Action.PlaceBelt(), DragState.OverBelt()]
+    return [Action.PlaceBelt(), DragState.OverBelt(), undefined]
   }
 }
 
@@ -274,7 +274,7 @@ function handleImpassableObstacle(
     dragEnd.type === "Error"
       ? DragState.ErrorRecovery()
       : DragState.OverImpassable(direction)
-  return [Action.None(), nextState]
+  return [Action.None(), nextState, undefined]
 }
 
 function placeUnderground(
@@ -298,6 +298,7 @@ function placeUnderground(
   return [
     action,
     DragState.BuildingUnderground(inputPos, ctx.nextPosition, ctx.direction),
+    undefined,
   ]
 }
 
@@ -318,9 +319,10 @@ function integrateUndergroundPair(
     return [
       action,
       DragState.BuildingUnderground(ctx.nextPosition, outputPos, ctx.direction),
+      undefined,
     ]
   } else {
-    return [action, DragState.PassThrough(leftPos, rightPos)]
+    return [action, DragState.PassThrough(leftPos, rightPos), undefined]
   }
 }
 

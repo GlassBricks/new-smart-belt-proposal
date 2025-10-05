@@ -62,7 +62,7 @@ impl DragState {
         print_debug_info(ctx);
         let Some(drag_end) = self.get_drag_end(ctx.last_position, ctx.direction) else {
             eprintln!("Do nothing");
-            return DragStepResult(Action::None, None, self.clone());
+            return DragStepResult(Action::None, self.clone(), None);
         };
         eprintln!("drag_end: {drag_end:?}");
         let next_tile = TileClassifier::new(
@@ -76,7 +76,7 @@ impl DragState {
             TileType::Usable => drag_end.place_belt_or_underground(ctx),
             TileType::Obstacle => drag_end.handle_obstacle(ctx),
             TileType::IntegratedSplitter => {
-                DragStepResult(Action::IntegrateSplitter, None, DragState::OverSplitter)
+                DragStepResult(Action::IntegrateSplitter, DragState::OverSplitter, None)
             }
             TileType::ImpassableObstacle => drag_end.handle_impassable_obstacle(ctx.direction),
             TileType::IntegratedUnderground { output_pos } => {
@@ -92,21 +92,21 @@ impl DragState {
             // This is an ug we placed (probably)! Extend instead of integrate.
             DragStepResult(
                 Action::IntegrateUndergroundPair,
-                None,
                 DragState::BuildingUnderground {
                     input_pos,
                     output_pos: Some(output_pos),
                     direction: ctx.direction,
                 },
+                None,
             )
         } else {
             DragStepResult(
                 Action::IntegrateUndergroundPair,
-                None,
                 DragState::PassThrough {
                     left_pos,
                     right_pos,
                 },
+                None,
             )
         }
     }
@@ -197,7 +197,7 @@ impl DragEndShape {
                 output_pos,
             } => Self::place_underground(ctx, input_pos, output_pos),
             // For anything else, we can just place a belt
-            _ => DragStepResult(Action::PlaceBelt, None, DragState::OverBelt),
+            _ => DragStepResult(Action::PlaceBelt, DragState::OverBelt, None),
         }
     }
 
@@ -209,7 +209,7 @@ impl DragEndShape {
         let next_position = ctx.next_position();
         let is_extension = last_output_pos.is_some();
         if let Err(error) = can_build_underground(ctx, input_pos, is_extension) {
-            DragStepResult(Action::PlaceBelt, Some(error), DragState::OverBelt)
+            DragStepResult(Action::PlaceBelt, DragState::OverBelt, Some(error))
         } else {
             let action = if let Some(last_output_pos) = last_output_pos {
                 Action::ExtendUnderground {
@@ -224,12 +224,12 @@ impl DragEndShape {
             };
             DragStepResult(
                 action,
-                None,
                 DragState::BuildingUnderground {
                     input_pos,
                     direction: ctx.direction,
                     output_pos: Some(next_position),
                 },
+                None,
             )
         }
     }
@@ -260,7 +260,7 @@ impl DragEndShape {
             DragEndShape::IntegratedOutput => Some(Error::EntityInTheWay),
             _ => None,
         };
-        DragStepResult(Action::None, error, new_state)
+        DragStepResult(Action::None, new_state, error)
     }
 
     fn handle_impassable_obstacle(&self, direction: DragDirection) -> DragStepResult {
@@ -269,7 +269,7 @@ impl DragEndShape {
             DragEndShape::Error => DragState::ErrorRecovery,
             _ => DragState::OverImpassable { direction },
         };
-        DragStepResult(Action::None, None, next_state)
+        DragStepResult(Action::None, next_state, None)
     }
 }
 

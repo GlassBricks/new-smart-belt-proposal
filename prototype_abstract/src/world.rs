@@ -67,15 +67,6 @@ pub trait World: ReadonlyWorld {
     fn flip_ug(&mut self, position: TilePosition) -> bool;
     fn upgrade_ug(&mut self, position: TilePosition, new_tier: BeltTier);
     fn upgrade_splitter(&mut self, position: TilePosition, tier: BeltTier);
-
-    // Helper methods needed by drag operations
-    fn can_place_belt_on_tile(&self, position: TilePosition) -> bool {
-        if let Some(entity) = self.get(position) {
-            entity.as_colliding().is_none()
-        } else {
-            true
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy)]
