@@ -45,8 +45,7 @@ impl<'a> DragWorldView<'a> {
     }
 
     pub fn get_entity(&self, position: i32) -> Option<&dyn Entity> {
-        self.history_view
-            .get_entity(self.ray.get_position(position))
+        self.history_view.get(self.ray.get_position(position))
     }
 
     pub fn get_belt_entity(&self, position: i32) -> Option<BeltConnectableEnum<'_>> {
@@ -87,7 +86,7 @@ impl<'a> DragWorldView<'a> {
     pub fn get_ug_pair_pos(&self, index: i32, ug: &UndergroundBelt) -> Option<i32> {
         let world_position = self.ray.get_position(index);
         self.history_view
-            .get_ug_pair_pos(world_position, ug)
-            .map(|pair_pos| self.ray.ray_position(pair_pos))
+            .get_ug_pair(world_position, ug)
+            .map(|(pair_pos, _)| self.ray.ray_position(pair_pos))
     }
 }

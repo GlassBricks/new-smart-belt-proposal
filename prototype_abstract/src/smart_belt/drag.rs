@@ -259,7 +259,7 @@ impl<'a> LineDrag<'a> {
     }
 
     /// Used for tile history.
-    fn furthest_placement_pos(&self) -> i32 {
+    pub fn furthest_placement_pos(&self) -> i32 {
         match self.furthest_placement_direction {
             DragDirection::Forward => self.max_placement,
             DragDirection::Backward => self.min_placement,

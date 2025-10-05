@@ -1,5 +1,6 @@
 pub mod belts;
 pub mod entity;
+pub mod fuzzer;
 pub mod geometry;
 pub mod smart_belt;
 pub mod test_case;

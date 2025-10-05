@@ -29,7 +29,7 @@ pub enum Axis {
 }
 
 impl Direction {
-    pub fn to_vector(self) -> TileVec {
+    pub const fn to_vector(self) -> TileVec {
         match self {
             Direction::North => vec2(0, -1),
             Direction::East => vec2(1, 0),
@@ -38,7 +38,7 @@ impl Direction {
         }
     }
 
-    pub fn opposite(self) -> Direction {
+    pub const fn opposite(self) -> Direction {
         match self {
             Direction::North => Direction::South,
             Direction::East => Direction::West,
@@ -47,7 +47,7 @@ impl Direction {
         }
     }
 
-    pub fn rotate_cw(self) -> Direction {
+    pub const fn rotate_cw(self) -> Direction {
         match self {
             Direction::North => Direction::East,
             Direction::East => Direction::South,
@@ -56,7 +56,7 @@ impl Direction {
         }
     }
 
-    pub fn rotate_ccw(self) -> Direction {
+    pub const fn rotate_ccw(self) -> Direction {
         match self {
             Direction::North => Direction::West,
             Direction::East => Direction::North,
@@ -65,14 +65,14 @@ impl Direction {
         }
     }
 
-    pub fn axis(self) -> Axis {
+    pub const fn axis(self) -> Axis {
         match self {
             Direction::North | Direction::South => Axis::Y,
             Direction::East | Direction::West => Axis::X,
         }
     }
 
-    pub fn from_ordinal(ordinal: u8) -> Option<Direction> {
+    pub const fn from_ordinal(ordinal: u8) -> Option<Direction> {
         match ordinal {
             0 => Some(Direction::North),
             1 => Some(Direction::East),
@@ -90,7 +90,7 @@ pub struct Ray {
 }
 
 impl Ray {
-    pub fn new(position: TilePosition, direction: Direction) -> Self {
+    pub const fn new(position: TilePosition, direction: Direction) -> Self {
         Self {
             start_position: position,
             direction,

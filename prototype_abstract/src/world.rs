@@ -87,6 +87,18 @@ impl WorldImpl {
         }
     }
 
+    /// Clear all entities from the world, allowing reuse without reallocation
+    pub fn clear(&mut self) {
+        self.entities.clear();
+    }
+
+    /// Create a new world with pre-allocated capacity
+    pub fn with_capacity(capacity: usize) -> Self {
+        WorldImpl {
+            entities: HashMap::with_capacity(capacity),
+        }
+    }
+
     pub fn get_mut(&mut self, position: TilePosition) -> Option<&mut dyn Entity> {
         self.entities.get_mut(&position).map(|e| e.as_mut())
     }
@@ -119,24 +131,39 @@ impl WorldImpl {
         BoundingBox::new(basic_bb.min, basic_bb.max + vec2(1, 1))
     }
 
-    fn set(&mut self, position: TilePosition, mut entity: Box<dyn Entity>) {
+    fn set(&mut self, position: TilePosition, entity: Box<dyn Entity>) {
+        self.try_set(position, entity)
+            .expect("Failed to place entity")
+    }
+
+    fn try_set(
+        &mut self,
+        position: TilePosition,
+        mut entity: Box<dyn Entity>,
+    ) -> Result<(), String> {
         if let Some(ug) = (entity.deref_mut() as &mut dyn Any).downcast_mut::<UndergroundBelt>() {
-            self.handle_underground_belt(position, ug);
+            self.handle_underground_belt(position, ug)?;
         }
         self.entities.insert(position, entity);
+        Ok(())
     }
-    fn handle_underground_belt(&mut self, position: TilePosition, ug: &mut UndergroundBelt) {
+
+    fn handle_underground_belt(
+        &mut self,
+        position: TilePosition,
+        ug: &mut UndergroundBelt,
+    ) -> Result<(), String> {
         let Some((pair_pos, pair_ug)) = self.get_ug_pair(position, ug) else {
-            return;
+            return Ok(());
         };
         if let Some((pair_pair_pos, pair_pair_ug)) = self.get_ug_pair(pair_pos, pair_ug)
             && pair_pair_pos != position
             && pair_pair_ug != ug
         {
-            panic!(
+            return Err(format!(
                 "Placing this belt at {:?} would break an existing belt pair between {:?} and {:?}",
                 position, pair_pos, pair_pair_pos
-            )
+            ));
         }
         if pair_ug.is_input == ug.is_input {
             ug.flip_self();
@@ -149,6 +176,16 @@ impl WorldImpl {
                 "Underground belt pair should not have changed due to flip"
             );
         }
+        Ok(())
+    }
+
+    /// Try to build an entity, returning an error instead of panicking if it would break underground pairs
+    pub fn try_build(
+        &mut self,
+        position: TilePosition,
+        entity: Box<dyn Entity>,
+    ) -> Result<(), String> {
+        self.try_set(position, entity)
     }
 
     fn get_ug_pair_both_mut(

@@ -59,7 +59,7 @@ pub static BELT_TIERS: [BeltTier; 3] = [YELLOW_BELT, RED_BELT, BLUE_BELT];
 
 pub trait BeltConnectable: Entity {
     fn direction(&self) -> Direction;
-    fn tier(&self) -> &BeltTier;
+    fn tier(&self) -> BeltTier;
 
     fn has_output(&self) -> bool;
     fn has_backwards_input(&self) -> bool;
@@ -82,8 +82,8 @@ impl BeltConnectable for Belt {
     fn direction(&self) -> Direction {
         self.direction
     }
-    fn tier(&self) -> &BeltTier {
-        &self.tier
+    fn tier(&self) -> BeltTier {
+        self.tier
     }
     fn has_output(&self) -> bool {
         true
@@ -120,8 +120,8 @@ impl BeltConnectable for UndergroundBelt {
     fn direction(&self) -> Direction {
         self.direction
     }
-    fn tier(&self) -> &BeltTier {
-        &self.tier
+    fn tier(&self) -> BeltTier {
+        self.tier
     }
     fn has_output(&self) -> bool {
         !self.is_input
@@ -161,8 +161,8 @@ impl BeltConnectable for LoaderLike {
     fn direction(&self) -> Direction {
         self.direction
     }
-    fn tier(&self) -> &BeltTier {
-        &self.tier
+    fn tier(&self) -> BeltTier {
+        self.tier
     }
     fn has_output(&self) -> bool {
         !self.is_input
@@ -199,8 +199,8 @@ impl BeltConnectable for Splitter {
     fn direction(&self) -> Direction {
         self.direction
     }
-    fn tier(&self) -> &BeltTier {
-        &self.tier
+    fn tier(&self) -> BeltTier {
+        self.tier
     }
     fn has_output(&self) -> bool {
         true

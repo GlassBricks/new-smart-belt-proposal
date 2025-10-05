@@ -56,18 +56,6 @@ impl<'a> TileHistoryView<'a> {
             tile_history,
         }
     }
-
-    pub fn get_entity(&self, position: TilePosition) -> Option<&dyn Entity> {
-        self.world.get(position)
-    }
-
-    pub fn get_ug_pair_pos(
-        &self,
-        position: TilePosition,
-        underground: &UndergroundBelt,
-    ) -> Option<TilePosition> {
-        self.world.get_ug_pair(position, underground).map(|e| e.0)
-    }
 }
 
 impl<'a> ReadonlyWorld for TileHistoryView<'a> {
@@ -103,7 +91,7 @@ impl<'a> ReadonlyWorld for TileHistoryView<'a> {
             dirs.input
         } else {
             let entity = self
-                .get_entity(position)
+                .get(position)
                 .and_then(|entity| entity.as_belt_connectable_dyn())?;
             if let Some(belt) = (entity as &dyn Entity).as_belt() {
                 Some(self.belt_curved_input_direction(position, belt.direction))

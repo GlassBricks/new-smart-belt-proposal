@@ -399,7 +399,7 @@ fn get_entities(serde_case: &TestCaseSerde) -> Result<TestCaseEntities, String> 
         .sorted_by_key(|(p, _)| p.x)
         .find_map(|(_, ent)| ent.as_belt_connectable_dyn())
         .expect("No belt found in drag row");
-    let tier = *first_ent.tier();
+    let tier = first_ent.tier();
 
     let max_x = max(before.max_x(), after.max_x());
     let end_pos = pos(max_x, start_pos.y);

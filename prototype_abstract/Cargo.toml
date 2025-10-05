@@ -10,6 +10,7 @@ dyn-eq.workspace = true
 euclid.workspace = true
 itertools.workspace = true
 rand.workspace = true
+rayon.workspace = true
 serde.workspace = true
 serde_yaml.workspace = true
 
