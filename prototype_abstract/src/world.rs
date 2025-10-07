@@ -1,5 +1,6 @@
 use std::{any::Any, collections::HashMap, ops::DerefMut as _};
 
+use arrayvec::ArrayVec;
 use dyn_clone::clone_box;
 use euclid::vec2;
 
@@ -51,6 +52,34 @@ pub trait ReadonlyWorld {
             (true, false) => belt_direction.rotate_cw(),
             (false, true) => belt_direction.rotate_ccw(),
             _ => belt_direction,
+        }
+    }
+
+    fn input_dependencies_at(&self, position: TilePosition) -> ArrayVec<Direction, 3> {
+        let entity = self.get(position);
+        if let Some(belt) = entity.and_then(|e| e.as_belt()) {
+            self.belt_curve_dependencies(position, belt.direction)
+        } else {
+            ArrayVec::new()
+        }
+    }
+
+    fn belt_curve_dependencies(
+        &self,
+        position: TilePosition,
+        belt_direction: Direction,
+    ) -> ArrayVec<Direction, 3> {
+        let has_input_in = |direction: Direction| {
+            let query_pos = position - direction.to_vector();
+            self.output_direction_at(query_pos) == Some(direction)
+        };
+
+        if has_input_in(belt_direction) {
+            [belt_direction].into_iter().collect()
+        } else {
+            let cw = Some(belt_direction.rotate_cw()).take_if(|d| has_input_in(*d));
+            let ccw = Some(belt_direction.rotate_ccw()).take_if(|d| has_input_in(*d));
+            [cw, ccw].into_iter().flatten().collect()
         }
     }
 

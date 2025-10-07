@@ -9,6 +9,16 @@ use euclid::{Box2D, Size2D};
 use rand::{Rng, SeedableRng, rngs::StdRng};
 use std::collections::HashSet;
 
+/// Error type for fuzzer assertion failures
+#[derive(Debug, Clone)]
+pub struct FuzzError(pub String, pub Option<TilePosition>);
+
+impl std::fmt::Display for FuzzError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct FuzzConfig {
     pub world_width: i32,
@@ -28,7 +38,7 @@ impl FuzzTestCase {
         pos(0, 1)
     }
     pub fn end_pos(&self) -> TilePosition {
-        pos(self.max_x, 1)
+        pos(self.max_x + 1, 1)
     }
 }
 const BELT_DIRECTION: Direction = Direction::East;
@@ -45,7 +55,6 @@ pub struct FuzzResult {
 }
 
 /// Generate a random world with entities
-/// Uses world pooling to reduce allocations
 /// Optimized for East-only dragging: places most entities in the middle row (y=1)
 /// and only places specific belt configurations in adjacent rows
 pub fn generate_random_world<R: Rng>(rng: &mut R, config: &FuzzConfig) -> WorldImpl {
@@ -210,7 +219,6 @@ pub fn scan_belt_line(world: &WorldImpl) -> Vec<TilePosition> {
             }
             BeltConnectableEnum::Splitter(_) => {
                 result.push(scan_pos);
-                continue;
             }
             BeltConnectableEnum::LoaderLike(_) => {
                 break;
@@ -226,18 +234,21 @@ pub fn check_belt_line_tier(
     world: &WorldImpl,
     belt_line: &[TilePosition],
     expected_tier: BeltTier,
-) -> Result<(), String> {
+) -> Result<(), FuzzError> {
     belt_line.iter().try_for_each(|&pos| {
         if let Some(entity) = world.get(pos)
             && let Some(belt_connectable) = entity.as_belt_connectable_dyn()
             && !(entity.as_any().is::<LoaderLike>())
             && belt_connectable.tier() != expected_tier
         {
-            Err(format!(
-                "Belt at position {:?} has tier {:?}, expected {:?}",
-                pos,
-                belt_connectable.tier(),
-                expected_tier
+            Err(FuzzError(
+                format!(
+                    "Belt at position {:?} has tier {:?}, expected {:?}",
+                    pos,
+                    belt_connectable.tier(),
+                    expected_tier
+                ),
+                Some(pos),
             ))
         } else {
             Ok(())
@@ -249,7 +260,7 @@ pub fn check_non_integrated_belts_unchanged(
     before: &WorldImpl,
     after: &WorldImpl,
     integrated_positions: &HashSet<TilePosition>,
-) -> Result<(), String> {
+) -> Result<(), FuzzError> {
     for (&pos, entity_before) in &before.entities {
         let is_integrated = integrated_positions.contains(&pos);
         if !is_integrated {
@@ -260,18 +271,24 @@ pub fn check_non_integrated_belts_unchanged(
                 continue;
             }
             if before_ent != after_ent {
-                return Err(format!(
-                    "Belt changed at position {:?}. Before: {:?}, After: {:?}",
-                    pos, before_ent, after_ent
+                return Err(FuzzError(
+                    format!(
+                        "Belt changed at position {:?}. Before: {:?}, After: {:?}",
+                        pos, before_ent, after_ent
+                    ),
+                    Some(pos),
                 ));
             }
             if let Some(belt) = before_ent.and_then(|e| e.as_belt()) {
                 let before_in = before.belt_curved_input_direction(pos, belt.direction);
                 let after_in = after.belt_curved_input_direction(pos, belt.direction);
                 if before_in != after_in {
-                    return Err(format!(
-                        "Belt direction changed at position {:?}. Before: {:?}, After: {:?}",
-                        pos, before_ent, after_ent
+                    return Err(FuzzError(
+                        format!(
+                            "Belt direction changed at position {:?} {:?}\nBefore in: {:?}\nAfter in {:?}",
+                            pos, belt, before_in, after_in
+                        ),
+                        Some(pos),
                     ));
                 }
             }
@@ -283,7 +300,7 @@ pub fn check_non_integrated_belts_unchanged(
 
 impl FuzzResult {
     /// Main invariant checking function
-    pub fn check(&self) -> Result<(), String> {
+    pub fn check(&self) -> Result<(), FuzzError> {
         let belt_line = scan_belt_line(&self.world_after);
         // Find the last successfully placed belt position
         let last_placed_pos = if let Some(&last) = belt_line.last() {
@@ -291,7 +308,10 @@ impl FuzzResult {
         } else {
             // No belts placed - this is fine if there was an error
             if self.errors.is_empty() {
-                return Err("No belts placed and no errors reported".to_string());
+                return Err(FuzzError(
+                    "No belts placed and no errors reported".to_string(),
+                    None,
+                ));
             }
             return Ok(());
         };
@@ -301,25 +321,30 @@ impl FuzzResult {
 
         // Invariant 1: If there are no errors, there should be a continuous belt line from beginning to end
         if self.errors.is_empty() && actual_end != expected_end {
-            return Err(format!(
-                "No errors but belt line ends at x={} instead of x={}",
-                actual_end, expected_end
+            return Err(FuzzError(
+                format!(
+                    "No errors but belt line ends at x={} instead of x={}",
+                    actual_end, expected_end
+                ),
+                Some(last_placed_pos),
             ));
         }
 
         // Invariant 2: If the belt line is broken before the end, there must be at least one error
         if actual_end < expected_end && self.errors.is_empty() {
-            return Err(format!(
-                "Belt line broken at x={} but no errors reported",
-                actual_end,
+            return Err(FuzzError(
+                format!(
+                    "Belt line broken at x={} but no errors reported",
+                    actual_end,
+                ),
+                Some(last_placed_pos),
             ));
         }
 
-        // Invariant 3: All belts from the first successfully placed belt to the next must be the placement tier
-        check_belt_line_tier(&self.world_after, &belt_line, self.tier)?;
-
-        // Invariant 4: Non-integrated belts should remain unchanged
         if self.errors.is_empty() {
+            // Invariant 3: All belts from the first successfully placed belt to the next must be the placement tier
+            check_belt_line_tier(&self.world_after, &belt_line, self.tier)?;
+            // Invariant 4: Non-integrated belts should remain unchanged
             let integrated_positions: HashSet<TilePosition> = belt_line.iter().copied().collect();
             check_non_integrated_belts_unchanged(
                 &self.world_before,
@@ -331,7 +356,7 @@ impl FuzzResult {
         Ok(())
     }
 
-    pub fn print_before_after(&self) {
+    pub fn print_before_after(&self, markers: &[TilePosition]) {
         let bounds = self.world_before.bounds().union(&self.world_after.bounds());
         eprintln!(
             r#"
@@ -343,8 +368,8 @@ impl FuzzResult {
 
 {}
     "#,
-            print_world(&self.world_before, bounds, &[]),
-            print_world(&self.world_after, bounds, &[])
+            print_world(&self.world_before, bounds, markers),
+            print_world(&self.world_after, bounds, markers)
         );
     }
 }

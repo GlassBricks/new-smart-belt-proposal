@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[test]
 fn fuzz_test_single_reproducible() {
-    let seed = 2008;
+    let seed = 2535;
     let config = FuzzConfig {
         world_width: 15,
         entity_density: 0.6,
@@ -19,7 +19,7 @@ fn fuzz_test_high_density() {
         world_width: 15,
         entity_density: 0.6,
     };
-    let num_tests = 200;
+    let num_tests = 2000;
     let base_seed = 2000;
     run_fuzzer(config, num_tests, base_seed);
 }
@@ -65,7 +65,12 @@ fn run_case(config: &FuzzConfig, seed: u64) -> bool {
 
     if let Err(e) = result.check() {
         eprintln!("❌ test failed (seed: {}):\nError: {}", test_case.seed, e,);
-        result.print_before_after();
+        let markers = if let Some(pos) = e.1 {
+            vec![pos]
+        } else {
+            vec![]
+        };
+        result.print_before_after(&markers);
         return false;
     } else {
         // println!("✅ test passed (seed: {})", test_case.seed);

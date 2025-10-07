@@ -12,7 +12,7 @@ World view for TileClassifier.
 Handles geometric transformations, and belt shapes.
 */
 pub(super) struct DragWorldView<'a> {
-    history_view: TileHistoryView<'a>,
+    world: TileHistoryView<'a>,
     ray: Ray,
     pub(crate) direction: DragDirection,
 }
@@ -25,7 +25,7 @@ impl<'a> DragWorldView<'a> {
         direction: DragDirection,
     ) -> Self {
         Self {
-            history_view: TileHistoryView::new(world, tile_history),
+            world: TileHistoryView::new(world, tile_history),
             ray,
             direction,
         }
@@ -45,17 +45,17 @@ impl<'a> DragWorldView<'a> {
     }
 
     pub fn get_entity(&self, position: i32) -> Option<&dyn Entity> {
-        self.history_view.get(self.ray.get_position(position))
+        self.world.get(self.ray.get_position(position))
     }
 
-    pub fn get_belt_entity(&self, position: i32) -> Option<BeltConnectableEnum<'_>> {
+    pub fn get_belt_connectable(&self, position: i32) -> Option<BeltConnectableEnum<'_>> {
         self.get_entity(position)
             .and_then(|entity| entity.as_belt_connectable())
     }
 
     pub fn belt_was_curved(&self, position: i32, belt: &Belt) -> bool {
         let position = self.ray.get_position(position);
-        self.history_view.belt_is_curved_at(position, belt)
+        self.world.belt_is_curved_at(position, belt)
     }
 
     /// If this entity belt-connects to the previous entity, forming part of the same belt segment.
@@ -72,20 +72,31 @@ impl<'a> DragWorldView<'a> {
             )
         };
 
-        let connects_forward = self.history_view.output_direction_at(last_pos)
-            == Some(self.belt_direction())
-            && self.history_view.input_direction_at(cur_pos) == Some(self.belt_direction());
-        if connects_forward {
-            return true;
-        }
         let opposite_direction = self.belt_direction().opposite();
-        self.history_view.input_direction_at(last_pos) == Some(opposite_direction)
-            && self.history_view.output_direction_at(cur_pos) == Some(opposite_direction)
+        self.world.output_direction_at(last_pos) == Some(self.belt_direction())
+            && self.world.input_direction_at(cur_pos) == Some(self.belt_direction())
+            || self.world.input_direction_at(last_pos) == Some(opposite_direction)
+                && self.world.output_direction_at(cur_pos) == Some(opposite_direction)
+    }
+
+    pub fn removing_belt_will_change_previous_belt_curvature(
+        &self,
+        next_pos: i32,
+        input_ug_pos: Option<i32>,
+    ) -> bool {
+        if input_ug_pos == Some(next_pos - 2 * self.direction.direction_multiplier()) {
+            return false;
+        }
+        let last_pos = next_pos - self.direction.direction_multiplier();
+        let last_world_pos = self.ray.get_position(last_pos);
+        self.world
+            .input_dependencies_at(last_world_pos)
+            .contains(&self.ray_direction().opposite())
     }
 
     pub fn get_ug_pair_pos(&self, index: i32, ug: &UndergroundBelt) -> Option<i32> {
         let world_position = self.ray.get_position(index);
-        self.history_view
+        self.world
             .get_ug_pair(world_position, ug)
             .map(|(pair_pos, _)| self.ray.ray_position(pair_pos))
     }

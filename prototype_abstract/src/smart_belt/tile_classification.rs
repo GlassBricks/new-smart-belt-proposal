@@ -26,6 +26,7 @@ pub(super) struct TileClassifier<'a> {
     can_enter_next_tile: bool,
     /// Defined only if it's currently possible to create an underground at some earlier point.
     underground_input_pos: Option<i32>,
+    is_error_state: bool,
     last_position: i32,
     direction: DragDirection,
 }
@@ -35,12 +36,14 @@ impl<'a> TileClassifier<'a> {
         ctx: &'a super::DragContext,
         can_enter_next_tile: bool,
         underground_input_pos: Option<i32>,
+        is_error_state: bool,
     ) -> Self {
         Self {
             world_view: ctx.drag_world_view(),
             tier: ctx.tier,
             can_enter_next_tile,
             underground_input_pos,
+            is_error_state,
             last_position: ctx.last_position,
             direction: ctx.direction,
         }
@@ -217,10 +220,16 @@ impl<'a> TileClassifier<'a> {
     }
 
     fn is_connected_to_previous_obstacle_belt(&self) -> bool {
-        !self.can_enter_next_tile
-            && self
+        (!self.can_enter_next_tile || self.is_error_state)
+            && (self
                 .world_view
                 .is_belt_connected_to_previous_tile(self.next_position())
+                || self
+                    .world_view
+                    .removing_belt_will_change_previous_belt_curvature(
+                        self.next_position(),
+                        self.underground_input_pos,
+                    ))
     }
 
     fn is_connected_to_previous_integrated_belt(&self) -> bool {
@@ -265,7 +274,7 @@ impl<'a> TileClassifier<'a> {
 
         if skip_initial_splitters {
             while scan_pos * direction_multiplier < max_underground_position * direction_multiplier
-                && let Some(belt_connectable) = self.world_view.get_belt_entity(scan_pos)
+                && let Some(belt_connectable) = self.world_view.get_belt_connectable(scan_pos)
                 && let BeltConnectableEnum::Splitter(Splitter { direction, .. }) = belt_connectable
                 && *direction == self.belt_direction()
             {
@@ -275,7 +284,7 @@ impl<'a> TileClassifier<'a> {
 
         // Scan the belt segment.
         while scan_pos * direction_multiplier < max_underground_position * direction_multiplier
-            && let Some(belt_connectable) = self.world_view.get_belt_entity(scan_pos)
+            && let Some(belt_connectable) = self.world_view.get_belt_connectable(scan_pos)
             && self.world_view.is_belt_connected_to_previous_tile(scan_pos)
         {
             match belt_connectable {

@@ -1,0 +1,25 @@
+- name: Doesn't cut underground from error state
+  before: |
+    > ^ v <o
+  after: |
+    > ^ *v <o >
+  expected_errors: [cannot_traverse_past_entity]
+  not_reversible: true
+- name: Doesn't change excluded belt curvature on right
+  before: |
+    _ v
+    _ > ^ <
+  after: |
+    _ v
+    >i > ^ < >o
+  not_reversible: true
+
+- name: Doesn't change excluded belt curvature on left
+  skip: true # explicitly not supported?
+  before: |
+    _ _ _ v
+    _ > ^ <
+  after: |
+    _ _ _ v
+    >i > ^ < >o
+  not_reversible: true

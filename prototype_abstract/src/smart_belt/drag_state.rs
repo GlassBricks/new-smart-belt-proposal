@@ -70,6 +70,7 @@ impl DragState {
             ctx,
             drag_end.can_enter_next_tile(),
             drag_end.underground_input_pos(ctx.last_position),
+            matches!(self, DragState::ErrorRecovery),
         )
         .classify_next_tile();
         debug!("Tile type: {:?}", next_tile);

@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 anyhow.workspace = true
+arrayvec = "0.7.6"
 dyn-clone.workspace = true
 dyn-eq.workspace = true
 euclid.workspace = true
