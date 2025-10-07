@@ -4,6 +4,7 @@ use crate::smart_belt::{DragWorldView, belt_curving::TileHistory};
 use crate::world::{ReadonlyWorld, WorldImpl};
 use crate::{BeltConnections, TilePosition};
 use crate::{Direction, Ray, smart_belt::Action};
+use log::debug;
 
 pub struct DragStepResult(pub Action, pub DragState, pub Option<Error>);
 
@@ -191,7 +192,7 @@ impl<'a> LineDrag<'a> {
         direction: DragDirection,
     ) {
         let DragStepResult(action, next_state, error) = step;
-        eprintln!("action: {:?}", action);
+        debug!("action: {:?}", action);
         let next_position = self.create_context(direction).next_position();
         if action != Action::None {
             self.update_furthest_placement(next_position, direction)
@@ -205,7 +206,7 @@ impl<'a> LineDrag<'a> {
             self.add_error(error_handler, error, direction);
         }
 
-        eprintln!("Next state: {:?}\n", next_state);
+        debug!("Next state: {:?}\n", next_state);
         self.last_state = next_state;
         self.last_position = next_position;
     }
@@ -214,7 +215,7 @@ impl<'a> LineDrag<'a> {
         let world_pos = self.ray.get_position(position);
         let tile_history = self.world.belt_connections_at(world_pos);
         self.tile_history = Some(tile_history);
-        eprintln!("New tile history: {:?}", self.tile_history);
+        debug!("New tile history: {:?}", self.tile_history);
     }
 
     fn update_furthest_placement(&mut self, position: i32, direction: DragDirection) {
@@ -294,7 +295,7 @@ impl<'a> LineDrag<'a> {
         error: Error,
         direction: DragDirection,
     ) {
-        eprintln!("error: {:?}", error);
+        debug!("error: {:?}", error);
         let position = self
             .ray
             .get_position(self.create_context(direction).next_position());

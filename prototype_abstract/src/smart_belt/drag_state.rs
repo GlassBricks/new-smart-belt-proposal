@@ -1,5 +1,6 @@
 use crate::Impassable;
 use crate::smart_belt::drag::DragStepResult;
+use log::debug;
 
 use super::{Action, DragDirection, TileClassifier, TileType, action::Error};
 
@@ -61,17 +62,17 @@ impl DragState {
     pub fn step(&self, ctx: &super::DragContext) -> DragStepResult {
         print_debug_info(ctx);
         let Some(drag_end) = self.get_drag_end(ctx.last_position, ctx.direction) else {
-            eprintln!("Do nothing");
+            debug!("Do nothing");
             return DragStepResult(Action::None, self.clone(), None);
         };
-        eprintln!("drag_end: {drag_end:?}");
+        debug!("drag_end: {drag_end:?}");
         let next_tile = TileClassifier::new(
             ctx,
             drag_end.can_enter_next_tile(),
             drag_end.underground_input_pos(ctx.last_position),
         )
         .classify_next_tile();
-        eprintln!("Tile type: {:?}", next_tile);
+        debug!("Tile type: {:?}", next_tile);
         match next_tile {
             TileType::Usable => drag_end.place_belt_or_underground(ctx),
             TileType::Obstacle => drag_end.handle_obstacle(ctx),
@@ -276,9 +277,9 @@ impl DragEndShape {
 fn print_debug_info(ctx: &super::DragContext) {
     let pos = ctx.next_position();
     let world_pos = ctx.ray.get_position(pos);
-    eprintln!("STEP: {:?}, pos: {:?}", ctx.direction, world_pos);
+    debug!("STEP: {:?}, pos: {:?}", ctx.direction, world_pos);
     let next_entity = ctx.world.get(world_pos);
-    eprintln!("Entity: {next_entity:?}");
+    debug!("Entity: {next_entity:?}");
 }
 
 /// Checks if creating an underground belt connection will be valid between

@@ -147,7 +147,7 @@ impl WorldImpl {
         tier: BeltTier,
         verify_direction: bool,
     ) {
-        self.build(position, UndergroundBelt::new(direction, is_input, tier));
+        self.build_unchecked(position, UndergroundBelt::new(direction, is_input, tier));
         if verify_direction
             && let Some(get) = self.get(position)
             && let Some(ug) = get.as_underground_belt()

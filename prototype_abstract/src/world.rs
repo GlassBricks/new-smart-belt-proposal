@@ -63,6 +63,7 @@ pub trait ReadonlyWorld {
 /// Trait for mutable world operations
 pub trait World: ReadonlyWorld {
     fn build(&mut self, position: TilePosition, entity: Box<dyn Entity>);
+    fn build_unchecked(&mut self, position: TilePosition, entity: Box<dyn Entity>);
     fn mine(&mut self, position: TilePosition);
     fn flip_ug(&mut self, position: TilePosition) -> bool;
     fn upgrade_ug(&mut self, position: TilePosition, new_tier: BeltTier);
@@ -148,6 +149,26 @@ impl WorldImpl {
         Ok(())
     }
 
+    fn flip_ug_if_needed(
+        &self,
+        position: TilePosition,
+        ug: &mut UndergroundBelt,
+        pair_pos: TilePosition,
+        pair_ug: &UndergroundBelt,
+    ) {
+        if pair_ug.is_input == ug.is_input {
+            ug.flip_self();
+        }
+        {
+            let (new_pair_pos, new_pair_ug) =
+                self.get_ug_pair(position, ug).expect("Expected pair");
+            assert!(
+                pair_pos == new_pair_pos && pair_ug == new_pair_ug,
+                "Underground belt pair should not have changed due to flip"
+            );
+        }
+    }
+
     fn handle_underground_belt(
         &mut self,
         position: TilePosition,
@@ -165,18 +186,25 @@ impl WorldImpl {
                 position, pair_pos, pair_pair_pos
             ));
         }
-        if pair_ug.is_input == ug.is_input {
-            ug.flip_self();
-        }
-        {
-            let (new_pair_pos, new_pair_ug) =
-                self.get_ug_pair(position, ug).expect("Expected pair");
-            assert!(
-                pair_pos == new_pair_pos && pair_ug == new_pair_ug,
-                "Underground belt pair should not have changed due to flip"
-            );
-        }
+        self.flip_ug_if_needed(position, ug, pair_pos, pair_ug);
         Ok(())
+    }
+
+    fn handle_underground_belt_flip_only(
+        &mut self,
+        position: TilePosition,
+        ug: &mut UndergroundBelt,
+    ) {
+        if let Some((pair_pos, pair_ug)) = self.get_ug_pair(position, ug) {
+            self.flip_ug_if_needed(position, ug, pair_pos, pair_ug);
+        }
+    }
+
+    fn set_unchecked(&mut self, position: TilePosition, mut entity: Box<dyn Entity>) {
+        if let Some(ug) = (entity.deref_mut() as &mut dyn Any).downcast_mut::<UndergroundBelt>() {
+            self.handle_underground_belt_flip_only(position, ug);
+        }
+        self.entities.insert(position, entity);
     }
 
     /// Try to build an entity, returning an error instead of panicking if it would break underground pairs
@@ -186,6 +214,12 @@ impl WorldImpl {
         entity: Box<dyn Entity>,
     ) -> Result<(), String> {
         self.try_set(position, entity)
+    }
+
+    /// Build an entity without checking if it would break existing underground belt pairs.
+    /// May still flip the underground belt to maintain valid pairing with its pair.
+    pub fn build_unchecked(&mut self, position: TilePosition, entity: Box<dyn Entity>) {
+        self.set_unchecked(position, entity)
     }
 
     fn get_ug_pair_both_mut(
@@ -311,6 +345,10 @@ impl ReadonlyWorld for WorldImpl {
 impl World for WorldImpl {
     fn build(&mut self, position: TilePosition, entity: Box<dyn Entity>) {
         WorldImpl::set(self, position, entity)
+    }
+
+    fn build_unchecked(&mut self, position: TilePosition, entity: Box<dyn Entity>) {
+        WorldImpl::build_unchecked(self, position, entity)
     }
 
     fn mine(&mut self, position: TilePosition) {

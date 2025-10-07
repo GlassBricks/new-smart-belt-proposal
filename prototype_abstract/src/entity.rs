@@ -2,7 +2,7 @@ use dyn_clone::DynClone;
 use dyn_eq::DynEq;
 use std::{any::Any, fmt::Debug};
 
-pub trait Entity: Any + Debug + DynEq + DynClone + Send {}
+pub trait Entity: Any + Debug + DynEq + DynClone + Send + Sync {}
 dyn_eq::eq_trait_object!(Entity);
 dyn_clone::clone_trait_object!(Entity);
 

@@ -2,24 +2,17 @@ use crate::{
     BELT_TIERS, Belt, BeltConnectableEnum, BeltTier, Colliding, Direction, Entity, Impassable,
     LoaderLike, Splitter, TilePosition, UndergroundBelt, WorldImpl, pos,
     smart_belt::{LineDrag, action::Error},
+    test_case::print_world,
     world::ReadonlyWorld,
 };
-use rand::Rng;
+use euclid::{Box2D, Size2D};
+use rand::{Rng, SeedableRng, rngs::StdRng};
 use std::collections::HashSet;
 
 #[derive(Debug, Clone)]
 pub struct FuzzConfig {
     pub world_width: i32,
     pub entity_density: f32, // 0.0 to 1.0
-}
-
-impl Default for FuzzConfig {
-    fn default() -> Self {
-        Self {
-            world_width: 20,
-            entity_density: 0.3,
-        }
-    }
 }
 
 /// A randomly generated test case
@@ -58,7 +51,7 @@ pub struct FuzzResult {
 pub fn generate_random_world<R: Rng>(rng: &mut R, config: &FuzzConfig) -> WorldImpl {
     let mut world = WorldImpl::with_capacity(100);
 
-    for x in 0..config.world_width {
+    for x in 1..config.world_width {
         if !rng.gen_bool(config.entity_density as f64) {
             continue;
         }
@@ -116,47 +109,63 @@ fn random_tier<R: Rng>(rng: &mut R) -> BeltTier {
     BELT_TIERS[rng.gen_range(0..BELT_TIERS.len())]
 }
 
-pub fn generate_test_case<R: Rng>(rng: &mut R, config: &FuzzConfig) -> FuzzTestCase {
+pub fn generate_test_case(seed: u64, config: &FuzzConfig) -> FuzzTestCase {
+    let mut rng = StdRng::seed_from_u64(seed);
     FuzzTestCase {
-        world: generate_random_world(rng, config),
-        tier: random_tier(rng),
+        seed,
+        world: generate_random_world(&mut rng, config),
+        tier: random_tier(&mut rng),
         max_x: config.world_width - 1,
-        seed: rng.r#gen(),
     }
 }
 
 /// Run a fuzz test case
 /// Uses world pooling to reduce allocations
-pub fn run_fuzz_test(test_case: &FuzzTestCase) -> FuzzResult {
+pub fn run_fuzz_test(test_case: &FuzzTestCase) -> Result<FuzzResult, String> {
     let start_pos = test_case.start_pos();
     let end_pos = test_case.end_pos();
     let world_before = test_case.world.clone();
     let mut world_after = world_before.clone();
-    let mut errors = Vec::new();
 
+    let mut errors = Vec::new();
     let mut error_handler = |pos, err| {
         errors.push((pos, err));
     };
+    let furthest_placement = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let mut drag = LineDrag::start_drag(
+            &mut world_after,
+            &mut error_handler,
+            test_case.tier,
+            start_pos,
+            BELT_DIRECTION,
+        );
+        drag.interpolate_to(&mut error_handler, end_pos);
+        drag.furthest_placement_pos()
+    }))
+    .map_err(|panic_info| {
+        let panic_message = if let Some(s) = panic_info.downcast_ref::<&str>() {
+            s.to_string()
+        } else if let Some(s) = panic_info.downcast_ref::<String>() {
+            s.clone()
+        } else {
+            format!("{:?}", panic_info)
+        };
+        let bounds = Box2D::from_size(Size2D::new(test_case.max_x, 3));
+        format!(
+            "interpolate_to panicked: {}\nWorld before:\n{}",
+            panic_message,
+            print_world(&world_before, bounds, &[])
+        )
+    })?;
 
-    let mut drag = LineDrag::start_drag(
-        &mut world_after,
-        &mut error_handler,
-        test_case.tier,
-        start_pos,
-        BELT_DIRECTION,
-    );
-
-    drag.interpolate_to(&mut error_handler, end_pos);
-    let furthest_placement = drag.furthest_placement_pos();
-
-    FuzzResult {
+    Ok(FuzzResult {
         world_before,
         world_after,
         max_x: test_case.max_x,
         errors: errors.into_iter().collect(),
         tier: test_case.tier,
         furthest_placement,
-    }
+    })
 }
 
 fn is_belt_connected_to_previous_tile(world: &WorldImpl, next_distance: i32) -> bool {
@@ -177,24 +186,30 @@ fn is_belt_connected_to_previous_tile(world: &WorldImpl, next_distance: i32) -> 
 pub fn scan_belt_line(world: &WorldImpl) -> Vec<TilePosition> {
     let mut scan_pos = pos(0, 1);
     let mut result = Vec::new();
+    let mut iterations = 0;
+    const MAX_ITERATIONS: i32 = 100;
     while let Some(belt_connectable) = world.get(scan_pos).and_then(|e| e.as_belt_connectable())
-        && is_belt_connected_to_previous_tile(world, scan_pos.x)
+        && (scan_pos.x == 0 || is_belt_connected_to_previous_tile(world, scan_pos.x))
+        && iterations < MAX_ITERATIONS
     {
-        result.push(scan_pos);
+        iterations += 1;
         match belt_connectable {
             BeltConnectableEnum::Belt(belt) => {
                 if world.belt_is_curved_at(scan_pos, belt) {
-                    result.pop(); // exclude this belt
                     break;
                 }
+                result.push(scan_pos);
             }
             BeltConnectableEnum::UndergroundBelt(ug) => {
+                result.push(scan_pos);
                 let Some((pair_pos, _)) = world.get_ug_pair(scan_pos, ug) else {
                     break;
                 };
+                result.push(pair_pos);
                 scan_pos = pair_pos;
             }
             BeltConnectableEnum::Splitter(_) => {
+                result.push(scan_pos);
                 continue;
             }
             BeltConnectableEnum::LoaderLike(_) => {
@@ -238,15 +253,19 @@ pub fn check_non_integrated_belts_unchanged(
     for (&pos, entity_before) in &before.entities {
         let is_integrated = integrated_positions.contains(&pos);
         if !is_integrated {
-            let before_ent = entity_before.as_belt_connectable();
-            let after_ent = after.get(pos).unwrap().as_belt_connectable();
+            let before_ent = Some(&**entity_before);
+            let after_ent = after.get(pos);
+            if after_ent.is_none() {
+                // limitation: we may replace some belts
+                continue;
+            }
             if before_ent != after_ent {
                 return Err(format!(
                     "Belt changed at position {:?}. Before: {:?}, After: {:?}",
                     pos, before_ent, after_ent
                 ));
             }
-            if let Some(BeltConnectableEnum::Belt(belt)) = before_ent {
+            if let Some(belt) = before_ent.and_then(|e| e.as_belt()) {
                 let before_in = before.belt_curved_input_direction(pos, belt.direction);
                 let after_in = after.belt_curved_input_direction(pos, belt.direction);
                 if before_in != after_in {
@@ -262,50 +281,70 @@ pub fn check_non_integrated_belts_unchanged(
     Ok(())
 }
 
-/// Main invariant checking function
-pub fn check_invariants(result: &FuzzResult) -> Result<(), String> {
-    let belt_line = scan_belt_line(&result.world_after);
+impl FuzzResult {
+    /// Main invariant checking function
+    pub fn check(&self) -> Result<(), String> {
+        let belt_line = scan_belt_line(&self.world_after);
+        // Find the last successfully placed belt position
+        let last_placed_pos = if let Some(&last) = belt_line.last() {
+            last
+        } else {
+            // No belts placed - this is fine if there was an error
+            if self.errors.is_empty() {
+                return Err("No belts placed and no errors reported".to_string());
+            }
+            return Ok(());
+        };
 
-    // Find the last successfully placed belt position
-    let last_placed_pos = if let Some(&last) = belt_line.last() {
-        last
-    } else {
-        // No belts placed - this is fine if there was an error
-        if result.errors.is_empty() {
-            return Err("No belts placed and no errors reported".to_string());
+        let actual_end = last_placed_pos.x;
+        let expected_end = self.furthest_placement;
+
+        // Invariant 1: If there are no errors, there should be a continuous belt line from beginning to end
+        if self.errors.is_empty() && actual_end != expected_end {
+            return Err(format!(
+                "No errors but belt line ends at x={} instead of x={}",
+                actual_end, expected_end
+            ));
         }
-        return Ok(());
-    };
 
-    let actual_end = last_placed_pos.x;
-    let expected_end = result.furthest_placement;
+        // Invariant 2: If the belt line is broken before the end, there must be at least one error
+        if actual_end < expected_end && self.errors.is_empty() {
+            return Err(format!(
+                "Belt line broken at x={} but no errors reported",
+                actual_end,
+            ));
+        }
 
-    // Invariant 1: If there are no errors, there should be a continuous belt line from beginning to end
-    if result.errors.is_empty() && actual_end != expected_end {
-        return Err(format!(
-            "No errors but belt line ends at x={} instead of x={}",
-            actual_end, expected_end
-        ));
+        // Invariant 3: All belts from the first successfully placed belt to the next must be the placement tier
+        check_belt_line_tier(&self.world_after, &belt_line, self.tier)?;
+
+        // Invariant 4: Non-integrated belts should remain unchanged
+        if self.errors.is_empty() {
+            let integrated_positions: HashSet<TilePosition> = belt_line.iter().copied().collect();
+            check_non_integrated_belts_unchanged(
+                &self.world_before,
+                &self.world_after,
+                &integrated_positions,
+            )?;
+        }
+
+        Ok(())
     }
 
-    // Invariant 2: If the belt line is broken before the end, there must be at least one error
-    if actual_end < expected_end && result.errors.is_empty() {
-        return Err(format!(
-            "Belt line broken at x={} but no errors reported",
-            actual_end,
-        ));
+    pub fn print_before_after(&self) {
+        let bounds = self.world_before.bounds().union(&self.world_after.bounds());
+        eprintln!(
+            r#"
+    Before:
+
+{}
+
+    After:
+
+{}
+    "#,
+            print_world(&self.world_before, bounds, &[]),
+            print_world(&self.world_after, bounds, &[])
+        );
     }
-
-    // Invariant 3: All belts from the first successfully placed belt to the next must be the placement tier
-    check_belt_line_tier(&result.world_after, &belt_line, result.tier)?;
-
-    // Invariant 4: Non-integrated belts should remain unchanged
-    let integrated_positions: HashSet<TilePosition> = belt_line.iter().copied().collect();
-    check_non_integrated_belts_unchanged(
-        &result.world_before,
-        &result.world_after,
-        &integrated_positions,
-    )?;
-
-    Ok(())
 }

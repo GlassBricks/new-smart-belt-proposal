@@ -591,7 +591,7 @@ fn print_entity(entity: &dyn Entity) -> String {
     }
 }
 
-fn print_world(world: &WorldImpl, bounds: BoundingBox, markers: &[TilePosition]) -> String {
+pub fn print_world(world: &WorldImpl, bounds: BoundingBox, markers: &[TilePosition]) -> String {
     if bounds.is_empty() {
         return "<Empty>".to_string();
     }

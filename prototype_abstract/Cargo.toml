@@ -9,10 +9,14 @@ dyn-clone.workspace = true
 dyn-eq.workspace = true
 euclid.workspace = true
 itertools.workspace = true
+log.workspace = true
 rand.workspace = true
 rayon.workspace = true
 serde.workspace = true
 serde_yaml.workspace = true
+
+[dev-dependencies]
+env_logger.workspace = true
 
 [build-dependencies]
 serde.workspace = true
