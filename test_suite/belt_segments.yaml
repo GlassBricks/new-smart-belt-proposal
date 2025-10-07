@@ -43,9 +43,9 @@
   after: |
     >i 2<i < <O >o
 
-# - name: output underground, cannot belt weave
-#   before: |
-#     _ <i < <s
-#   after: |
-#     > >i < <s *>
-#   expected_errors: [cannot_traverse_past_entity]
+- name: output underground, cannot belt weave
+  before: |
+    _ <i < <s
+  after: |
+    > > > <s *>
+  expected_errors: [cannot_traverse_past_entity]
