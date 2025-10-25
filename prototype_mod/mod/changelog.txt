@@ -2,10 +2,11 @@
 Version: 0.1.7
 Date: ????
   Changes:
+    - Improved behavior when encountering a same-direction belt after an obstacle.
 ---------------------------------------------------------------------------------------------------
 Version: 0.1.6
 Date: 2025-10-04
-  BUg:
+  Bugfixes:
     - Support "quick sideloading" by rotating a belt twice, then dragging back over the wiggle.
 ---------------------------------------------------------------------------------------------------
 Version: 0.1.5

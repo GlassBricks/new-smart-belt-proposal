@@ -116,7 +116,7 @@ impl<'a> TileClassifier<'a> {
             // - Perpendicular belts are obstacles
             // - Belts connected to obstacles are obstacles
             TileType::Obstacle
-        } else if belt.direction == self.belt_direction()
+        } else if (belt.direction == self.belt_direction() && self.can_enter_next_tile)
             || self.is_connected_to_previous_integrated_belt()
             || self.should_integrate_belt_segment(false, false)
         {

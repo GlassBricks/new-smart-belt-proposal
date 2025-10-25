@@ -111,7 +111,7 @@ export class TileClassifier {
     ) {
       return "Obstacle"
     } else if (
-      belt.direction === this.beltDirection() ||
+      (belt.direction === this.beltDirection() && this.canEnterNextTile) ||
       this.isConnectedToPreviousIntegratedBelt() ||
       this.shouldIntegrateBeltSegment(false, false)
     ) {

@@ -218,3 +218,20 @@
   after: |
     _   _ _ _ _ v
     2>i X _ X < < 2>o
+
+- name: obstacle then forwards belt segment needs scan 1
+  before: |
+    _ _ _ _ ^ _
+    _ X > > ^
+  after: |
+    _  _ _ _ ^ _
+    >i X > > ^ >o
+
+- name: obstacle then forwards belt segment needs scan 2
+  before: |
+    _ _ _ _ _ ^ _
+    _ X > > > ^
+  after: |
+    _  _  _ _ _ ^ _
+    >i X >o > > ^ *>
+  expected_errors: [cannot_traverse_past_entity]
