@@ -15,7 +15,6 @@ import { WorldOps, type World } from "../world"
 import { Action, ActionError } from "./action"
 import {
   DragState,
-  deferredError,
   takeStep,
   type DragContext,
   type DragStepResult,
@@ -198,11 +197,6 @@ export class LineDrag {
     }
 
     this.applyAction(world, errorHandler, action, direction)
-
-    const deferred = deferredError(this.lastState, direction)
-    if (deferred !== undefined) {
-      this.addError(errorHandler, deferred, direction)
-    }
 
     if (err !== undefined) {
       this.addError(errorHandler, err, direction)

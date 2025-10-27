@@ -11,7 +11,7 @@ import {
   BeltCollider,
   BeltConnectable,
   BeltTier,
-  CollidingEntity,
+  CollidingEntityOrTile,
   ImpassableTile,
   LoaderLike,
   Splitter,
@@ -229,7 +229,7 @@ export class RealWorld implements World {
         this.tier.beltName,
         this.isGhostBuild,
       )
-      return new CollidingEntity(collidingEntity?.name ?? "<unknown>")
+      return new CollidingEntityOrTile(collidingEntity?.name ?? "<unknown>")
     }
     return undefined
   }
@@ -485,7 +485,7 @@ export class RealWorld implements World {
   ): boolean {
     const existingEntity = this.get(position)
     if (existingEntity) {
-      if (existingEntity instanceof CollidingEntity) {
+      if (existingEntity instanceof CollidingEntityOrTile) {
         return false
       }
       if (existingEntity instanceof Belt) {
@@ -555,8 +555,7 @@ export class RealErrorHandler implements ErrorHandler {
       case ActionError.CannotUpgradeUnderground:
         message = "Cannot upgrade underground"
         break
-      case ActionError.CannotTraversePastEntity:
-      case ActionError.CannotTraversePastTile:
+      case ActionError.BeltLineBroken:
         message = "Belt line broken"
         break
     }

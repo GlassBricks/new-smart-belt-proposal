@@ -70,6 +70,7 @@ type DragEndShape =
       inputPos: number
       outputPos: number | undefined
     }
+  | { type: "OverImpassableObstacle"; direction: DragDirection }
   | { type: "Error" }
 
 const DragEndShape = {
@@ -86,6 +87,10 @@ const DragEndShape = {
     type: "TraversingObstacle",
     inputPos,
     outputPos,
+  }),
+  OverImpassableObstacle: (direction: DragDirection): DragEndShape => ({
+    type: "OverImpassableObstacle",
+    direction,
   }),
   Error: (): DragEndShape => ({ type: "Error" }),
 }
@@ -123,12 +128,12 @@ export function takeStep(state: DragState, ctx: DragContext): DragStepResult {
   switch (nextTile) {
     case "Usable":
       return placeBeltOrUnderground(dragEnd, ctx)
-    case "Obstacle":
-      return handleObstacle(dragEnd, ctx)
     case "IntegratedSplitter":
-      return [Action.IntegrateSplitter(), DragState.OverSplitter(), undefined]
-    case "ImpassableObstacle":
-      return handleImpassableObstacle(dragEnd, ctx.direction)
+      return [
+        Action.IntegrateSplitter(),
+        DragState.OverSplitter(),
+        errorOnImpassableExit(dragEnd, ctx),
+      ]
     case "IntegratedUnderground": {
       const entity = worldView.getEntity(ctx.nextPosition)
       if (!(entity instanceof UndergroundBelt)) {
@@ -138,20 +143,15 @@ export function takeStep(state: DragState, ctx: DragContext): DragStepResult {
       if (outputPos === undefined) {
         throw new Error("Expected paired underground for IntegratedUnderground")
       }
-      return integrateUndergroundPair(ctx, outputPos)
+      return integrateUndergroundPair(dragEnd, ctx, outputPos)
     }
+    case "Obstacle":
+      return handleObstacle(dragEnd, ctx)
+    case "ImpassableObstacle":
+      return handleImpassableObstacle(dragEnd, ctx)
   }
 }
 
-export function deferredError(
-  state: DragState,
-  direction: DragDirection,
-): ActionError | undefined {
-  if (state.type === "OverImpassable" && state.direction === direction) {
-    return ActionError.CannotTraversePastEntity
-  }
-  return undefined
-}
 
 function getDragEnd(
   state: DragState,
@@ -164,6 +164,7 @@ function getDragEnd(
     case "OverSplitter":
       return DragEndShape.IntegratedOutput()
     case "OverImpassable":
+      return DragEndShape.OverImpassableObstacle(state.direction)
     case "ErrorRecovery":
       return DragEndShape.Error()
     case "BuildingUnderground": {
@@ -198,6 +199,23 @@ function canEnterNextTile(dragEnd: DragEndShape): boolean {
   return dragEnd.type !== "TraversingObstacle"
 }
 
+function isErrorState(dragEnd: DragEndShape): boolean {
+  return dragEnd.type === "Error" || dragEnd.type === "OverImpassableObstacle"
+}
+
+function errorOnImpassableExit(
+  dragEnd: DragEndShape,
+  ctx: DragContext,
+): ActionError | undefined {
+  if (
+    dragEnd.type === "OverImpassableObstacle" &&
+    dragEnd.direction === ctx.direction
+  ) {
+    return ActionError.BeltLineBroken
+  }
+  return undefined
+}
+
 function undergroundInputPos(
   dragEnd: DragEndShape,
   lastPosition: number,
@@ -218,6 +236,10 @@ function placeBeltOrUnderground(
   dragEnd: DragEndShape,
   ctx: DragContext,
 ): DragStepResult {
+  const err = errorOnImpassableExit(dragEnd, ctx)
+  if (err !== undefined) {
+    return [Action.PlaceBelt(), DragState.OverBelt(), err]
+  }
   if (dragEnd.type === "TraversingObstacle") {
     return placeUnderground(ctx, dragEnd.inputPos, dragEnd.outputPos)
   } else {
@@ -258,6 +280,9 @@ function handleObstacle(
       error = ActionError.EntityInTheWay
       newState = DragState.ErrorRecovery()
       break
+    case "OverImpassableObstacle":
+      newState = DragState.OverImpassable(dragEnd.direction)
+      break
     case "Error":
       newState = DragState.ErrorRecovery()
       break
@@ -268,13 +293,13 @@ function handleObstacle(
 
 function handleImpassableObstacle(
   dragEnd: DragEndShape,
-  direction: DragDirection,
+  ctx: DragContext,
 ): DragStepResult {
-  const nextState =
-    dragEnd.type === "Error"
-      ? DragState.ErrorRecovery()
-      : DragState.OverImpassable(direction)
-  return [Action.None(), nextState, undefined]
+  const direction =
+    dragEnd.type === "OverImpassableObstacle"
+      ? dragEnd.direction
+      : ctx.direction
+  return [Action.None(), DragState.OverImpassable(direction), undefined]
 }
 
 function placeUnderground(
@@ -303,6 +328,7 @@ function placeUnderground(
 }
 
 function integrateUndergroundPair(
+  dragEnd: DragEndShape,
   ctx: DragContext,
   outputPos: number,
 ): DragStepResult {
@@ -314,16 +340,13 @@ function integrateUndergroundPair(
     outputPos,
   )
 
-  if (outputPos === ctx.furthestPlacementPos) {
-    // This is an ug we placed (probably)! Extend instead of integrate.
-    return [
-      action,
-      DragState.BuildingUnderground(ctx.nextPosition, outputPos, ctx.direction),
-      undefined,
-    ]
-  } else {
-    return [action, DragState.PassThrough(leftPos, rightPos), undefined]
-  }
+  const nextState =
+    outputPos === ctx.furthestPlacementPos
+      ? DragState.BuildingUnderground(ctx.nextPosition, outputPos, ctx.direction)
+      : DragState.PassThrough(leftPos, rightPos)
+
+  const err = errorOnImpassableExit(dragEnd, ctx)
+  return [action, nextState, err]
 }
 
 function canBuildUnderground(
@@ -347,7 +370,7 @@ function canBuildUnderground(
     }
 
     if (entity instanceof ImpassableTile) {
-      return ActionError.CannotTraversePastTile
+      return ActionError.BeltLineBroken
     }
 
     if (entity instanceof UndergroundBelt) {
@@ -355,7 +378,7 @@ function canBuildUnderground(
       const rayAxis = directionAxis(ctx.ray.direction)
 
       if (entityAxis === rayAxis && entity.tier === ctx.tier) {
-        return ActionError.CannotTraversePastEntity
+        return ActionError.BeltLineBroken
       }
     }
 

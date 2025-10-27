@@ -6,7 +6,7 @@ export interface BeltCollider {
   readonly name: string
 }
 
-export class CollidingEntity implements BeltCollider {
+export class CollidingEntityOrTile implements BeltCollider {
   readonly type = "Colliding" as const
   constructor(readonly name: string) {}
 }

@@ -48,4 +48,4 @@
     _ <i < <s
   after: |
     > > > <s *>
-  expected_errors: [cannot_traverse_past_entity]
+  expected_errors: [belt_line_broken]

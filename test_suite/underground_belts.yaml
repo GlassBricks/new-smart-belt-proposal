@@ -39,7 +39,7 @@
   after: |
     _ _ _ _   ^
     > > >i >o ^ *>
-  expected_errors: [cannot_traverse_past_entity]
+  expected_errors: [belt_line_broken]
 
 - name: Can flip belt after underground
   before: "_ _ >i >o < >"
@@ -97,7 +97,7 @@
   after: |
     _ _ ^
     > > ^ *>i _ >o
-  expected_errors: [cannot_traverse_past_entity]
+  expected_errors: [belt_line_broken]
   not_reversible: true
 
 - name: Can upgrade underground after curved belt reverse
@@ -107,7 +107,7 @@
   after: |
     _ _ v
     < < < *<o _ <i
-  expected_errors: [cannot_traverse_past_entity]
+  expected_errors: [belt_line_broken]
   not_reversible: true
 
 - name: Can upgrade underground after blocked output failure
@@ -122,7 +122,7 @@
   after: |
     _ _ ^
     > > ^ **2>i >o 2>o
-  expected_errors: [cannot_traverse_past_entity, cannot_upgrade_underground]
+  expected_errors: [belt_line_broken, cannot_upgrade_underground]
   not_reversible: true
 
 - name: unenterable underground of different tier is obstacle
@@ -132,7 +132,7 @@
 - name: unenterable underground of same tier is impassable
   before: "_ X >i >o _"
   after: "> X >i >o *>"
-  expected_errors: [cannot_traverse_past_entity]
+  expected_errors: [belt_line_broken]
 
 - name: backwards paired underground of different tier is obstacle
   before: "2<o *_ 2<i < <"
@@ -141,7 +141,7 @@
 - name: backwards paired underground of same tier is impassable, and doesn't override later belt
   before: "<o *_ <i < <"
   after: "<o > <i < < *>"
-  expected_errors: [cannot_traverse_past_entity]
+  expected_errors: [belt_line_broken]
 
 - name: Pantabo's into backwards ug belt
   before: "_ X X <i"

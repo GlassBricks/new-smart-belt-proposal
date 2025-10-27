@@ -3,7 +3,7 @@
     > ^ v <o
   after: |
     > ^ v <o *>
-  expected_errors: [cannot_traverse_past_entity]
+  expected_errors: [belt_line_broken]
   not_reversible: true
 
 - name: Doesn't change curvature of excluded belt, from the right

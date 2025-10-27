@@ -9,7 +9,7 @@
 - name: Cannot traverse past loader
   before: "_ >I"
   after: "> >I *>"
-  expected_errors: [cannot_traverse_past_entity]
+  expected_errors: [belt_line_broken]
 
 - name: Belt segments after loader are obstacles 1
   before: "_ >O > _"

@@ -62,7 +62,7 @@
   after: |
     _ _ _  _ _ ^
     > > >s > > ^ *>
-  expected_errors: [cannot_traverse_past_entity]
+  expected_errors: [belt_line_broken]
 
 - name: Splitter with ug belt after it is undergrounded if we can belt weave
   before: |
@@ -79,7 +79,7 @@
   after: |
     _  _  _  _ ^
     > >s >i >o ^ X *>
-  expected_errors: [cannot_traverse_past_entity]
+  expected_errors: [belt_line_broken]
 
 - name: Splitter after splitter
   before: |
@@ -88,7 +88,7 @@
   after: |
     _ _  _ _ _   _ ^
     > >s > > >s  > ^ *>
-  expected_errors: [cannot_traverse_past_entity]
+  expected_errors: [belt_line_broken]
 
 - name: splitter ending in loader is integrated
   before: |
@@ -135,12 +135,12 @@
     _ < < < < <s
   after: |
     > > > > > <s *>
-  expected_errors: [cannot_traverse_past_entity]
+  expected_errors: [belt_line_broken]
 
 - name: always enter splitter after error
   before: |
     _ > ^ 2>s > ^
   after: |
     > > ^ *>s > ^
-  expected_errors: [cannot_traverse_past_entity]
+  expected_errors: [belt_line_broken]
   not_reversible: true

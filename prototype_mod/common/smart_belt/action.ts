@@ -10,8 +10,7 @@ export const enum ActionError {
   TooFarToConnect = "too_far_to_connect",
   EntityInTheWay = "entity_in_the_way",
   CannotUpgradeUnderground = "cannot_upgrade_underground",
-  CannotTraversePastEntity = "cannot_traverse_past_entity",
-  CannotTraversePastTile = "cannot_traverse_past_tile",
+  BeltLineBroken = "belt_line_broken",
 }
 
 export const Action = {

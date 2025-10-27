@@ -1,22 +1,22 @@
 - name: Can't traverse past impasable tile
   before: "_ # _"
   after: "> # *>"
-  expected_errors: [cannot_traverse_past_tile]
+  expected_errors: [belt_line_broken]
 
 - name: Can't traverse past impasable tile 2
   before: "_ X # _"
   after: "> X # *>"
-  expected_errors: [cannot_traverse_past_tile]
+  expected_errors: [belt_line_broken]
 
 - name: Can't traverse past impasable tile 3
   before: "_ # X # _"
   after: "> # X # *>"
-  expected_errors: [cannot_traverse_past_tile]
+  expected_errors: [belt_line_broken]
 
 - name: Multiple impassable tiles
   before: "_ # # #"
   after: "> # # # *>"
-  expected_errors: [cannot_traverse_past_tile]
+  expected_errors: [belt_line_broken]
 
 - name: Impassable after error
   before: |

@@ -59,7 +59,7 @@
   after: |
     _ _ _ _ _ v
     > > > > > < *>
-  expected_errors: [cannot_traverse_past_entity]
+  expected_errors: [belt_line_broken]
 
 - name: 2 backwards curved belts
   before: |
@@ -122,7 +122,7 @@
   after: |
     _ _ ^
     > > ^ *>
-  expected_errors: [cannot_traverse_past_entity]
+  expected_errors: [belt_line_broken]
 
 - name: hovering over curved belt gives no error
   before: |
@@ -234,4 +234,4 @@
   after: |
     _  _  _ _ _ ^ _
     >i X >o > > ^ *>
-  expected_errors: [cannot_traverse_past_entity]
+  expected_errors: [belt_line_broken]

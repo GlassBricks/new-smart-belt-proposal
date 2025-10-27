@@ -5,7 +5,6 @@ export { DragWorldView } from "./world_view"
 export { TileClassifier, type TileType } from "./tile_classification"
 
 export {
-  deferredError,
   takeStep as stepDragState,
   type DragContext,
   type DragState,

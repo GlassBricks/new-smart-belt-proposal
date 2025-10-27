@@ -29,8 +29,7 @@ pub enum Error {
     TooFarToConnect,
     EntityInTheWay,
     CannotUpgradeUnderground,
-    CannotTraversePastEntity,
-    CannotTraversePastTile,
+    BeltLineBroken,
 }
 
 impl<'a> LineDrag<'a> {

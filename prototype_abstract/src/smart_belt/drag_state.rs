@@ -282,7 +282,7 @@ impl DragEndShape {
     fn error_on_impassable_exit(&self, ctx: &super::DragContext) -> Option<Error> {
         match *self {
             DragEndShape::OverImpassableObstacle { direction } if direction == ctx.direction => {
-                Some(Error::CannotTraversePastEntity)
+                Some(Error::BeltLineBroken)
             }
             _ => None,
         }
@@ -323,14 +323,14 @@ fn check_underground_path(
         if let Some(entity) = entity {
             // Check for impassable obstacles
             if entity.as_any().is::<ImpassableTile>() {
-                return Err(Error::CannotTraversePastTile);
+                return Err(Error::BeltLineBroken);
             }
             // Check for intercepting underground belts
             if let Some(ug) = entity.as_underground_belt()
                 && ug.direction.axis() == ctx.ray.direction.axis()
                 && ug.tier == ctx.tier
             {
-                return Err(Error::CannotTraversePastEntity);
+                return Err(Error::BeltLineBroken);
             }
         }
     }

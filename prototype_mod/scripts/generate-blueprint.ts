@@ -13,7 +13,7 @@ import { readdirSync, readFileSync, writeFileSync } from "fs"
 import { join } from "path"
 import {
   Belt,
-  CollidingEntity,
+  CollidingEntityOrTile,
   ImpassableTile,
   LoaderLike,
   Splitter,
@@ -118,7 +118,7 @@ function convertEntity(
       direction: mapDirection(entity.direction),
       type: entity.isInput ? "input" : "output",
     }
-  } else if (entity instanceof CollidingEntity) {
+  } else if (entity instanceof CollidingEntityOrTile) {
     return {
       entity_number: entityNumber,
       name: "iron-chest",

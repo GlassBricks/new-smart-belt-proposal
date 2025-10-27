@@ -149,7 +149,7 @@
     _ _ _ _ v _
     > < *<o <i < >
     _ v
-  expected_errors: [cannot_traverse_past_entity]
+  expected_errors: [belt_line_broken]
 
 - name: "24"
   before: " _ >i _ >o >s X"
@@ -188,7 +188,7 @@
   after: |
     _ _ _ _ ^
     > > > > ^ *>  >
-  expected_errors: [cannot_traverse_past_entity]
+  expected_errors: [belt_line_broken]
 
 ### Splitter integration cases
 
@@ -216,7 +216,7 @@
   after: |
     _ _ >  _ ^ > >
     > > > >s > ^ *>
-  expected_errors: [cannot_traverse_past_entity]
+  expected_errors: [belt_line_broken]
 
 ### Backwards belt cases
 # Integrate backwards belt when possible (straight line)

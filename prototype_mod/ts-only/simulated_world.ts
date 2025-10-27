@@ -2,7 +2,7 @@ import { beltCurvedInputDirection } from "../common/belt_curving"
 import {
   Belt,
   BeltConnectable,
-  CollidingEntity,
+  CollidingEntityOrTile,
   LoaderLike,
   Splitter,
   UndergroundBelt,
@@ -91,7 +91,7 @@ export class SimulatedWorld implements World {
     if (!entity) {
       return true
     }
-    if (entity instanceof CollidingEntity) {
+    if (entity instanceof CollidingEntityOrTile) {
       return false
     }
     if (entity instanceof Belt) {

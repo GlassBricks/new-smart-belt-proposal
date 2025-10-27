@@ -2,7 +2,7 @@ import * as yaml from "js-yaml"
 import {
   Belt,
   BeltConnectable,
-  CollidingEntity,
+  CollidingEntityOrTile,
   ImpassableTile,
   LoaderLike,
   Splitter,
@@ -119,7 +119,7 @@ function parseWord(input: string): BeltCollider | undefined {
     return undefined
   }
   if (input === "X") {
-    return new CollidingEntity("X")
+    return new CollidingEntityOrTile("X")
   }
   if (input === "#") {
     return new ImpassableTile("#")
@@ -223,7 +223,7 @@ function printEntity(entity: BeltCollider): string {
     return tierNum === 1
       ? `${dirChar}${typeChar}`
       : `${tierNum}${dirChar}${typeChar}`
-  } else if (entity instanceof CollidingEntity) {
+  } else if (entity instanceof CollidingEntityOrTile) {
     return "X"
   } else if (entity instanceof ImpassableTile) {
     return "#"
