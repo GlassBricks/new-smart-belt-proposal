@@ -199,9 +199,6 @@ impl<'a> LineDrag<'a> {
         }
         self.apply_action(error_handler, action, direction);
 
-        if let Some(error) = self.last_state.deferred_error(direction) {
-            self.add_error(error_handler, error, direction);
-        }
         if let Some(error) = error {
             self.add_error(error_handler, error, direction);
         }

@@ -1,8 +1,11 @@
 use prototype_abstract::fuzzer::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+mod common;
+
 #[test]
 fn fuzz_test_single_reproducible() {
+    common::init_logger();
     let seed = 2535;
     let config = FuzzConfig {
         world_width: 15,
@@ -15,6 +18,7 @@ fn fuzz_test_single_reproducible() {
 #[test]
 #[ignore]
 fn fuzz_test_high_density() {
+    common::init_logger();
     let config = FuzzConfig {
         world_width: 15,
         entity_density: 0.6,
@@ -27,6 +31,7 @@ fn fuzz_test_high_density() {
 #[test]
 #[ignore]
 fn fuzz_test_sparse() {
+    common::init_logger();
     let config = FuzzConfig {
         world_width: 15,
         entity_density: 0.1,

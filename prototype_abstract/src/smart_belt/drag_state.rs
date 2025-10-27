@@ -24,7 +24,7 @@ pub enum DragState {
         left_pos: i32,
         right_pos: i32,
     },
-    /// We are hovering over an impassable obstacle. Will error if we continue in the given direction.
+    /// We are hovering over or have hovered over an impassable obstacle. Will error if we continue in the given direction.
     OverImpassable { direction: DragDirection },
     /// After any error (breaking the belt line). We will enter/place the next belt we see.
     ErrorRecovery,
@@ -46,6 +46,8 @@ enum DragEndShape {
         input_pos: i32,
         output_pos: Option<i32>,
     },
+    /// We are over an obstacle, which we've determined we can not go past. Error if trying to enter any new belt
+    OverImpassableObstacle { direction: DragDirection },
     /// Error. We will enter any belt we see.
     Error,
 }
@@ -70,46 +72,22 @@ impl DragState {
             ctx,
             drag_end.can_enter_next_tile(),
             drag_end.underground_input_pos(ctx.last_position),
-            matches!(self, DragState::ErrorRecovery),
+            drag_end.is_error_state(),
         )
         .classify_next_tile();
         debug!("Tile type: {:?}", next_tile);
         match next_tile {
             TileType::Usable => drag_end.place_belt_or_underground(ctx),
-            TileType::Obstacle => drag_end.handle_obstacle(ctx),
-            TileType::IntegratedSplitter => {
-                DragStepResult(Action::IntegrateSplitter, DragState::OverSplitter, None)
-            }
-            TileType::ImpassableObstacle => drag_end.handle_impassable_obstacle(ctx.direction),
+            TileType::IntegratedSplitter => DragStepResult(
+                Action::IntegrateSplitter,
+                DragState::OverSplitter,
+                drag_end.error_on_impassable_exit(ctx),
+            ),
             TileType::IntegratedUnderground { output_pos } => {
-                Self::integrate_underground_pair(ctx, output_pos)
+                drag_end.integrate_underground_pair(ctx, output_pos)
             }
-        }
-    }
-
-    fn integrate_underground_pair(ctx: &super::DragContext, output_pos: i32) -> DragStepResult {
-        let input_pos = ctx.next_position();
-        let (left_pos, right_pos) = ctx.direction.swap_if_backwards(input_pos, output_pos);
-        if output_pos == ctx.furthest_placement_pos {
-            // This is an ug we placed (probably)! Extend instead of integrate.
-            DragStepResult(
-                Action::IntegrateUndergroundPair,
-                DragState::BuildingUnderground {
-                    input_pos,
-                    output_pos: Some(output_pos),
-                    direction: ctx.direction,
-                },
-                None,
-            )
-        } else {
-            DragStepResult(
-                Action::IntegrateUndergroundPair,
-                DragState::PassThrough {
-                    left_pos,
-                    right_pos,
-                },
-                None,
-            )
+            TileType::Obstacle => drag_end.handle_obstacle(ctx),
+            TileType::ImpassableObstacle => drag_end.handle_impassable_obstacle(ctx),
         }
     }
 
@@ -119,9 +97,10 @@ impl DragState {
         match *self {
             DragState::OverBelt => Some(DragEndShape::Belt),
             DragState::OverSplitter => Some(DragEndShape::IntegratedOutput),
-            DragState::OverImpassable { .. } | DragState::ErrorRecovery => {
-                Some(DragEndShape::Error)
+            DragState::OverImpassable { direction } => {
+                Some(DragEndShape::OverImpassableObstacle { direction })
             }
+            DragState::ErrorRecovery => Some(DragEndShape::Error),
             DragState::BuildingUnderground {
                 input_pos,
                 output_pos,
@@ -167,16 +146,6 @@ impl DragState {
             }
         }
     }
-
-    /// Any error that should occur if we pass the current tile.
-    pub fn deferred_error(&self, direction: DragDirection) -> Option<Error> {
-        match *self {
-            DragState::OverImpassable {
-                direction: last_dir,
-            } if last_dir == direction => Some(Error::CannotTraversePastEntity),
-            _ => None,
-        }
-    }
 }
 
 impl DragEndShape {
@@ -191,15 +160,25 @@ impl DragEndShape {
             _ => None,
         }
     }
+    fn is_error_state(&self) -> bool {
+        matches!(
+            *self,
+            DragEndShape::Error | DragEndShape::OverImpassableObstacle { .. }
+        )
+    }
 
     fn place_belt_or_underground(&self, ctx: &super::DragContext) -> DragStepResult {
-        match *self {
-            DragEndShape::TraversingObstacle {
-                input_pos,
-                output_pos,
-            } => Self::place_underground(ctx, input_pos, output_pos),
-            // For anything else, we can just place a belt
-            _ => DragStepResult(Action::PlaceBelt, DragState::OverBelt, None),
+        if let Some(err) = self.error_on_impassable_exit(ctx) {
+            DragStepResult(Action::PlaceBelt, DragState::OverBelt, Some(err))
+        } else {
+            match *self {
+                DragEndShape::TraversingObstacle {
+                    input_pos,
+                    output_pos,
+                } => Self::place_underground(ctx, input_pos, output_pos),
+                // For anything else, place a belt
+                _ => DragStepResult(Action::PlaceBelt, DragState::OverBelt, None),
+            }
         }
     }
 
@@ -236,6 +215,30 @@ impl DragEndShape {
         }
     }
 
+    fn integrate_underground_pair(
+        &self,
+        ctx: &super::DragContext,
+        output_pos: i32,
+    ) -> DragStepResult {
+        let input_pos = ctx.next_position();
+        let (left_pos, right_pos) = ctx.direction.swap_if_backwards(input_pos, output_pos);
+        let next_state = if output_pos == ctx.furthest_placement_pos {
+            // This is an ug we placed. Extend instead of integrate.
+            DragState::BuildingUnderground {
+                input_pos,
+                output_pos: Some(output_pos),
+                direction: ctx.direction,
+            }
+        } else {
+            DragState::PassThrough {
+                left_pos,
+                right_pos,
+            }
+        };
+        let err = self.error_on_impassable_exit(ctx);
+        DragStepResult(Action::IntegrateUndergroundPair, next_state, err)
+    }
+
     fn handle_obstacle(&self, ctx: &super::DragContext) -> DragStepResult {
         let new_state = match *self {
             DragEndShape::Belt => DragState::BuildingUnderground {
@@ -257,6 +260,9 @@ impl DragEndShape {
                 output_pos,
             },
             DragEndShape::Error | DragEndShape::IntegratedOutput => DragState::ErrorRecovery,
+            DragEndShape::OverImpassableObstacle { direction } => {
+                DragState::OverImpassable { direction }
+            }
         };
         let error = match *self {
             DragEndShape::IntegratedOutput => Some(Error::EntityInTheWay),
@@ -265,13 +271,21 @@ impl DragEndShape {
         DragStepResult(Action::None, new_state, error)
     }
 
-    fn handle_impassable_obstacle(&self, direction: DragDirection) -> DragStepResult {
-        let next_state = match *self {
-            // Don't give new errors if we are already in an error state.
-            DragEndShape::Error => DragState::ErrorRecovery,
-            _ => DragState::OverImpassable { direction },
+    fn handle_impassable_obstacle(&self, ctx: &super::DragContext) -> DragStepResult {
+        let direction = match *self {
+            DragEndShape::OverImpassableObstacle { direction } => direction,
+            _ => ctx.direction,
         };
-        DragStepResult(Action::None, next_state, None)
+        DragStepResult(Action::None, DragState::OverImpassable { direction }, None)
+    }
+
+    fn error_on_impassable_exit(&self, ctx: &super::DragContext) -> Option<Error> {
+        match *self {
+            DragEndShape::OverImpassableObstacle { direction } if direction == ctx.direction => {
+                Some(Error::CannotTraversePastEntity)
+            }
+            _ => None,
+        }
     }
 }
 

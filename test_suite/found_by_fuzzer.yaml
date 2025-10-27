@@ -2,7 +2,7 @@
   before: |
     > ^ v <o
   after: |
-    > ^ *v <o >
+    > ^ v <o *>
   expected_errors: [cannot_traverse_past_entity]
   not_reversible: true
 
@@ -14,6 +14,7 @@
     _ v
     >i > ^ < >o
   not_reversible: true
+# Explictitly NOT supporte
 # - name: Doesn't change excluded belt curvature on left
 #   before: |
 #     _ _ _ v

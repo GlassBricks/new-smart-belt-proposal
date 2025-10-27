@@ -78,7 +78,7 @@
     _ >s >i >o ^ X
   after: |
     _  _  _  _ ^
-    > >s >i >o ^ *X >
+    > >s >i >o ^ X *>
   expected_errors: [cannot_traverse_past_entity]
 
 - name: Splitter after splitter
