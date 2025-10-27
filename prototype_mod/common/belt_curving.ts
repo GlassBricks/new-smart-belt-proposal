@@ -54,3 +54,31 @@ export function beltIsCurvedAt(
   }
   return directionAxis(input) !== directionAxis(belt.direction)
 }
+
+export function beltCurveDependencies(
+  world: ReadonlyWorld,
+  position: TilePosition,
+  beltDirection: Direction,
+): Direction[] {
+  const hasInputIn = (direction: Direction): boolean => {
+    const dirVec = directionToVector(direction)
+    const queryPos = subPos(position, dirVec)
+    return world.outputDirectionAt(queryPos) === direction
+  }
+
+  if (hasInputIn(beltDirection)) {
+    return [beltDirection]
+  }
+
+  const rotateCW = ((beltDirection + 1) % 4) as Direction
+  const rotateCCW = ((beltDirection + 3) % 4) as Direction
+
+  const dependencies: Direction[] = []
+  if (hasInputIn(rotateCW)) {
+    dependencies.push(rotateCW)
+  }
+  if (hasInputIn(rotateCCW)) {
+    dependencies.push(rotateCCW)
+  }
+  return dependencies
+}

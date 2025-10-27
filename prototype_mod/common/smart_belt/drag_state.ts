@@ -123,6 +123,7 @@ export function takeStep(state: DragState, ctx: DragContext): DragStepResult {
     ctx,
     canEnterNextTile(dragEnd),
     undergroundInputPos(dragEnd, ctx.lastPosition),
+    isErrorState(dragEnd),
   ).classifyNextTile()
 
   switch (nextTile) {
@@ -199,7 +200,7 @@ function canEnterNextTile(dragEnd: DragEndShape): boolean {
   return dragEnd.type !== "TraversingObstacle"
 }
 
-function isErrorState(dragEnd: DragEndShape): boolean {
+export function isErrorState(dragEnd: DragEndShape): boolean {
   return dragEnd.type === "Error" || dragEnd.type === "OverImpassableObstacle"
 }
 

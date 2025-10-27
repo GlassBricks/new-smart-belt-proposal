@@ -1,4 +1,4 @@
-import { beltIsCurvedAt } from "../belt_curving"
+import { beltCurveDependencies, beltIsCurvedAt } from "../belt_curving"
 import { Belt, BeltCollider, BeltConnectable, UndergroundBelt } from "../belts"
 import {
   Direction,
@@ -9,7 +9,7 @@ import {
   type TilePosition,
 } from "../geometry"
 import type { ReadonlyWorld } from "../world"
-import { DragDirection } from "./DragDirection"
+import { DragDirection, directionMultiplier } from "./DragDirection"
 
 import { TileHistoryView, type TileHistory } from "./tile_history_view"
 
@@ -84,5 +84,26 @@ export class DragWorldView {
     const worldPosition = getRayPosition(this.ray, index)
     const pairPos = this.historyView.getUgPairPos(worldPosition, ug)
     return pairPos ? rayDistance(this.ray, pairPos) : undefined
+  }
+
+  removingBeltWillChangePreviousBeltCurvature(
+    nextPos: number,
+    inputUgPos: number | undefined,
+  ): boolean {
+    if (inputUgPos === nextPos - 2 * directionMultiplier(this.direction)) {
+      return false
+    }
+    const lastPos = nextPos - directionMultiplier(this.direction)
+    const lastWorldPos = getRayPosition(this.ray, lastPos)
+    const entity = this.historyView.get(lastWorldPos)
+    if (!(entity instanceof Belt)) {
+      return false
+    }
+    const dependencies = beltCurveDependencies(
+      this.historyView,
+      lastWorldPos,
+      entity.direction,
+    )
+    return dependencies.includes(oppositeDirection(this.rayDirection()))
   }
 }

@@ -29,6 +29,7 @@ export class TileClassifier {
     ctx: DragContext,
     private canEnterNextTile: boolean,
     private undergroundInputPos: number | undefined,
+    private isErrorState: boolean,
   ) {
     this.worldView = new DragWorldView(
       ctx.world,
@@ -211,8 +212,12 @@ export class TileClassifier {
 
   private isConnectedToPreviousBeltAsObstacle(): boolean {
     return (
-      !this.canEnterNextTile &&
-      this.worldView.isBeltConnectedToPreviousTile(this.nextPosition())
+      (!this.canEnterNextTile || this.isErrorState) &&
+      (this.worldView.isBeltConnectedToPreviousTile(this.nextPosition()) ||
+        this.worldView.removingBeltWillChangePreviousBeltCurvature(
+          this.nextPosition(),
+          this.undergroundInputPos,
+        ))
     )
   }
 
