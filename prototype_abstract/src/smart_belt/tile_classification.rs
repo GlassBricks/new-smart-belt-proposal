@@ -1,5 +1,5 @@
-use crate::Direction;
 use crate::belts::{Belt, BeltConnectableEnum, BeltTier, LoaderLike, Splitter, UndergroundBelt};
+use crate::{BeltCollidable, Direction};
 use std::fmt::Debug;
 
 use super::{DragDirection, DragWorldView};
@@ -239,12 +239,31 @@ impl<'a> TileClassifier<'a> {
                 .is_belt_connected_to_previous_tile(self.next_position())
     }
 
+    // Basic integratable decisions without any lookahead or smart logic
+    fn is_trivial_obstacle(&self, entity: &dyn BeltCollidable, pos: i32) -> bool {
+        let Some(belt_connectable) = entity.as_belt_connectable() else {
+            return true;
+        };
+        match belt_connectable {
+            BeltConnectableEnum::Belt(belt) => {
+                belt.direction.axis() != self.belt_direction().axis()
+            }
+            BeltConnectableEnum::UndergroundBelt(underground_belt) => {
+                !self.ug_is_enterable(underground_belt)
+            }
+            BeltConnectableEnum::Splitter(splitter) => splitter.direction != self.belt_direction(),
+            BeltConnectableEnum::LoaderLike(_) => {
+                !self.world_view.is_belt_connected_to_previous_tile(pos)
+            }
+        }
+    }
+
     /// Scans a belt segment to determine if we should integrate it.
     /// We DO NOT integrate if:
     /// - There's something that would fail the integration, and
     /// - It's possible to successfully underground over the entire segment.
     ///
-    /// Failing the integration means: a curved belt, backwards splitter, or loader.
+    /// Failing the integration means: a curved belt, backwards splitter, loader, or splitter followed by an obstacle.
     ///
     /// This, however, does not check any tiles _after_ the belt segment. This
     /// is to avoid confusing behavior depending on if there's a _non-belt_
@@ -279,6 +298,13 @@ impl<'a> TileClassifier<'a> {
                 && *direction == self.belt_direction()
             {
                 scan_pos += direction_multiplier;
+            }
+            // if the next entity after a splitter is a "trivial" obstacle, we can't exit it -- so underground over it
+            if scan_pos * direction_multiplier < max_underground_position * direction_multiplier
+                && let Some(entity) = self.world_view.get_entity(scan_pos)
+                && self.is_trivial_obstacle(entity, scan_pos)
+            {
+                return false;
             }
         }
 

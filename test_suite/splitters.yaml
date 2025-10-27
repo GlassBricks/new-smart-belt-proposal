@@ -126,8 +126,7 @@
   before: |
     _ <s ^ <
   after: |
-    < <s *^ < <
-  expected_errors: [entity_in_the_way]
+    <o <s ^ < <i
   not_reversible: true
 
 - name: breaking backwards splitter segment
@@ -144,3 +143,41 @@
     > > ^ *>s > ^
   expected_errors: [belt_line_broken]
   not_reversible: true
+
+- name: Entered splitter to obstacle
+  before: "_ > >s X _"
+  after: "> > >s *X >"
+  expected_errors: [entity_in_the_way]
+
+- name: Entered splitter to perpendicular belt
+  before: |
+    _ _  _ ^
+    _ > >s ^ _
+  after: |
+    _ _  _ ^
+    > > >s ^ *>
+  expected_errors: [belt_line_broken]
+
+- name: Blocked lonely splitter 1
+  before: "_ _ >s X _"
+  after: "> >i >s X >o"
+
+- name: Blocked lonely splitter 2
+  before: |
+    _ _  _ v
+    _ _ >s v _
+  after: |
+    _ _  _  v
+    > >i >s v >o
+
+- name: Not blocked lonely splitter 1
+  before: |
+    _ _ >s < _
+  after: |
+    > > >s > >
+
+- name: Not blocked lonely splitter 2
+  before: |
+    _ _ >s <o <i
+  after: |
+    > > >s >i >o

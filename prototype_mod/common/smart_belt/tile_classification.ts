@@ -228,6 +228,24 @@ export class TileClassifier {
     )
   }
 
+  private isTrivialObstacle(entity: unknown, pos: number): boolean {
+    if (!(entity instanceof BeltConnectable)) {
+      return true
+    }
+
+    if (entity instanceof Belt) {
+      return directionAxis(entity.direction) !== directionAxis(this.beltDirection())
+    } else if (entity instanceof UndergroundBelt) {
+      return !this.ugIsEnterable(entity)
+    } else if (entity instanceof Splitter) {
+      return entity.direction !== this.beltDirection()
+    } else if (entity instanceof LoaderLike) {
+      return !this.worldView.isBeltConnectedToPreviousTile(pos)
+    }
+
+    return true
+  }
+
   private shouldIntegrateBeltSegment(
     segmentBeltDirectionMatches: boolean,
     skipInitialSplitters: boolean,
@@ -251,6 +269,13 @@ export class TileClassifier {
           scanPos += dirMult
         } else {
           break
+        }
+      }
+      // if the next entity after a splitter is a "trivial" obstacle, we can't exit it -- so underground over it
+      if (scanPos * dirMult < maxUndergroundPosition * dirMult) {
+        const entity = this.worldView.getEntity(scanPos)
+        if (entity && this.isTrivialObstacle(entity, scanPos)) {
+          return false
         }
       }
     }

@@ -19,11 +19,10 @@ This creates 3 subdirs for different parts:
 
 ## Testing
 
-Testing is mainly done through the a test suite, test cases defined in `test_suite/*.yaml`.
-These are turned into runnable tests.
-The rust version generates tests using build.rs.
-
-The TS version generates test using a script, `generate-tests.ts`. Remember to rerun this script using `bun run generate-tests` before running bun tests.
+Testing is mainly done through a shared test suite, test cases defined in `./test_suite/*.yaml`.
+These are turned into runnable tests:
+- The rust version generates tests using build.rs.
+- The TS version generates tests using a script`bun run generate-tests`. Run this before running bun tests.
 
 There is no test equivalent for the mod version.
 
