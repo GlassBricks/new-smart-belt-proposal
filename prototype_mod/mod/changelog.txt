@@ -2,10 +2,12 @@
 Version: 0.1.9
 Date: ????
   Changes:
+    - Update changelog
 ---------------------------------------------------------------------------------------------------
 Version: 0.1.8
 Date: 2025-10-27
   Changes:
+    - Improved behavior when encountering a splitter that can't be exited.
 ---------------------------------------------------------------------------------------------------
 Version: 0.1.7
 Date: 2025-10-25
