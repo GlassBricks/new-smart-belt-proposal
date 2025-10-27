@@ -1,5 +1,5 @@
 use crate::world::{BeltConnections, ReadonlyWorld};
-use crate::{Belt, BeltConnectableEnum, Direction, Entity, TilePosition, UndergroundBelt};
+use crate::{Belt, BeltConnectableEnum, Direction, BeltCollidable, TilePosition, UndergroundBelt};
 
 pub type TileHistory = (TilePosition, BeltConnections);
 
@@ -59,7 +59,7 @@ impl<'a> TileHistoryView<'a> {
 }
 
 impl<'a> ReadonlyWorld for TileHistoryView<'a> {
-    fn get(&self, position: TilePosition) -> Option<&dyn Entity> {
+    fn get(&self, position: TilePosition) -> Option<&dyn BeltCollidable> {
         self.world.get(position)
     }
 
@@ -93,7 +93,7 @@ impl<'a> ReadonlyWorld for TileHistoryView<'a> {
             let entity = self
                 .get(position)
                 .and_then(|entity| entity.as_belt_connectable_dyn())?;
-            if let Some(belt) = (entity as &dyn Entity).as_belt() {
+            if let Some(belt) = (entity as &dyn BeltCollidable).as_belt() {
                 Some(self.belt_curved_input_direction(position, belt.direction))
             } else {
                 entity.primary_input_direction()

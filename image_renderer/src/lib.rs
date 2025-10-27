@@ -1,7 +1,7 @@
 use anyhow::Result;
 use euclid::{Point2D, Rect, Size2D, Vector2D};
 use prototype_abstract::{
-    BeltConnectableEnum, BoundingBox, Direction, Entity, ReadonlyWorld as _, Splitter,
+    BeltConnectableEnum, BoundingBox, Direction, BeltCollidable, ReadonlyWorld as _, Splitter,
     TilePosition, WorldImpl as World,
 };
 use std::path::Path;
@@ -128,7 +128,7 @@ impl ImageRenderer {
     fn render_entity(
         &self,
         canvas: &mut Pixmap,
-        entity: &dyn Entity,
+        entity: &dyn BeltCollidable,
         bounds: BoundingBox,
         pos: TilePosition,
         world: &World,

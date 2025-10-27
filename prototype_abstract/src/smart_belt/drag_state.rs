@@ -1,4 +1,4 @@
-use crate::Impassable;
+use crate::ImpassableTile;
 use crate::smart_belt::drag::DragStepResult;
 use log::debug;
 
@@ -322,7 +322,7 @@ fn check_underground_path(
         let entity = ctx.world.get(ctx.ray.get_position(pos));
         if let Some(entity) = entity {
             // Check for impassable obstacles
-            if entity.as_any().is::<Impassable>() {
+            if entity.as_any().is::<ImpassableTile>() {
                 return Err(Error::CannotTraversePastTile);
             }
             // Check for intercepting underground belts

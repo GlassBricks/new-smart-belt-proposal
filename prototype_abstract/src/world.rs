@@ -5,14 +5,14 @@ use dyn_clone::clone_box;
 use euclid::vec2;
 
 use crate::{
-    Belt, BeltConnectable, BeltConnectableEnum, BeltTier, BoundingBox, Direction, Entity,
+    Belt, BeltConnectable, BeltConnectableEnum, BeltTier, BoundingBox, Direction, BeltCollidable,
     LoaderLike, Splitter, TilePosition, Transform, UndergroundBelt,
 };
 
 /// Trait for read-only world queries, including belt curvature logic
 pub trait ReadonlyWorld {
     // Entity queries
-    fn get(&self, position: TilePosition) -> Option<&dyn Entity>;
+    fn get(&self, position: TilePosition) -> Option<&dyn BeltCollidable>;
     fn get_belt(&self, position: TilePosition) -> Option<BeltConnectableEnum<'_>>;
     fn get_ug_pair(
         &self,
@@ -91,8 +91,8 @@ pub trait ReadonlyWorld {
 
 /// Trait for mutable world operations
 pub trait World: ReadonlyWorld {
-    fn build(&mut self, position: TilePosition, entity: Box<dyn Entity>);
-    fn build_unchecked(&mut self, position: TilePosition, entity: Box<dyn Entity>);
+    fn build(&mut self, position: TilePosition, entity: Box<dyn BeltCollidable>);
+    fn build_unchecked(&mut self, position: TilePosition, entity: Box<dyn BeltCollidable>);
     fn mine(&mut self, position: TilePosition);
     fn flip_ug(&mut self, position: TilePosition) -> bool;
     fn upgrade_ug(&mut self, position: TilePosition, new_tier: BeltTier);
@@ -107,7 +107,7 @@ pub struct BeltConnections {
 
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct WorldImpl {
-    pub entities: HashMap<TilePosition, Box<dyn Entity>>,
+    pub entities: HashMap<TilePosition, Box<dyn BeltCollidable>>,
 }
 
 impl WorldImpl {
@@ -129,7 +129,7 @@ impl WorldImpl {
         }
     }
 
-    pub fn get_mut(&mut self, position: TilePosition) -> Option<&mut dyn Entity> {
+    pub fn get_mut(&mut self, position: TilePosition) -> Option<&mut dyn BeltCollidable> {
         self.entities.get_mut(&position).map(|e| e.as_mut())
     }
 
@@ -161,7 +161,7 @@ impl WorldImpl {
         BoundingBox::new(basic_bb.min, basic_bb.max + vec2(1, 1))
     }
 
-    fn set(&mut self, position: TilePosition, entity: Box<dyn Entity>) {
+    fn set(&mut self, position: TilePosition, entity: Box<dyn BeltCollidable>) {
         self.try_set(position, entity)
             .expect("Failed to place entity")
     }
@@ -169,7 +169,7 @@ impl WorldImpl {
     fn try_set(
         &mut self,
         position: TilePosition,
-        mut entity: Box<dyn Entity>,
+        mut entity: Box<dyn BeltCollidable>,
     ) -> Result<(), String> {
         if let Some(ug) = (entity.deref_mut() as &mut dyn Any).downcast_mut::<UndergroundBelt>() {
             self.handle_underground_belt(position, ug)?;
@@ -229,7 +229,7 @@ impl WorldImpl {
         }
     }
 
-    fn set_unchecked(&mut self, position: TilePosition, mut entity: Box<dyn Entity>) {
+    fn set_unchecked(&mut self, position: TilePosition, mut entity: Box<dyn BeltCollidable>) {
         if let Some(ug) = (entity.deref_mut() as &mut dyn Any).downcast_mut::<UndergroundBelt>() {
             self.handle_underground_belt_flip_only(position, ug);
         }
@@ -240,14 +240,14 @@ impl WorldImpl {
     pub fn try_build(
         &mut self,
         position: TilePosition,
-        entity: Box<dyn Entity>,
+        entity: Box<dyn BeltCollidable>,
     ) -> Result<(), String> {
         self.try_set(position, entity)
     }
 
     /// Build an entity without checking if it would break existing underground belt pairs.
     /// May still flip the underground belt to maintain valid pairing with its pair.
-    pub fn build_unchecked(&mut self, position: TilePosition, entity: Box<dyn Entity>) {
+    pub fn build_unchecked(&mut self, position: TilePosition, entity: Box<dyn BeltCollidable>) {
         self.set_unchecked(position, entity)
     }
 
@@ -339,7 +339,7 @@ impl WorldImpl {
 
 // Implement ReadonlyWorld trait for WorldImpl
 impl ReadonlyWorld for WorldImpl {
-    fn get(&self, position: TilePosition) -> Option<&dyn Entity> {
+    fn get(&self, position: TilePosition) -> Option<&dyn BeltCollidable> {
         self.entities.get(&position).map(|e| e.as_ref())
     }
 
@@ -372,11 +372,11 @@ impl ReadonlyWorld for WorldImpl {
 
 // Implement World trait for WorldImpl
 impl World for WorldImpl {
-    fn build(&mut self, position: TilePosition, entity: Box<dyn Entity>) {
+    fn build(&mut self, position: TilePosition, entity: Box<dyn BeltCollidable>) {
         WorldImpl::set(self, position, entity)
     }
 
-    fn build_unchecked(&mut self, position: TilePosition, entity: Box<dyn Entity>) {
+    fn build_unchecked(&mut self, position: TilePosition, entity: Box<dyn BeltCollidable>) {
         WorldImpl::build_unchecked(self, position, entity)
     }
 
@@ -397,7 +397,7 @@ impl World for WorldImpl {
 }
 
 impl Transform {
-    pub fn transform_entity(&self, entity: &dyn crate::Entity) -> Box<dyn crate::Entity> {
+    pub fn transform_entity(&self, entity: &dyn crate::BeltCollidable) -> Box<dyn crate::BeltCollidable> {
         if let Some(belt) = entity.as_belt() {
             Belt::new(self.transform_direction(belt.direction), belt.tier)
         } else if let Some(ug) = entity.as_underground_belt() {
@@ -433,7 +433,7 @@ impl WorldImpl {
         let mut new_world = WorldImpl::new();
 
         for (&pos, entity) in &self.entities {
-            let entity: &dyn crate::Entity = entity.as_ref();
+            let entity: &dyn crate::BeltCollidable = entity.as_ref();
             let new_entity = if let Some(belt) = entity.as_belt() {
                 let input_direction = self.belt_curved_input_direction(pos, belt.direction);
                 Belt::new(input_direction.opposite(), belt.tier)
@@ -588,7 +588,7 @@ mod tests {
 
         fn assert_entity_at<F>(self, pos: TilePosition, check: F) -> Self
         where
-            F: FnOnce(Option<&dyn Entity>),
+            F: FnOnce(Option<&dyn BeltCollidable>),
         {
             let entity = self.get(pos);
             check(entity);

@@ -2,30 +2,30 @@ use dyn_clone::DynClone;
 use dyn_eq::DynEq;
 use std::{any::Any, fmt::Debug};
 
-pub trait Entity: Any + Debug + DynEq + DynClone + Send + Sync {}
-dyn_eq::eq_trait_object!(Entity);
-dyn_clone::clone_trait_object!(Entity);
+pub trait BeltCollidable: Any + Debug + DynEq + DynClone + Send + Sync {}
+dyn_eq::eq_trait_object!(BeltCollidable);
+dyn_clone::clone_trait_object!(BeltCollidable);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Colliding;
-impl Colliding {
+pub struct CollidingEntityOrTile;
+impl CollidingEntityOrTile {
     pub fn new() -> Box<Self> {
-        Box::new(Colliding)
+        Box::new(CollidingEntityOrTile)
     }
 }
-impl Entity for Colliding {}
+impl BeltCollidable for CollidingEntityOrTile {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Impassable;
-impl Impassable {
+pub struct ImpassableTile;
+impl ImpassableTile {
     pub fn new() -> Box<Self> {
-        Box::new(Impassable)
+        Box::new(ImpassableTile)
     }
 }
-impl Entity for Impassable {}
+impl BeltCollidable for ImpassableTile {}
 
-impl dyn Entity {
-    pub fn as_colliding(&self) -> Option<&Colliding> {
-        self.as_any().downcast_ref::<Colliding>()
+impl dyn BeltCollidable {
+    pub fn as_colliding(&self) -> Option<&CollidingEntityOrTile> {
+        self.as_any().downcast_ref::<CollidingEntityOrTile>()
     }
 }

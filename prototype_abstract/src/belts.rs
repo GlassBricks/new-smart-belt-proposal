@@ -1,4 +1,4 @@
-use crate::{Direction, Entity};
+use crate::{Direction, BeltCollidable};
 use std::fmt::Debug;
 use std::ops::Deref;
 
@@ -57,7 +57,7 @@ pub static BLUE_BELT: BeltTier = BeltTier(&BeltTierData {
 });
 pub static BELT_TIERS: [BeltTier; 3] = [YELLOW_BELT, RED_BELT, BLUE_BELT];
 
-pub trait BeltConnectable: Entity {
+pub trait BeltConnectable: BeltCollidable {
     fn direction(&self) -> Direction;
     fn tier(&self) -> BeltTier;
 
@@ -92,7 +92,7 @@ impl BeltConnectable for Belt {
         true
     }
 }
-impl Entity for Belt {}
+impl BeltCollidable for Belt {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UndergroundBelt {
@@ -130,7 +130,7 @@ impl BeltConnectable for UndergroundBelt {
         self.is_input
     }
 }
-impl Entity for UndergroundBelt {}
+impl BeltCollidable for UndergroundBelt {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoaderLike {
@@ -171,7 +171,7 @@ impl BeltConnectable for LoaderLike {
         self.is_input
     }
 }
-impl Entity for LoaderLike {}
+impl BeltCollidable for LoaderLike {}
 
 impl UndergroundBelt {
     pub fn shape_direction(&self) -> Direction {
@@ -209,7 +209,7 @@ impl BeltConnectable for Splitter {
         true
     }
 }
-impl Entity for Splitter {}
+impl BeltCollidable for Splitter {}
 
 impl dyn BeltConnectable {
     pub fn output_direction(&self) -> Option<Direction> {
@@ -230,7 +230,7 @@ impl dyn BeltConnectable {
     }
 }
 
-impl dyn Entity {
+impl dyn BeltCollidable {
     pub fn as_belt(&self) -> Option<&Belt> {
         self.as_any().downcast_ref::<Belt>()
     }
@@ -264,7 +264,7 @@ impl<'a> BeltConnectableEnum<'a> {
     }
 }
 
-impl dyn Entity {
+impl dyn BeltCollidable {
     pub fn as_belt_connectable(&self) -> Option<BeltConnectableEnum<'_>> {
         #[expect(clippy::manual_map)]
         if let Some(belt) = self.as_belt() {

@@ -5,11 +5,11 @@ use std::collections::HashSet;
 use crate::belts::{BELT_TIERS, Belt, BeltTier, LoaderLike, Splitter, UndergroundBelt};
 use crate::geometry::Ray;
 use crate::world::{ReadonlyWorld, World};
-use crate::{BoundingBox, Impassable};
 use crate::{
-    Colliding, Direction, Entity, TilePosition, Transform, WorldImpl, pos,
+    BeltCollidable, CollidingEntityOrTile, Direction, TilePosition, Transform, WorldImpl, pos,
     smart_belt::{LineDrag, action, action::Error},
 };
+use crate::{BoundingBox, ImpassableTile};
 use anyhow::{Context, Result, bail};
 use itertools::Itertools;
 use serde::{Deserialize, Deserializer};
@@ -461,14 +461,14 @@ Other cases:
 - (empty string) -> None
 - X -> OtherColliding
 */
-fn parse_word(input: &str) -> Result<Option<Box<dyn Entity>>> {
+fn parse_word(input: &str) -> Result<Option<Box<dyn BeltCollidable>>> {
     use crate::entity::*;
 
     let mut chars = input.chars().peekable();
 
     match chars.peek() {
-        Some('X') => return Ok(Some(Colliding::new())),
-        Some('#') => return Ok(Some(Impassable::new())),
+        Some('X') => return Ok(Some(CollidingEntityOrTile::new())),
+        Some('#') => return Ok(Some(ImpassableTile::new())),
         None | Some('_') => return Ok(None),
         _ => (),
     }
@@ -537,7 +537,7 @@ fn get_dir_char(direction: Direction) -> char {
     }
 }
 
-fn print_entity(entity: &dyn Entity) -> String {
+fn print_entity(entity: &dyn BeltCollidable) -> String {
     if let Some(Belt { direction, tier }) = entity.as_belt() {
         let tier_num = tier.tier_index() + 1;
         let dir_char = get_dir_char(*direction);
@@ -582,9 +582,9 @@ fn print_entity(entity: &dyn Entity) -> String {
         } else {
             format!("{}{}{}", tier_num, dir_char, type_char)
         }
-    } else if (entity as &dyn Any).is::<Colliding>() {
+    } else if (entity as &dyn Any).is::<CollidingEntityOrTile>() {
         "X".to_string()
-    } else if (entity as &dyn Any).is::<Impassable>() {
+    } else if (entity as &dyn Any).is::<ImpassableTile>() {
         "#".to_string()
     } else {
         "?".to_string()
@@ -636,7 +636,7 @@ mod tests {
     fn test_parse() {
         assert!(parse_word("").unwrap().is_none());
         let result = parse_word("X").unwrap().unwrap();
-        assert!((result.as_ref() as &dyn std::any::Any).is::<Colliding>());
+        assert!((result.as_ref() as &dyn std::any::Any).is::<CollidingEntityOrTile>());
 
         // Test direction only - defaults to tier 1 and belt type
         if let Some(entity) = parse_word(">").unwrap() {
@@ -773,7 +773,7 @@ after: "2>\t^\tX"
         }
 
         if let Some(entity) = entities.after.get(pos(2, 0)) {
-            if (entity as &dyn Any).is::<Colliding>() {
+            if (entity as &dyn Any).is::<CollidingEntityOrTile>() {
                 // Correct - X should parse to Colliding
             } else {
                 panic!("Expected Colliding entity at (2,0)");
@@ -830,7 +830,7 @@ after: "2>\t^\tX"
         }
 
         if let Some(entity) = world.get(pos(2, 1)) {
-            assert!((entity as &dyn std::any::Any).is::<Colliding>());
+            assert!((entity as &dyn std::any::Any).is::<CollidingEntityOrTile>());
         } else {
             panic!("Expected entity at (2, 1)");
         }
@@ -845,7 +845,7 @@ after: "2>\t^\tX"
             UndergroundBelt::new(Direction::North, true, BELT_TIERS[1]),
         );
         world.build(pos(0, 1), Splitter::new(Direction::West, BELT_TIERS[0]));
-        world.build(pos(2, 1), Colliding::new());
+        world.build(pos(2, 1), CollidingEntityOrTile::new());
 
         let output = print_world(&world, world.bounds(), &[]);
         let expected = r#"

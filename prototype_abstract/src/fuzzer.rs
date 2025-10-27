@@ -1,6 +1,6 @@
 use crate::{
-    BELT_TIERS, Belt, BeltConnectableEnum, BeltTier, Colliding, Direction, Entity, Impassable,
-    LoaderLike, Splitter, TilePosition, UndergroundBelt, WorldImpl, pos,
+    BELT_TIERS, Belt, BeltCollidable, BeltConnectableEnum, BeltTier, CollidingEntityOrTile, Direction,
+    ImpassableTile, LoaderLike, Splitter, TilePosition, UndergroundBelt, WorldImpl, pos,
     smart_belt::{LineDrag, action::Error},
     test_case::print_world,
     world::ReadonlyWorld,
@@ -90,7 +90,7 @@ pub fn generate_random_world<R: Rng>(rng: &mut R, config: &FuzzConfig) -> WorldI
 }
 
 /// Generate a random entity
-fn generate_random_entity<R: Rng>(rng: &mut R) -> Box<dyn Entity> {
+fn generate_random_entity<R: Rng>(rng: &mut R) -> Box<dyn BeltCollidable> {
     let entity_type = rng.gen_range(0..6);
     let direction = random_direction(rng);
     let tier = random_tier(rng);
@@ -100,8 +100,8 @@ fn generate_random_entity<R: Rng>(rng: &mut R) -> Box<dyn Entity> {
         1 => UndergroundBelt::new(direction, rng.gen_bool(0.5), tier),
         2 => Splitter::new(direction, tier),
         3 => LoaderLike::new(direction, rng.gen_bool(0.5), tier),
-        4 => Colliding::new(),
-        _ => Impassable::new(),
+        4 => CollidingEntityOrTile::new(),
+        _ => ImpassableTile::new(),
     }
 }
 
