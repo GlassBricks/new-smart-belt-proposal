@@ -40,6 +40,14 @@ for (const [name, beltProto] of pairs(data.raw["transport-belt"])) {
     collision_mask: {
       layers: {},
     },
+    collision_box: [
+      [-0.4, -0.4],
+      [0.4, 0.4],
+    ],
+    selection_box: [
+      [-0.4, -0.4],
+      [0.4, 0.4],
+    ],
     flags: ["player-creation"],
     hidden: true,
     picture: {
@@ -70,6 +78,7 @@ for (const [name, beltProto] of pairs(data.raw["transport-belt"])) {
       smoke_name: "smarter-belt-empty-smoke",
     },
   }
+  data.extend([newItem, newEntity])
   let ugProto =
     data.raw["underground-belt"][beltProto.related_underground_belt]!
   undergroundCollisionMasks[ugProto.name] =

@@ -1,7 +1,8 @@
 ---------------------------------------------------------------------------------------------------
 Version: 0.1.10
 Date: ????
-  Changes:
+  Bugfixes:
+    - Actually include the newly added items? I have no idea how they were not there for several versions
 ---------------------------------------------------------------------------------------------------
 Version: 0.1.9
 Date: 2025-10-27
