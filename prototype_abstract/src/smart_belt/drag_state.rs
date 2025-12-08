@@ -1,5 +1,5 @@
-use crate::ImpassableTile;
-use crate::smart_belt::drag::DragStepResult;
+use crate::smart_belt::drag::{DragContext, DragStateBehavior, DragStepResult};
+use crate::BeltCollidable;
 use log::debug;
 
 use super::{Action, DragDirection, TileClassifier, TileType, action::Error};
@@ -52,8 +52,8 @@ enum DragEndShape {
     Error,
 }
 
-impl DragState {
-    pub fn initial_state(successful_placement: bool) -> Self {
+impl DragStateBehavior for DragState {
+    fn initial_state(successful_placement: bool) -> Self {
         if successful_placement {
             DragState::OverBelt
         } else {
@@ -61,7 +61,7 @@ impl DragState {
         }
     }
 
-    pub fn step(&self, ctx: &super::DragContext) -> DragStepResult {
+    fn step(&self, ctx: &DragContext) -> DragStepResult<Self> {
         print_debug_info(ctx);
         let Some(drag_end) = self.get_drag_end(ctx.last_position, ctx.direction) else {
             debug!("Do nothing");
@@ -90,7 +90,9 @@ impl DragState {
             TileType::ImpassableObstacle => drag_end.handle_impassable_obstacle(ctx),
         }
     }
+}
 
+impl DragState {
     /// Resolve the belt end shape, after taking into account the direction.
     /// If this returns None, that means that we should do nothing!
     fn get_drag_end(&self, last_position: i32, direction: DragDirection) -> Option<DragEndShape> {
@@ -167,7 +169,7 @@ impl DragEndShape {
         )
     }
 
-    fn place_belt_or_underground(&self, ctx: &super::DragContext) -> DragStepResult {
+    fn place_belt_or_underground(&self, ctx: &DragContext) -> DragStepResult<DragState> {
         if let Some(err) = self.error_on_impassable_exit(ctx) {
             DragStepResult(Action::PlaceBelt, DragState::OverBelt, Some(err))
         } else {
@@ -183,10 +185,10 @@ impl DragEndShape {
     }
 
     fn place_underground(
-        ctx: &super::DragContext,
+        ctx: &DragContext,
         input_pos: i32,
         last_output_pos: Option<i32>,
-    ) -> DragStepResult {
+    ) -> DragStepResult<DragState> {
         let next_position = ctx.next_position();
         let is_extension = last_output_pos.is_some();
         if let Err(error) = can_build_underground(ctx, input_pos, is_extension) {
@@ -217,9 +219,9 @@ impl DragEndShape {
 
     fn integrate_underground_pair(
         &self,
-        ctx: &super::DragContext,
+        ctx: &DragContext,
         output_pos: i32,
-    ) -> DragStepResult {
+    ) -> DragStepResult<DragState> {
         let input_pos = ctx.next_position();
         let (left_pos, right_pos) = ctx.direction.swap_if_backwards(input_pos, output_pos);
         let next_state = if output_pos == ctx.furthest_placement_pos {
@@ -239,7 +241,7 @@ impl DragEndShape {
         DragStepResult(Action::IntegrateUndergroundPair, next_state, err)
     }
 
-    fn handle_obstacle(&self, ctx: &super::DragContext) -> DragStepResult {
+    fn handle_obstacle(&self, ctx: &DragContext) -> DragStepResult<DragState> {
         let new_state = match *self {
             DragEndShape::Belt => DragState::BuildingUnderground {
                 input_pos: ctx.last_position,
@@ -271,7 +273,7 @@ impl DragEndShape {
         DragStepResult(Action::None, new_state, error)
     }
 
-    fn handle_impassable_obstacle(&self, ctx: &super::DragContext) -> DragStepResult {
+    fn handle_impassable_obstacle(&self, ctx: &DragContext) -> DragStepResult<DragState> {
         let direction = match *self {
             DragEndShape::OverImpassableObstacle { direction } => direction,
             _ => ctx.direction,
@@ -279,7 +281,7 @@ impl DragEndShape {
         DragStepResult(Action::None, DragState::OverImpassable { direction }, None)
     }
 
-    fn error_on_impassable_exit(&self, ctx: &super::DragContext) -> Option<Error> {
+    fn error_on_impassable_exit(&self, ctx: &DragContext) -> Option<Error> {
         match *self {
             DragEndShape::OverImpassableObstacle { direction } if direction == ctx.direction => {
                 Some(Error::BeltLineBroken)
@@ -289,7 +291,7 @@ impl DragEndShape {
     }
 }
 
-fn print_debug_info(ctx: &super::DragContext) {
+fn print_debug_info(ctx: &DragContext) {
     let pos = ctx.next_position();
     let world_pos = ctx.ray.get_position(pos);
     debug!("STEP: {:?}, pos: {:?}", ctx.direction, world_pos);
@@ -300,7 +302,7 @@ fn print_debug_info(ctx: &super::DragContext) {
 /// Checks if creating an underground belt connection will be valid between
 /// input and output positions.
 fn check_underground_path(
-    ctx: &super::DragContext,
+    ctx: &DragContext,
     input_pos: i32,
     output_pos: i32,
     check_from_pos: i32,
@@ -322,11 +324,11 @@ fn check_underground_path(
         let entity = ctx.world.get(ctx.ray.get_position(pos));
         if let Some(entity) = entity {
             // Check for impassable obstacles
-            if entity.as_any().is::<ImpassableTile>() {
+            if entity.is_impassable_tile() {
                 return Err(Error::BeltLineBroken);
             }
             // Check for intercepting underground belts
-            if let Some(ug) = entity.as_underground_belt()
+            if let BeltCollidable::UndergroundBelt(ug) = entity
                 && ug.direction.axis() == ctx.ray.direction.axis()
                 && ug.tier == ctx.tier
             {
@@ -340,7 +342,7 @@ fn check_underground_path(
 
 /// Checks there are no problems with building this underground.
 pub(super) fn can_build_underground(
-    ctx: &super::DragContext,
+    ctx: &DragContext,
     input_pos: i32,
     is_extension: bool,
 ) -> Result<(), Error> {
@@ -355,7 +357,7 @@ pub(super) fn can_build_underground(
 }
 
 /// Checks if an existing underground can be upgraded/integrated.
-pub(super) fn can_upgrade_underground(ctx: &super::DragContext, output_pos: i32) -> bool {
+pub(super) fn can_upgrade_underground(ctx: &DragContext, output_pos: i32) -> bool {
     let input_pos = ctx.next_position();
 
     check_underground_path(ctx, input_pos, output_pos, input_pos).is_ok()

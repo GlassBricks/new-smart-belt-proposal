@@ -1,4 +1,5 @@
-use crate::{Direction, BeltCollidable};
+use crate::{BeltCollidable, Direction};
+use enum_dispatch::enum_dispatch;
 use std::fmt::Debug;
 use std::ops::Deref;
 
@@ -57,161 +58,24 @@ pub static BLUE_BELT: BeltTier = BeltTier(&BeltTierData {
 });
 pub static BELT_TIERS: [BeltTier; 3] = [YELLOW_BELT, RED_BELT, BLUE_BELT];
 
-pub trait BeltConnectable: BeltCollidable {
+#[enum_dispatch]
+pub trait BeltConnectableTrait {
     fn direction(&self) -> Direction;
     fn tier(&self) -> BeltTier;
-
     fn has_output(&self) -> bool;
     fn has_backwards_input(&self) -> bool;
 }
-dyn_clone::clone_trait_object!(BeltConnectable);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Belt {
-    pub direction: Direction,
-    pub tier: BeltTier,
+#[enum_dispatch(BeltConnectableTrait)]
+pub enum BeltConnectable {
+    Belt(Belt),
+    UndergroundBelt(UndergroundBelt),
+    Splitter(Splitter),
+    LoaderLike(LoaderLike),
 }
 
-impl Belt {
-    pub fn new(direction: Direction, tier: BeltTier) -> Box<Self> {
-        Box::new(Belt { direction, tier })
-    }
-}
-
-impl BeltConnectable for Belt {
-    fn direction(&self) -> Direction {
-        self.direction
-    }
-    fn tier(&self) -> BeltTier {
-        self.tier
-    }
-    fn has_output(&self) -> bool {
-        true
-    }
-    fn has_backwards_input(&self) -> bool {
-        true
-    }
-}
-impl BeltCollidable for Belt {}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UndergroundBelt {
-    pub direction: Direction,
-    pub tier: BeltTier,
-    pub is_input: bool,
-}
-
-impl UndergroundBelt {
-    pub fn new(direction: Direction, is_input: bool, tier: BeltTier) -> Box<Self> {
-        Box::new(UndergroundBelt {
-            direction,
-            tier,
-            is_input,
-        })
-    }
-
-    pub fn flip_self(&mut self) {
-        self.is_input = !self.is_input;
-        self.direction = self.direction.opposite();
-    }
-}
-
-impl BeltConnectable for UndergroundBelt {
-    fn direction(&self) -> Direction {
-        self.direction
-    }
-    fn tier(&self) -> BeltTier {
-        self.tier
-    }
-    fn has_output(&self) -> bool {
-        !self.is_input
-    }
-    fn has_backwards_input(&self) -> bool {
-        self.is_input
-    }
-}
-impl BeltCollidable for UndergroundBelt {}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LoaderLike {
-    pub direction: Direction,
-    pub tier: BeltTier,
-    pub is_input: bool,
-}
-
-impl LoaderLike {
-    pub fn new(direction: Direction, is_input: bool, tier: BeltTier) -> Box<Self> {
-        Box::new(LoaderLike {
-            direction,
-            tier,
-            is_input,
-        })
-    }
-
-    pub fn shape_direction(&self) -> Direction {
-        if self.is_input {
-            self.direction.opposite()
-        } else {
-            self.direction
-        }
-    }
-}
-
-impl BeltConnectable for LoaderLike {
-    fn direction(&self) -> Direction {
-        self.direction
-    }
-    fn tier(&self) -> BeltTier {
-        self.tier
-    }
-    fn has_output(&self) -> bool {
-        !self.is_input
-    }
-    fn has_backwards_input(&self) -> bool {
-        self.is_input
-    }
-}
-impl BeltCollidable for LoaderLike {}
-
-impl UndergroundBelt {
-    pub fn shape_direction(&self) -> Direction {
-        if self.is_input {
-            self.direction.opposite()
-        } else {
-            self.direction
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Splitter {
-    pub direction: Direction,
-    pub tier: BeltTier,
-}
-
-impl Splitter {
-    pub fn new(direction: Direction, tier: BeltTier) -> Box<Self> {
-        Box::new(Splitter { direction, tier })
-    }
-}
-
-impl BeltConnectable for Splitter {
-    fn direction(&self) -> Direction {
-        self.direction
-    }
-    fn tier(&self) -> BeltTier {
-        self.tier
-    }
-    fn has_output(&self) -> bool {
-        true
-    }
-    fn has_backwards_input(&self) -> bool {
-        true
-    }
-}
-impl BeltCollidable for Splitter {}
-
-impl dyn BeltConnectable {
+impl BeltConnectable {
     pub fn output_direction(&self) -> Option<Direction> {
         self.has_output().then_some(self.direction())
     }
@@ -228,65 +92,243 @@ impl dyn BeltConnectable {
     pub fn has_input_going(&self, entering_direction: Direction) -> bool {
         self.primary_input_direction() == Some(entering_direction)
     }
-}
 
-impl dyn BeltCollidable {
     pub fn as_belt(&self) -> Option<&Belt> {
-        self.as_any().downcast_ref::<Belt>()
-    }
-    pub fn as_underground_belt(&self) -> Option<&UndergroundBelt> {
-        self.as_any().downcast_ref::<UndergroundBelt>()
-    }
-    pub fn as_splitter(&self) -> Option<&Splitter> {
-        self.as_any().downcast_ref::<Splitter>()
-    }
-    pub fn as_loader_like(&self) -> Option<&LoaderLike> {
-        self.as_any().downcast_ref::<LoaderLike>()
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BeltConnectableEnum<'a> {
-    Belt(&'a Belt),
-    UndergroundBelt(&'a UndergroundBelt),
-    Splitter(&'a Splitter),
-    LoaderLike(&'a LoaderLike),
-}
-
-impl<'a> BeltConnectableEnum<'a> {
-    pub fn as_dyn(self) -> &'a dyn BeltConnectable {
         match self {
-            BeltConnectableEnum::Belt(belt) => belt,
-            BeltConnectableEnum::UndergroundBelt(underground) => underground,
-            BeltConnectableEnum::Splitter(splitter) => splitter,
-            BeltConnectableEnum::LoaderLike(loader) => loader,
+            BeltConnectable::Belt(b) => Some(b),
+            _ => None,
+        }
+    }
+
+    pub fn as_underground_belt(&self) -> Option<&UndergroundBelt> {
+        match self {
+            BeltConnectable::UndergroundBelt(ub) => Some(ub),
+            _ => None,
+        }
+    }
+
+    pub fn as_splitter(&self) -> Option<&Splitter> {
+        match self {
+            BeltConnectable::Splitter(s) => Some(s),
+            _ => None,
+        }
+    }
+
+    pub fn as_loader_like(&self) -> Option<&LoaderLike> {
+        match self {
+            BeltConnectable::LoaderLike(l) => Some(l),
+            _ => None,
         }
     }
 }
 
-impl dyn BeltCollidable {
-    pub fn as_belt_connectable(&self) -> Option<BeltConnectableEnum<'_>> {
-        #[expect(clippy::manual_map)]
-        if let Some(belt) = self.as_belt() {
-            Some(BeltConnectableEnum::Belt(belt))
-        } else if let Some(underground) = self.as_underground_belt() {
-            Some(BeltConnectableEnum::UndergroundBelt(underground))
-        } else if let Some(splitter) = self.as_splitter() {
-            Some(BeltConnectableEnum::Splitter(splitter))
-        } else if let Some(loader) = self.as_loader_like() {
-            Some(BeltConnectableEnum::LoaderLike(loader))
-        } else {
-            None
+// Conversion: BeltConnectable -> BeltCollidable (infallible)
+impl From<BeltConnectable> for BeltCollidable {
+    fn from(bc: BeltConnectable) -> Self {
+        match bc {
+            BeltConnectable::Belt(b) => BeltCollidable::Belt(b),
+            BeltConnectable::UndergroundBelt(ub) => BeltCollidable::UndergroundBelt(ub),
+            BeltConnectable::Splitter(s) => BeltCollidable::Splitter(s),
+            BeltConnectable::LoaderLike(l) => BeltCollidable::LoaderLike(l),
         }
     }
-    pub fn as_belt_connectable_dyn(&self) -> Option<&dyn BeltConnectable> {
-        self.as_belt_connectable().map(|belt| belt.as_dyn())
+}
+
+impl TryFrom<BeltCollidable> for BeltConnectable {
+    type Error = BeltCollidable;
+
+    fn try_from(bc: BeltCollidable) -> Result<Self, Self::Error> {
+        match bc {
+            BeltCollidable::Belt(b) => Ok(BeltConnectable::Belt(b)),
+            BeltCollidable::UndergroundBelt(ub) => Ok(BeltConnectable::UndergroundBelt(ub)),
+            BeltCollidable::Splitter(s) => Ok(BeltConnectable::Splitter(s)),
+            BeltCollidable::LoaderLike(l) => Ok(BeltConnectable::LoaderLike(l)),
+            other => Err(other),
+        }
+    }
+}
+
+impl TryFrom<&BeltCollidable> for BeltConnectable {
+    type Error = ();
+
+    fn try_from(bc: &BeltCollidable) -> Result<Self, Self::Error> {
+        match bc {
+            BeltCollidable::Belt(b) => Ok(BeltConnectable::Belt(b.clone())),
+            BeltCollidable::UndergroundBelt(ub) => Ok(BeltConnectable::UndergroundBelt(ub.clone())),
+            BeltCollidable::Splitter(s) => Ok(BeltConnectable::Splitter(s.clone())),
+            BeltCollidable::LoaderLike(l) => Ok(BeltConnectable::LoaderLike(l.clone())),
+            _ => Err(()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Belt {
+    pub direction: Direction,
+    pub tier: BeltTier,
+}
+
+impl Belt {
+    pub fn new(direction: Direction, tier: BeltTier) -> Self {
+        Belt { direction, tier }
+    }
+}
+
+impl From<Belt> for BeltCollidable {
+    fn from(belt: Belt) -> Self {
+        BeltCollidable::Belt(belt)
+    }
+}
+
+impl BeltConnectableTrait for Belt {
+    fn direction(&self) -> Direction {
+        self.direction
+    }
+    fn tier(&self) -> BeltTier {
+        self.tier
+    }
+    fn has_output(&self) -> bool {
+        true
+    }
+    fn has_backwards_input(&self) -> bool {
+        true
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UndergroundBelt {
+    pub direction: Direction,
+    pub tier: BeltTier,
+    pub is_input: bool,
+}
+
+impl UndergroundBelt {
+    pub fn new(direction: Direction, is_input: bool, tier: BeltTier) -> Self {
+        UndergroundBelt {
+            direction,
+            tier,
+            is_input,
+        }
+    }
+
+    pub fn flip_self(&mut self) {
+        self.is_input = !self.is_input;
+        self.direction = self.direction.opposite();
+    }
+
+    pub fn shape_direction(&self) -> Direction {
+        if self.is_input {
+            self.direction.opposite()
+        } else {
+            self.direction
+        }
+    }
+}
+
+impl From<UndergroundBelt> for BeltCollidable {
+    fn from(ub: UndergroundBelt) -> Self {
+        BeltCollidable::UndergroundBelt(ub)
+    }
+}
+
+impl BeltConnectableTrait for UndergroundBelt {
+    fn direction(&self) -> Direction {
+        self.direction
+    }
+    fn tier(&self) -> BeltTier {
+        self.tier
+    }
+    fn has_output(&self) -> bool {
+        !self.is_input
+    }
+    fn has_backwards_input(&self) -> bool {
+        self.is_input
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LoaderLike {
+    pub direction: Direction,
+    pub tier: BeltTier,
+    pub is_input: bool,
+}
+
+impl LoaderLike {
+    pub fn new(direction: Direction, is_input: bool, tier: BeltTier) -> Self {
+        LoaderLike {
+            direction,
+            tier,
+            is_input,
+        }
+    }
+
+    pub fn shape_direction(&self) -> Direction {
+        if self.is_input {
+            self.direction.opposite()
+        } else {
+            self.direction
+        }
+    }
+}
+
+impl From<LoaderLike> for BeltCollidable {
+    fn from(loader: LoaderLike) -> Self {
+        BeltCollidable::LoaderLike(loader)
+    }
+}
+
+impl BeltConnectableTrait for LoaderLike {
+    fn direction(&self) -> Direction {
+        self.direction
+    }
+    fn tier(&self) -> BeltTier {
+        self.tier
+    }
+    fn has_output(&self) -> bool {
+        !self.is_input
+    }
+    fn has_backwards_input(&self) -> bool {
+        self.is_input
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Splitter {
+    pub direction: Direction,
+    pub tier: BeltTier,
+}
+
+impl Splitter {
+    pub fn new(direction: Direction, tier: BeltTier) -> Self {
+        Splitter { direction, tier }
+    }
+}
+
+impl From<Splitter> for BeltCollidable {
+    fn from(splitter: Splitter) -> Self {
+        BeltCollidable::Splitter(splitter)
+    }
+}
+
+impl BeltConnectableTrait for Splitter {
+    fn direction(&self) -> Direction {
+        self.direction
+    }
+    fn tier(&self) -> BeltTier {
+        self.tier
+    }
+    fn has_output(&self) -> bool {
+        true
+    }
+    fn has_backwards_input(&self) -> bool {
+        true
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::belts::{BLUE_BELT, Belt, BeltConnectable, RED_BELT, UndergroundBelt, YELLOW_BELT};
+    use crate::BeltConnectable;
+    use crate::belts::{BLUE_BELT, Belt, RED_BELT, UndergroundBelt, YELLOW_BELT};
     use crate::geometry::Direction::*;
 
     #[test]
@@ -321,7 +363,7 @@ mod tests {
             direction: South,
             tier: YELLOW_BELT,
         };
-        let belt_connectable: &dyn BeltConnectable = &belt;
+        let belt_connectable = BeltConnectable::Belt(belt);
         assert_eq!(belt_connectable.output_direction(), Some(South));
 
         let underground_input = UndergroundBelt {
@@ -329,7 +371,7 @@ mod tests {
             tier: YELLOW_BELT,
             is_input: true,
         };
-        let belt_connectable: &dyn BeltConnectable = &underground_input;
+        let belt_connectable = BeltConnectable::UndergroundBelt(underground_input);
         assert_eq!(belt_connectable.output_direction(), None);
 
         let underground_output = UndergroundBelt {
@@ -337,7 +379,7 @@ mod tests {
             tier: YELLOW_BELT,
             is_input: false,
         };
-        let belt_connectable: &dyn BeltConnectable = &underground_output;
+        let belt_connectable = BeltConnectable::UndergroundBelt(underground_output);
         assert_eq!(belt_connectable.output_direction(), Some(North));
     }
 }

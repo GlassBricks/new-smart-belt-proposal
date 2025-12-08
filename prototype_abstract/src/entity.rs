@@ -1,31 +1,35 @@
-use dyn_clone::DynClone;
-use dyn_eq::DynEq;
-use std::{any::Any, fmt::Debug};
+use crate::{Belt, LoaderLike, Splitter, UndergroundBelt};
 
-pub trait BeltCollidable: Any + Debug + DynEq + DynClone + Send + Sync {}
-dyn_eq::eq_trait_object!(BeltCollidable);
-dyn_clone::clone_trait_object!(BeltCollidable);
-
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CollidingEntityOrTile;
-impl CollidingEntityOrTile {
-    pub fn new() -> Box<Self> {
-        Box::new(CollidingEntityOrTile)
+
+impl From<CollidingEntityOrTile> for BeltCollidable {
+    fn from(c: CollidingEntityOrTile) -> Self {
+        BeltCollidable::CollidingEntityOrTile(c)
     }
 }
-impl BeltCollidable for CollidingEntityOrTile {}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ImpassableTile;
+
+impl From<ImpassableTile> for BeltCollidable {
+    fn from(i: ImpassableTile) -> Self {
+        BeltCollidable::ImpassableTile(i)
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ImpassableTile;
-impl ImpassableTile {
-    pub fn new() -> Box<Self> {
-        Box::new(ImpassableTile)
-    }
+pub enum BeltCollidable {
+    CollidingEntityOrTile(CollidingEntityOrTile),
+    ImpassableTile(ImpassableTile),
+    Belt(Belt),
+    UndergroundBelt(UndergroundBelt),
+    Splitter(Splitter),
+    LoaderLike(LoaderLike),
 }
-impl BeltCollidable for ImpassableTile {}
 
-impl dyn BeltCollidable {
-    pub fn as_colliding(&self) -> Option<&CollidingEntityOrTile> {
-        self.as_any().downcast_ref::<CollidingEntityOrTile>()
+impl BeltCollidable {
+    pub fn is_impassable_tile(&self) -> bool {
+        matches!(self, BeltCollidable::ImpassableTile(_))
     }
 }

@@ -387,13 +387,15 @@ mod tests {
 
     #[test]
     fn test_transform_entity() {
-        use crate::{Belt, YELLOW_BELT};
+        use crate::{Belt, BeltCollidable, YELLOW_BELT};
 
-        let belt = Belt::new(Direction::North, YELLOW_BELT);
+        let belt: BeltCollidable = Belt::new(Direction::North, YELLOW_BELT).into();
         let transform = Transform::new(true, false, true);
 
-        let transformed = transform.transform_entity(belt.as_ref());
-        let transformed_belt = transformed.as_belt().unwrap();
+        let transformed = transform.transform_entity(&belt);
+        let BeltCollidable::Belt(transformed_belt) = transformed else {
+            panic!("Expected belt");
+        };
 
         assert_eq!(transformed_belt.direction, Direction::East);
         assert_eq!(transformed_belt.tier, YELLOW_BELT);

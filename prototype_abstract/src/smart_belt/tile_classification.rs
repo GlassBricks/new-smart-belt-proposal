@@ -1,5 +1,5 @@
-use crate::belts::{Belt, BeltConnectableEnum, BeltTier, LoaderLike, Splitter, UndergroundBelt};
-use crate::{BeltCollidable, Direction};
+use crate::belts::{Belt, BeltTier, LoaderLike, Splitter, UndergroundBelt};
+use crate::{BeltCollidable, BeltConnectable, Direction};
 use std::fmt::Debug;
 
 use super::{DragDirection, DragWorldView};
@@ -79,12 +79,12 @@ impl<'a> TileClassifier<'a> {
     ///   - Entering a splitter that wasn't previously entered is currently treated as a decision point.
     pub fn classify_next_tile(&self) -> TileType {
         if let Some(entity) = self.world_view.get_entity(self.next_position()) {
-            match entity.as_belt_connectable() {
-                Some(BeltConnectableEnum::Belt(belt)) => self.classify_belt(belt),
-                Some(BeltConnectableEnum::UndergroundBelt(ug)) => self.classify_underground(ug),
-                Some(BeltConnectableEnum::Splitter(splitter)) => self.classify_splitter(splitter),
-                Some(BeltConnectableEnum::LoaderLike(loader)) => self.classify_loader(loader),
-                None => TileType::Obstacle,
+            match BeltConnectable::try_from(entity) {
+                Ok(BeltConnectable::Belt(belt)) => self.classify_belt(&belt),
+                Ok(BeltConnectable::UndergroundBelt(ug)) => self.classify_underground(&ug),
+                Ok(BeltConnectable::Splitter(splitter)) => self.classify_splitter(&splitter),
+                Ok(BeltConnectable::LoaderLike(loader)) => self.classify_loader(&loader),
+                Err(_) => TileType::Obstacle,
             }
         } else {
             TileType::Usable
@@ -240,19 +240,19 @@ impl<'a> TileClassifier<'a> {
     }
 
     // Basic integratable decisions without any lookahead or smart logic
-    fn is_trivial_obstacle(&self, entity: &dyn BeltCollidable, pos: i32) -> bool {
-        let Some(belt_connectable) = entity.as_belt_connectable() else {
+    fn is_trivial_obstacle(&self, entity: &BeltCollidable, pos: i32) -> bool {
+        let Ok(belt_connectable) = BeltConnectable::try_from(entity) else {
             return true;
         };
         match belt_connectable {
-            BeltConnectableEnum::Belt(belt) => {
+            BeltConnectable::Belt(belt) => {
                 belt.direction.axis() != self.belt_direction().axis()
             }
-            BeltConnectableEnum::UndergroundBelt(underground_belt) => {
-                !self.ug_is_enterable(underground_belt)
+            BeltConnectable::UndergroundBelt(underground_belt) => {
+                !self.ug_is_enterable(&underground_belt)
             }
-            BeltConnectableEnum::Splitter(splitter) => splitter.direction != self.belt_direction(),
-            BeltConnectableEnum::LoaderLike(_) => {
+            BeltConnectable::Splitter(splitter) => splitter.direction != self.belt_direction(),
+            BeltConnectable::LoaderLike(_) => {
                 !self.world_view.is_belt_connected_to_previous_tile(pos)
             }
         }
@@ -294,8 +294,8 @@ impl<'a> TileClassifier<'a> {
         if skip_initial_splitters {
             while scan_pos * direction_multiplier < max_underground_position * direction_multiplier
                 && let Some(belt_connectable) = self.world_view.get_belt_connectable(scan_pos)
-                && let BeltConnectableEnum::Splitter(Splitter { direction, .. }) = belt_connectable
-                && *direction == self.belt_direction()
+                && let BeltConnectable::Splitter(Splitter { direction, .. }) = belt_connectable
+                && direction == self.belt_direction()
             {
                 scan_pos += direction_multiplier;
             }
@@ -314,26 +314,26 @@ impl<'a> TileClassifier<'a> {
             && self.world_view.is_belt_connected_to_previous_tile(scan_pos)
         {
             match belt_connectable {
-                BeltConnectableEnum::Belt(belt) => {
-                    if self.world_view.belt_was_curved(scan_pos, belt) {
+                BeltConnectable::Belt(belt) => {
+                    if self.world_view.belt_was_curved(scan_pos, &belt) {
                         // Curved belt case!
                         return false;
                     }
                     // else, belt segment continues.
                 }
-                BeltConnectableEnum::UndergroundBelt(ug) => {
+                BeltConnectable::UndergroundBelt(ug) => {
                     if ug.tier == self.tier {
                         // We can't underground over this.
                         break;
                     }
-                    let Some(pair_pos) = self.world_view.get_ug_pair_pos(scan_pos, ug) else {
+                    let Some(pair_pos) = self.world_view.get_ug_pair_pos(scan_pos, &ug) else {
                         // Unpaired underground we can enter is treated as normal belt. Ends belt segment
                         break;
                     };
                     // Jump scan to after the underground pair
                     scan_pos = pair_pos;
                 }
-                BeltConnectableEnum::Splitter(_) | BeltConnectableEnum::LoaderLike(_) => {
+                BeltConnectable::Splitter(_) | BeltConnectable::LoaderLike(_) => {
                     // If true: we should always integrate same direction splitters or loaders
                     // If false: backwards splitters or loaders would break the belt segment, so we underground over it
                     return segment_belt_direction_matches;

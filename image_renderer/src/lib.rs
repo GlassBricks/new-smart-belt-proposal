@@ -1,7 +1,7 @@
 use anyhow::Result;
 use euclid::{Point2D, Rect, Size2D, Vector2D};
 use prototype_abstract::{
-    BeltConnectableEnum, BoundingBox, Direction, BeltCollidable, ReadonlyWorld as _, Splitter,
+    BeltCollidable, BeltConnectable, BoundingBox, Direction, ReadonlyWorld as _, Splitter,
     TilePosition, WorldImpl as World,
 };
 use std::path::Path;
@@ -128,7 +128,7 @@ impl ImageRenderer {
     fn render_entity(
         &self,
         canvas: &mut Pixmap,
-        entity: &dyn BeltCollidable,
+        entity: &BeltCollidable,
         bounds: BoundingBox,
         pos: TilePosition,
         world: &World,
@@ -138,8 +138,8 @@ impl ImageRenderer {
             .to_point()
             .cast_unit();
 
-        match (entity.as_belt_connectable(), layer) {
-            (Some(BeltConnectableEnum::Belt(belt)), RenderLayer::Bottom) => {
+        match (BeltConnectable::try_from(entity).ok(), layer) {
+            (Some(BeltConnectable::Belt(belt)), RenderLayer::Bottom) => {
                 let tier_idx = belt.tier.tier_index();
                 self.render_belt(
                     canvas,
@@ -149,7 +149,7 @@ impl ImageRenderer {
                     tier_idx,
                 );
             }
-            (Some(BeltConnectableEnum::UndergroundBelt(underground)), RenderLayer::Bottom) => {
+            (Some(BeltConnectable::UndergroundBelt(underground)), RenderLayer::Bottom) => {
                 let tier_idx = underground.tier.tier_index();
                 self.render_underground_belt_base(
                     canvas,
@@ -159,7 +159,7 @@ impl ImageRenderer {
                     tier_idx,
                 );
             }
-            (Some(BeltConnectableEnum::UndergroundBelt(underground)), RenderLayer::Top) => {
+            (Some(BeltConnectable::UndergroundBelt(underground)), RenderLayer::Top) => {
                 let tier_idx = underground.tier.tier_index();
                 self.render_underground_belt_structure(
                     canvas,
@@ -169,16 +169,14 @@ impl ImageRenderer {
                     tier_idx,
                 );
             }
-            (Some(BeltConnectableEnum::Splitter(splitter)), RenderLayer::Bottom) => {
+            (Some(BeltConnectable::Splitter(splitter)), RenderLayer::Bottom) => {
                 let tier_idx = splitter.tier.tier_index();
                 self.render_belt(canvas, splitter.direction, None, pixel_pos, tier_idx);
             }
-            (Some(BeltConnectableEnum::Splitter(splitter)), RenderLayer::Top) => {
+            (Some(BeltConnectable::Splitter(splitter)), RenderLayer::Top) => {
                 let tier_idx = splitter.tier.tier_index();
-                let is_head = if let Some(tail_pos) = get_tail_pos(splitter, pos, bounds)
-                    && world
-                        .get(tail_pos)
-                        .is_some_and(|entity| entity.as_splitter().is_some())
+                let is_head = if let Some(tail_pos) = get_tail_pos(&splitter, pos, bounds)
+                  && matches!(world.get(tail_pos), Some(BeltCollidable::Splitter(_)))
                 {
                     false
                 } else {
@@ -419,7 +417,7 @@ mod tests {
         let mut world = World::new();
 
         let belt = Belt::new(Direction::East, YELLOW_BELT);
-        world.build(pos(0, 0), belt);
+        world.build(pos(0, 0), belt.into());
 
         let bounds = prototype_abstract::bounds_new(pos(0, 0), pos(1, 1));
         let pixmap = renderer.render_world(&world, bounds);
@@ -434,16 +432,16 @@ mod tests {
         let mut world = World::new();
 
         let belt = Belt::new(Direction::East, YELLOW_BELT);
-        world.build(pos(0, 0), belt);
+        world.build(pos(0, 0), belt.into());
 
         let underground_input = UndergroundBelt::new(Direction::East, true, YELLOW_BELT);
-        world.build(pos(1, 0), underground_input);
+        world.build(pos(1, 0), underground_input.into());
 
         let underground_output = UndergroundBelt::new(Direction::East, false, YELLOW_BELT);
-        world.build(pos(3, 0), underground_output);
+        world.build(pos(3, 0), underground_output.into());
 
         let splitter = Splitter::new(Direction::East, YELLOW_BELT);
-        world.build(pos(0, 1), splitter);
+        world.build(pos(0, 1), splitter.into());
 
         let bounds = prototype_abstract::bounds_new(pos(0, 0), pos(4, 2));
         let pixmap = renderer.render_world(&world, bounds);

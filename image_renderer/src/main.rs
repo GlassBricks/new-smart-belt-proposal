@@ -13,7 +13,9 @@ use comrak::{
 };
 use image_renderer::{ImageRenderer, get_tail_pos};
 
-use prototype_abstract::{ReadonlyWorld as _, Splitter, World, WorldImpl, bounds_new, pos};
+use prototype_abstract::{
+    BeltCollidable, ReadonlyWorld as _, Splitter, World, WorldImpl, bounds_new, pos,
+};
 
 #[derive(Clone)]
 struct FacImg {
@@ -57,8 +59,7 @@ fn apply_splitter_completion(world: &mut WorldImpl) -> Result<()> {
     for y in bounds.min.y..bounds.max.y {
         for x in bounds.min.x..bounds.max.x {
             let position = pos(x, y);
-            if let Some(entity) = world.get(position)
-                && let Some(splitter) = (entity as &dyn std::any::Any).downcast_ref::<Splitter>()
+            if let Some(BeltCollidable::Splitter(splitter)) = world.get(position)
                 && let Some(tail_pos) = get_tail_pos(splitter, position, bounds)
                 && world.get(tail_pos).is_none()
             {
@@ -68,7 +69,7 @@ fn apply_splitter_completion(world: &mut WorldImpl) -> Result<()> {
     }
 
     for (pos, entity) in entities_to_add {
-        world.build(pos, entity);
+        world.build(pos, entity.into());
     }
 
     Ok(())

@@ -1,5 +1,5 @@
 use crate::{
-    Belt, BeltConnectableEnum, Direction, BeltCollidable, Ray, UndergroundBelt,
+    Belt, BeltCollidable, BeltConnectable, Direction, Ray, UndergroundBelt,
     smart_belt::belt_curving::{TileHistory, TileHistoryView},
     world::ReadonlyWorld,
 };
@@ -44,13 +44,13 @@ impl<'a> DragWorldView<'a> {
         }
     }
 
-    pub fn get_entity(&self, position: i32) -> Option<&dyn BeltCollidable> {
+    pub fn get_entity(&self, position: i32) -> Option<&BeltCollidable> {
         self.world.get(self.ray.get_position(position))
     }
 
-    pub fn get_belt_connectable(&self, position: i32) -> Option<BeltConnectableEnum<'_>> {
+    pub fn get_belt_connectable(&self, position: i32) -> Option<BeltConnectable> {
         self.get_entity(position)
-            .and_then(|entity| entity.as_belt_connectable())
+            .and_then(|entity| BeltConnectable::try_from(entity).ok())
     }
 
     pub fn belt_was_curved(&self, position: i32, belt: &Belt) -> bool {

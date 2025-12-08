@@ -1,4 +1,3 @@
-use std::any::Any;
 use std::cmp::max;
 use std::collections::HashSet;
 
@@ -6,10 +5,11 @@ use crate::belts::{BELT_TIERS, Belt, BeltTier, LoaderLike, Splitter, Underground
 use crate::geometry::Ray;
 use crate::world::{ReadonlyWorld, World};
 use crate::{
-    BeltCollidable, CollidingEntityOrTile, Direction, TilePosition, Transform, WorldImpl, pos,
-    smart_belt::{LineDrag, action, action::Error},
+    BeltCollidable, BeltConnectable, BeltConnectableTrait, Direction,
+    TilePosition, Transform, WorldImpl, pos,
+    smart_belt::{DragStateBehavior, LineDrag, action, action::Error},
 };
-use crate::{BoundingBox, ImpassableTile};
+use crate::BoundingBox;
 use anyhow::{Context, Result, bail};
 use itertools::Itertools;
 use serde::{Deserialize, Deserializer};
@@ -49,7 +49,7 @@ impl TestCaseEntities {
     }
 }
 
-fn check_test_case(
+fn check_test_case<S: DragStateBehavior>(
     test: &TestCaseEntities,
     reverse: bool,
     test_variant: TestVariant,
@@ -60,7 +60,7 @@ fn check_test_case(
         test.clone()
     };
 
-    let (result, actual_errors) = run_test_case(&test, test_variant);
+    let (result, actual_errors) = run_test_case::<S>(&test, test_variant);
 
     let expected_world = &test.after;
     let expected_errors = &test.expected_errors;
@@ -131,7 +131,7 @@ Got errors:
     Ok(())
 }
 
-pub fn check_test_case_all_transforms(
+pub fn check_test_case_all_transforms<S: DragStateBehavior>(
     test: &DragTestCase,
     reverse: bool,
     test_variant: TestVariant,
@@ -161,7 +161,7 @@ pub fn check_test_case_all_transforms(
             (false, TestVariant::ForwardBack) => format!("[transform {}] [forward_back]", i),
             (false, TestVariant::Normal) => format!("[transform {}]", i),
         };
-        check_test_case(&test_to_check, false, test_variant).with_context(|| test_name)?;
+        check_test_case::<S>(&test_to_check, false, test_variant).with_context(|| test_name)?;
     }
 
     Ok(())
@@ -214,7 +214,7 @@ fn flip_test_case(
         })?;
     Ok(flipped)
 }
-fn run_test_case(
+fn run_test_case<S: DragStateBehavior>(
     test: &TestCaseEntities,
     test_variant: TestVariant,
 ) -> (WorldImpl, HashSet<(TilePosition, Error)>) {
@@ -243,7 +243,7 @@ fn run_test_case(
         let mut error_handler = |pos, err| {
             errors.push((pos, err));
         };
-        let mut drag = LineDrag::start_drag(
+        let mut drag = LineDrag::<S>::start_drag(
             &mut result,
             &mut error_handler,
             tier,
@@ -286,8 +286,8 @@ fn run_test_case(
     (result, errors.into_iter().collect())
 }
 
-fn run_wiggle(
-    drag: &mut LineDrag,
+fn run_wiggle<S: DragStateBehavior>(
+    drag: &mut LineDrag<'_, S>,
     error_handler: &mut dyn FnMut(TilePosition, Error),
     start_pos: TilePosition,
     end_pos: TilePosition,
@@ -310,8 +310,8 @@ fn run_wiggle(
     }
 }
 
-fn run_mega_wiggle(
-    drag: &mut LineDrag,
+fn run_mega_wiggle<S: DragStateBehavior>(
+    drag: &mut LineDrag<'_, S>,
     error_handler: &mut dyn FnMut(TilePosition, Error),
     start_pos: TilePosition,
     end_pos: TilePosition,
@@ -330,8 +330,8 @@ fn run_mega_wiggle(
     drag.interpolate_to(error_handler, end_pos);
 }
 
-fn run_forward_back(
-    drag: &mut LineDrag,
+fn run_forward_back<S: DragStateBehavior>(
+    drag: &mut LineDrag<'_, S>,
     error_handler: &mut dyn FnMut(TilePosition, Error),
     leftmost_pos: TilePosition,
     end_pos: TilePosition,
@@ -397,7 +397,7 @@ fn get_entities(serde_case: &TestCaseSerde) -> Result<TestCaseEntities, String> 
         .iter()
         .filter(|(p, _)| p.y == start_pos.y && p.x >= start_pos.x)
         .sorted_by_key(|(p, _)| p.x)
-        .find_map(|(_, ent)| ent.as_belt_connectable_dyn())
+        .find_map(|(_, ent)| BeltConnectable::try_from(ent).ok())
         .expect("No belt found in drag row");
     let tier = first_ent.tier();
 
@@ -461,14 +461,14 @@ Other cases:
 - (empty string) -> None
 - X -> OtherColliding
 */
-fn parse_word(input: &str) -> Result<Option<Box<dyn BeltCollidable>>> {
+fn parse_word(input: &str) -> Result<Option<BeltCollidable>> {
     use crate::entity::*;
 
     let mut chars = input.chars().peekable();
 
     match chars.peek() {
-        Some('X') => return Ok(Some(CollidingEntityOrTile::new())),
-        Some('#') => return Ok(Some(ImpassableTile::new())),
+        Some('X') => return Ok(Some(CollidingEntityOrTile.into())),
+        Some('#') => return Ok(Some(ImpassableTile.into())),
         None | Some('_') => return Ok(None),
         _ => (),
     }
@@ -496,12 +496,12 @@ fn parse_word(input: &str) -> Result<Option<Box<dyn BeltCollidable>>> {
         c => bail!("Invalid direction: {:?}", c),
     };
     Ok(Some(match chars.next() {
-        Some('b') | None => Belt::new(direction, tier),
-        Some('i') => UndergroundBelt::new(direction, true, tier),
-        Some('o') => UndergroundBelt::new(direction, false, tier),
-        Some('s') => Splitter::new(direction, tier),
-        Some('I') => LoaderLike::new(direction, true, tier),
-        Some('O') => LoaderLike::new(direction, false, tier),
+        Some('b') | None => Belt::new(direction, tier).into(),
+        Some('i') => UndergroundBelt::new(direction, true, tier).into(),
+        Some('o') => UndergroundBelt::new(direction, false, tier).into(),
+        Some('s') => Splitter::new(direction, tier).into(),
+        Some('I') => LoaderLike::new(direction, true, tier).into(),
+        Some('O') => LoaderLike::new(direction, false, tier).into(),
         _ => bail!("Invalid entity type"),
     }))
 }
@@ -537,57 +537,56 @@ fn get_dir_char(direction: Direction) -> char {
     }
 }
 
-fn print_entity(entity: &dyn BeltCollidable) -> String {
-    if let Some(Belt { direction, tier }) = entity.as_belt() {
-        let tier_num = tier.tier_index() + 1;
-        let dir_char = get_dir_char(*direction);
-        if tier_num == 1 {
-            format!("{}", dir_char)
-        } else {
-            format!("{}{}", tier_num, dir_char)
+fn print_entity(entity: &BeltCollidable) -> String {
+    match entity {
+        BeltCollidable::Belt(Belt { direction, tier }) => {
+            let tier_num = tier.tier_index() + 1;
+            let dir_char = get_dir_char(*direction);
+            if tier_num == 1 {
+                format!("{}", dir_char)
+            } else {
+                format!("{}{}", tier_num, dir_char)
+            }
         }
-    } else if let Some(UndergroundBelt {
-        direction,
-        tier,
-        is_input,
-    }) = entity.as_underground_belt()
-    {
-        let tier_num = tier.tier_index() + 1;
-        let dir_char = get_dir_char(*direction);
-        let type_char = if *is_input { 'i' } else { 'o' };
-        if tier_num == 1 {
-            format!("{}{}", dir_char, type_char)
-        } else {
-            format!("{}{}{}", tier_num, dir_char, type_char)
+        BeltCollidable::UndergroundBelt(UndergroundBelt {
+            direction,
+            tier,
+            is_input,
+        }) => {
+            let tier_num = tier.tier_index() + 1;
+            let dir_char = get_dir_char(*direction);
+            let type_char = if *is_input { 'i' } else { 'o' };
+            if tier_num == 1 {
+                format!("{}{}", dir_char, type_char)
+            } else {
+                format!("{}{}{}", tier_num, dir_char, type_char)
+            }
         }
-    } else if let Some(Splitter { direction, tier }) = entity.as_splitter() {
-        let tier_num = tier.tier_index() + 1;
-        let dir_char = get_dir_char(*direction);
-        if tier_num == 1 {
-            format!("{}s", dir_char)
-        } else {
-            format!("{}{}s", tier_num, dir_char)
+        BeltCollidable::Splitter(Splitter { direction, tier }) => {
+            let tier_num = tier.tier_index() + 1;
+            let dir_char = get_dir_char(*direction);
+            if tier_num == 1 {
+                format!("{}s", dir_char)
+            } else {
+                format!("{}{}s", tier_num, dir_char)
+            }
         }
-    } else if let Some(LoaderLike {
-        direction,
-        tier,
-        is_input,
-    }) = entity.as_loader_like()
-    {
-        let tier_num = tier.tier_index() + 1;
-        let type_char = if *is_input { 'I' } else { 'O' };
-        let dir_char = get_dir_char(*direction);
-        if tier_num == 1 {
-            format!("{}{}", dir_char, type_char)
-        } else {
-            format!("{}{}{}", tier_num, dir_char, type_char)
+        BeltCollidable::LoaderLike(LoaderLike {
+            direction,
+            tier,
+            is_input,
+        }) => {
+            let tier_num = tier.tier_index() + 1;
+            let type_char = if *is_input { 'I' } else { 'O' };
+            let dir_char = get_dir_char(*direction);
+            if tier_num == 1 {
+                format!("{}{}", dir_char, type_char)
+            } else {
+                format!("{}{}{}", tier_num, dir_char, type_char)
+            }
         }
-    } else if (entity as &dyn Any).is::<CollidingEntityOrTile>() {
-        "X".to_string()
-    } else if (entity as &dyn Any).is::<ImpassableTile>() {
-        "#".to_string()
-    } else {
-        "?".to_string()
+        BeltCollidable::CollidingEntityOrTile(_) => "X".to_string(),
+        BeltCollidable::ImpassableTile(_) => "#".to_string(),
     }
 }
 
@@ -626,8 +625,6 @@ pub fn print_world(world: &WorldImpl, bounds: BoundingBox, markers: &[TilePositi
 }
 #[cfg(test)]
 mod tests {
-    use std::any::Any;
-
     use super::*;
 
     use crate::entity::*;
@@ -636,83 +633,55 @@ mod tests {
     fn test_parse() {
         assert!(parse_word("").unwrap().is_none());
         let result = parse_word("X").unwrap().unwrap();
-        assert!((result.as_ref() as &dyn std::any::Any).is::<CollidingEntityOrTile>());
+        assert!(matches!(result, BeltCollidable::CollidingEntityOrTile(_)));
 
         // Test direction only - defaults to tier 1 and belt type
-        if let Some(entity) = parse_word(">").unwrap() {
-            if let Some(belt) = (entity.as_ref() as &dyn Any).downcast_ref::<Belt>() {
-                assert_eq!(belt.direction, Direction::East);
-                assert_eq!(belt.tier, BELT_TIERS[0]); // Default to yellow
-            } else {
-                panic!("Expected Some(Belt) with defaults");
-            }
+        if let Some(BeltCollidable::Belt(belt)) = parse_word(">").unwrap() {
+            assert_eq!(belt.direction, Direction::East);
+            assert_eq!(belt.tier, BELT_TIERS[0]); // Default to yellow
         } else {
             panic!("Expected Some(Belt) with defaults");
         }
 
-        if let Some(entity) = parse_word("1>").unwrap() {
-            if let Some(belt) = (entity.as_ref() as &dyn Any).downcast_ref::<Belt>() {
-                assert_eq!(belt.direction, Direction::East);
-                assert_eq!(belt.tier, BELT_TIERS[0]); // Yellow
-            } else {
-                panic!("Expected Some(Belt)");
-            }
+        if let Some(BeltCollidable::Belt(belt)) = parse_word("1>").unwrap() {
+            assert_eq!(belt.direction, Direction::East);
+            assert_eq!(belt.tier, BELT_TIERS[0]); // Yellow
         } else {
             panic!("Expected Some(Belt)");
         }
 
-        if let Some(entity) = parse_word("2^").unwrap() {
-            if let Some(belt) = (entity.as_ref() as &dyn Any).downcast_ref::<Belt>() {
-                assert_eq!(belt.direction, Direction::North);
-                assert_eq!(belt.tier, BELT_TIERS[1]); // Red
-            } else {
-                panic!("Expected Some(Belt) with default type");
-            }
+        if let Some(BeltCollidable::Belt(belt)) = parse_word("2^").unwrap() {
+            assert_eq!(belt.direction, Direction::North);
+            assert_eq!(belt.tier, BELT_TIERS[1]); // Red
         } else {
             panic!("Expected Some(Belt) with default type");
         }
 
-        if let Some(entity) = parse_word(">s").unwrap() {
-            if let Some(splitter) = (entity.as_ref() as &dyn Any).downcast_ref::<Splitter>() {
-                assert_eq!(splitter.direction, Direction::East);
-                assert_eq!(splitter.tier, BELT_TIERS[0]); // Default to yellow
-            } else {
-                panic!("Expected Some(Splitter) with default tier");
-            }
+        if let Some(BeltCollidable::Splitter(splitter)) = parse_word(">s").unwrap() {
+            assert_eq!(splitter.direction, Direction::East);
+            assert_eq!(splitter.tier, BELT_TIERS[0]); // Default to yellow
         } else {
             panic!("Expected Some(Splitter) with default tier");
         }
 
-        if let Some(entity) = parse_word("1<i").unwrap() {
-            if let Some(ub) = (entity.as_ref() as &dyn Any).downcast_ref::<UndergroundBelt>() {
-                assert_eq!(ub.direction, Direction::West);
-                assert_eq!(ub.tier, BELT_TIERS[0]);
-                assert!(ub.is_input);
-            } else {
-                panic!("Expected Some(UndergroundBelt) input");
-            }
+        if let Some(BeltCollidable::UndergroundBelt(ub)) = parse_word("1<i").unwrap() {
+            assert_eq!(ub.direction, Direction::West);
+            assert_eq!(ub.tier, BELT_TIERS[0]);
+            assert!(ub.is_input);
         } else {
             panic!("Expected Some(UndergroundBelt) input");
         }
-        if let Some(entity) = parse_word("2>o").unwrap() {
-            if let Some(ub) = (entity.as_ref() as &dyn Any).downcast_ref::<UndergroundBelt>() {
-                assert_eq!(ub.direction, Direction::East);
-                assert_eq!(ub.tier, BELT_TIERS[1]);
-                assert!(!ub.is_input);
-            } else {
-                panic!("Expected Some(UndergroundBelt) output");
-            }
+        if let Some(BeltCollidable::UndergroundBelt(ub)) = parse_word("2>o").unwrap() {
+            assert_eq!(ub.direction, Direction::East);
+            assert_eq!(ub.tier, BELT_TIERS[1]);
+            assert!(!ub.is_input);
         } else {
             panic!("Expected Some(UndergroundBelt) output");
         }
 
-        if let Some(entity) = parse_word("3^s").unwrap() {
-            if let Some(splitter) = (entity.as_ref() as &dyn Any).downcast_ref::<Splitter>() {
-                assert_eq!(splitter.direction, Direction::North);
-                assert_eq!(splitter.tier, BELT_TIERS[2]);
-            } else {
-                panic!("Expected Some(Splitter)");
-            }
+        if let Some(BeltCollidable::Splitter(splitter)) = parse_word("3^s").unwrap() {
+            assert_eq!(splitter.direction, Direction::North);
+            assert_eq!(splitter.tier, BELT_TIERS[2]);
         } else {
             panic!("Expected Some(Splitter)");
         }
@@ -750,34 +719,22 @@ after: "2>\t^\tX"
         assert!(entities.after.get(pos(2, 0)).is_some());
 
         // Check specific entity types and properties
-        if let Some(entity) = entities.before.get(pos(0, 0)) {
-            if let Some(belt) = (entity as &dyn Any).downcast_ref::<Belt>() {
-                assert_eq!(belt.direction, Direction::East);
-                assert_eq!(belt.tier, BELT_TIERS[0]);
-            } else {
-                panic!("Expected Belt entity at (0,0)");
-            }
+        if let Some(BeltCollidable::Belt(belt)) = entities.before.get(pos(0, 0)) {
+            assert_eq!(belt.direction, Direction::East);
+            assert_eq!(belt.tier, BELT_TIERS[0]);
         } else {
             panic!("Expected Belt entity at (0,0)");
         }
 
-        if let Some(entity) = entities.before.get(pos(1, 0)) {
-            if let Some(belt) = (entity as &dyn Any).downcast_ref::<Belt>() {
-                assert_eq!(belt.direction, Direction::North);
-                assert_eq!(belt.tier, BELT_TIERS[1]);
-            } else {
-                panic!("Expected Belt entity at (1,0)");
-            }
+        if let Some(BeltCollidable::Belt(belt)) = entities.before.get(pos(1, 0)) {
+            assert_eq!(belt.direction, Direction::North);
+            assert_eq!(belt.tier, BELT_TIERS[1]);
         } else {
             panic!("Expected Belt entity at (1,0)");
         }
 
-        if let Some(entity) = entities.after.get(pos(2, 0)) {
-            if (entity as &dyn Any).is::<CollidingEntityOrTile>() {
-                // Correct - X should parse to Colliding
-            } else {
-                panic!("Expected Colliding entity at (2,0)");
-            }
+        if let Some(BeltCollidable::CollidingEntityOrTile(_)) = entities.after.get(pos(2, 0)) {
+            // Correct - X should parse to Colliding
         } else {
             panic!("Expected Colliding entity at (2,0)");
         }
@@ -793,44 +750,26 @@ after: "2>\t^\tX"
         assert_eq!(markers[0], pos(1, 0));
 
         // Check that entities were parsed correctly
-        if let Some(entity) = world.get(pos(0, 0)) {
-            assert!(matches!(
-                (entity as &dyn std::any::Any).downcast_ref(),
-                Some(Belt {
-                    direction: Direction::East,
-                    ..
-                })
-            ));
+        if let Some(BeltCollidable::Belt(belt)) = world.get(pos(0, 0)) {
+            assert_eq!(belt.direction, Direction::East);
         } else {
             panic!("Expected entity at (0, 0)");
         }
 
-        if let Some(entity) = world.get(pos(1, 0)) {
-            assert!(matches!(
-                (entity as &dyn std::any::Any).downcast_ref(),
-                Some(Belt {
-                    direction: Direction::North,
-                    ..
-                })
-            ));
+        if let Some(BeltCollidable::Belt(belt)) = world.get(pos(1, 0)) {
+            assert_eq!(belt.direction, Direction::North);
         } else {
             panic!("Expected entity at (1, 0)");
         }
 
-        if let Some(entity) = world.get(pos(0, 1)) {
-            assert!(matches!(
-                (entity as &dyn std::any::Any).downcast_ref(),
-                Some(Splitter {
-                    direction: Direction::West,
-                    ..
-                })
-            ));
+        if let Some(BeltCollidable::Splitter(splitter)) = world.get(pos(0, 1)) {
+            assert_eq!(splitter.direction, Direction::West);
         } else {
             panic!("Expected entity at (0, 1)");
         }
 
-        if let Some(entity) = world.get(pos(2, 1)) {
-            assert!((entity as &dyn std::any::Any).is::<CollidingEntityOrTile>());
+        if let Some(BeltCollidable::CollidingEntityOrTile(_)) = world.get(pos(2, 1)) {
+            // Correct
         } else {
             panic!("Expected entity at (2, 1)");
         }
@@ -839,13 +778,13 @@ after: "2>\t^\tX"
     #[test]
     fn test_print_world() {
         let mut world = WorldImpl::new();
-        world.build(pos(0, 0), Belt::new(Direction::East, BELT_TIERS[0]));
+        world.build(pos(0, 0), Belt::new(Direction::East, BELT_TIERS[0]).into());
         world.build(
             pos(1, 0),
-            UndergroundBelt::new(Direction::North, true, BELT_TIERS[1]),
+            UndergroundBelt::new(Direction::North, true, BELT_TIERS[1]).into(),
         );
-        world.build(pos(0, 1), Splitter::new(Direction::West, BELT_TIERS[0]));
-        world.build(pos(2, 1), CollidingEntityOrTile::new());
+        world.build(pos(0, 1), Splitter::new(Direction::West, BELT_TIERS[0]).into());
+        world.build(pos(2, 1), CollidingEntityOrTile.into());
 
         let output = print_world(&world, world.bounds(), &[]);
         let expected = r#"

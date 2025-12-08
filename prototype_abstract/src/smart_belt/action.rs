@@ -1,11 +1,9 @@
-use std::any::Any;
-
 use serde::Deserialize;
 
-use super::{DragDirection, LineDrag};
+use super::{DragDirection, LineDrag, drag::DragStateBehavior};
 use crate::belts::{Belt, BeltTier, UndergroundBelt};
 use crate::world::{ReadonlyWorld, World, WorldImpl};
-use crate::{Direction, TilePosition};
+use crate::{BeltCollidable, Direction, TilePosition};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Action {
@@ -32,7 +30,7 @@ pub enum Error {
     BeltLineBroken,
 }
 
-impl<'a> LineDrag<'a> {
+impl<'a, S: DragStateBehavior> LineDrag<'a, S> {
     pub fn apply_action(
         &mut self,
         error_handler: &mut dyn FnMut(TilePosition, Error),
@@ -93,11 +91,9 @@ impl<'a> LineDrag<'a> {
             }
             Action::IntegrateUndergroundPair => {
                 let (is_input, tier) = {
-                    let ug = self
-                        .world
-                        .get(world_pos)
-                        .and_then(|e| (e as &dyn Any).downcast_ref::<UndergroundBelt>())
-                        .expect("Expected UndergroundBelt at position");
+                    let Some(BeltCollidable::UndergroundBelt(ug)) = self.world.get(world_pos) else {
+                        panic!("Expected UndergroundBelt at position");
+                    };
                     (ug.is_input, ug.tier)
                 };
 
@@ -107,11 +103,9 @@ impl<'a> LineDrag<'a> {
 
                 if tier != self.tier {
                     let output_world_pos = {
-                        let ug = self
-                            .world
-                            .get(world_pos)
-                            .and_then(|e| (e as &dyn Any).downcast_ref::<UndergroundBelt>())
-                            .expect("Expected UndergroundBelt at position");
+                        let Some(BeltCollidable::UndergroundBelt(ug)) = self.world.get(world_pos) else {
+                            panic!("Expected UndergroundBelt at position");
+                        };
                         self.world
                             .get_ug_pair(world_pos, ug)
                             .expect("Expected underground pair")
@@ -135,7 +129,7 @@ impl<'a> LineDrag<'a> {
 }
 impl WorldImpl {
     pub fn place_belt(&mut self, position: TilePosition, direction: Direction, tier: BeltTier) {
-        self.build(position, Belt::new(direction, tier))
+        self.build(position, Belt::new(direction, tier).into())
     }
 
     pub fn place_underground_belt(
@@ -146,10 +140,9 @@ impl WorldImpl {
         tier: BeltTier,
         verify_direction: bool,
     ) {
-        self.build_unchecked(position, UndergroundBelt::new(direction, is_input, tier));
+        self.build_unchecked(position, UndergroundBelt::new(direction, is_input, tier).into());
         if verify_direction
-            && let Some(get) = self.get(position)
-            && let Some(ug) = get.as_underground_belt()
+            && let Some(BeltCollidable::UndergroundBelt(ug)) = self.get(position)
             && ug.direction != direction
         {
             self.flip_ug(position);
