@@ -19,7 +19,7 @@ pub mod tile_classification;
 pub mod world_view;
 
 use action::*;
-pub use drag::{DragContext, DragStateBehavior, LineDrag};
+pub use drag::{DragContext, LineDrag};
 pub use drag_direction::DragDirection;
 pub use drag_state::DragState;
 pub use implicit_drag_state::ImplicitDragState;

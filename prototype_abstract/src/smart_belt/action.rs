@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-use super::{DragDirection, LineDrag, drag::DragStateBehavior};
+use super::{DragDirection, LineDrag};
 use crate::belts::{Belt, BeltTier, UndergroundBelt};
 use crate::world::{ReadonlyWorld, World, WorldImpl};
 use crate::{BeltCollidable, Direction, TilePosition};
@@ -30,7 +30,7 @@ pub enum Error {
     BeltLineBroken,
 }
 
-impl<'a, S: DragStateBehavior> LineDrag<'a, S> {
+impl<'a> LineDrag<'a> {
     pub fn apply_action(
         &mut self,
         error_handler: &mut dyn FnMut(TilePosition, Error),

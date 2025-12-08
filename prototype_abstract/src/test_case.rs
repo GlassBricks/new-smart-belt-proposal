@@ -7,7 +7,7 @@ use crate::world::{ReadonlyWorld, World};
 use crate::{
     BeltCollidable, BeltConnectable, BeltConnectableTrait, Direction,
     TilePosition, Transform, WorldImpl, pos,
-    smart_belt::{DragStateBehavior, LineDrag, action, action::Error},
+    smart_belt::{LineDrag, action, action::Error},
 };
 use crate::BoundingBox;
 use anyhow::{Context, Result, bail};
@@ -49,7 +49,7 @@ impl TestCaseEntities {
     }
 }
 
-fn check_test_case<S: DragStateBehavior>(
+fn check_test_case(
     test: &TestCaseEntities,
     reverse: bool,
     test_variant: TestVariant,
@@ -60,7 +60,7 @@ fn check_test_case<S: DragStateBehavior>(
         test.clone()
     };
 
-    let (result, actual_errors) = run_test_case::<S>(&test, test_variant);
+    let (result, actual_errors) = run_test_case(&test, test_variant);
 
     let expected_world = &test.after;
     let expected_errors = &test.expected_errors;
@@ -131,7 +131,7 @@ Got errors:
     Ok(())
 }
 
-pub fn check_test_case_all_transforms<S: DragStateBehavior>(
+pub fn check_test_case_all_transforms(
     test: &DragTestCase,
     reverse: bool,
     test_variant: TestVariant,
@@ -161,7 +161,7 @@ pub fn check_test_case_all_transforms<S: DragStateBehavior>(
             (false, TestVariant::ForwardBack) => format!("[transform {}] [forward_back]", i),
             (false, TestVariant::Normal) => format!("[transform {}]", i),
         };
-        check_test_case::<S>(&test_to_check, false, test_variant).with_context(|| test_name)?;
+        check_test_case(&test_to_check, false, test_variant).with_context(|| test_name)?;
     }
 
     Ok(())
@@ -214,7 +214,7 @@ fn flip_test_case(
         })?;
     Ok(flipped)
 }
-fn run_test_case<S: DragStateBehavior>(
+fn run_test_case(
     test: &TestCaseEntities,
     test_variant: TestVariant,
 ) -> (WorldImpl, HashSet<(TilePosition, Error)>) {
@@ -243,7 +243,7 @@ fn run_test_case<S: DragStateBehavior>(
         let mut error_handler = |pos, err| {
             errors.push((pos, err));
         };
-        let mut drag = LineDrag::<S>::start_drag(
+        let mut drag = LineDrag::start_drag(
             &mut result,
             &mut error_handler,
             tier,
@@ -286,8 +286,8 @@ fn run_test_case<S: DragStateBehavior>(
     (result, errors.into_iter().collect())
 }
 
-fn run_wiggle<S: DragStateBehavior>(
-    drag: &mut LineDrag<'_, S>,
+fn run_wiggle(
+    drag: &mut LineDrag<'_>,
     error_handler: &mut dyn FnMut(TilePosition, Error),
     start_pos: TilePosition,
     end_pos: TilePosition,
@@ -310,8 +310,8 @@ fn run_wiggle<S: DragStateBehavior>(
     }
 }
 
-fn run_mega_wiggle<S: DragStateBehavior>(
-    drag: &mut LineDrag<'_, S>,
+fn run_mega_wiggle(
+    drag: &mut LineDrag<'_>,
     error_handler: &mut dyn FnMut(TilePosition, Error),
     start_pos: TilePosition,
     end_pos: TilePosition,
@@ -330,8 +330,8 @@ fn run_mega_wiggle<S: DragStateBehavior>(
     drag.interpolate_to(error_handler, end_pos);
 }
 
-fn run_forward_back<S: DragStateBehavior>(
-    drag: &mut LineDrag<'_, S>,
+fn run_forward_back(
+    drag: &mut LineDrag<'_>,
     error_handler: &mut dyn FnMut(TilePosition, Error),
     leftmost_pos: TilePosition,
     end_pos: TilePosition,

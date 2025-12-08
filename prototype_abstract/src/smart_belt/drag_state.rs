@@ -1,4 +1,4 @@
-use crate::smart_belt::drag::{DragContext, DragStateBehavior, DragStepResult};
+use crate::smart_belt::drag::{DragContext, DragStepResult};
 use crate::BeltCollidable;
 use log::debug;
 
@@ -52,8 +52,8 @@ enum DragEndShape {
     Error,
 }
 
-impl DragStateBehavior for DragState {
-    fn initial_state(successful_placement: bool) -> Self {
+impl DragState {
+    pub fn initial_state(successful_placement: bool) -> Self {
         if successful_placement {
             DragState::OverBelt
         } else {
@@ -61,7 +61,7 @@ impl DragStateBehavior for DragState {
         }
     }
 
-    fn step(&self, ctx: &DragContext) -> DragStepResult<Self> {
+    pub fn step(&self, ctx: &DragContext) -> DragStepResult {
         print_debug_info(ctx);
         let Some(drag_end) = self.get_drag_end(ctx.last_position, ctx.direction) else {
             debug!("Do nothing");
@@ -169,7 +169,7 @@ impl DragEndShape {
         )
     }
 
-    fn place_belt_or_underground(&self, ctx: &DragContext) -> DragStepResult<DragState> {
+    fn place_belt_or_underground(&self, ctx: &DragContext) -> DragStepResult {
         if let Some(err) = self.error_on_impassable_exit(ctx) {
             DragStepResult(Action::PlaceBelt, DragState::OverBelt, Some(err))
         } else {
@@ -188,7 +188,7 @@ impl DragEndShape {
         ctx: &DragContext,
         input_pos: i32,
         last_output_pos: Option<i32>,
-    ) -> DragStepResult<DragState> {
+    ) -> DragStepResult {
         let next_position = ctx.next_position();
         let is_extension = last_output_pos.is_some();
         if let Err(error) = can_build_underground(ctx, input_pos, is_extension) {
@@ -221,7 +221,7 @@ impl DragEndShape {
         &self,
         ctx: &DragContext,
         output_pos: i32,
-    ) -> DragStepResult<DragState> {
+    ) -> DragStepResult {
         let input_pos = ctx.next_position();
         let (left_pos, right_pos) = ctx.direction.swap_if_backwards(input_pos, output_pos);
         let next_state = if output_pos == ctx.furthest_placement_pos {
@@ -241,7 +241,7 @@ impl DragEndShape {
         DragStepResult(Action::IntegrateUndergroundPair, next_state, err)
     }
 
-    fn handle_obstacle(&self, ctx: &DragContext) -> DragStepResult<DragState> {
+    fn handle_obstacle(&self, ctx: &DragContext) -> DragStepResult {
         let new_state = match *self {
             DragEndShape::Belt => DragState::BuildingUnderground {
                 input_pos: ctx.last_position,
@@ -273,7 +273,7 @@ impl DragEndShape {
         DragStepResult(Action::None, new_state, error)
     }
 
-    fn handle_impassable_obstacle(&self, ctx: &DragContext) -> DragStepResult<DragState> {
+    fn handle_impassable_obstacle(&self, ctx: &DragContext) -> DragStepResult {
         let direction = match *self {
             DragEndShape::OverImpassableObstacle { direction } => direction,
             _ => ctx.direction,

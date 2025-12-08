@@ -1,5 +1,3 @@
-use std::fmt::Debug;
-
 use super::{DragDirection, DragState, Error};
 use crate::belts::BeltTier;
 use crate::smart_belt::{DragWorldView, belt_curving::TileHistory};
@@ -8,13 +6,7 @@ use crate::{BeltConnections, TilePosition};
 use crate::{Direction, Ray, smart_belt::Action};
 use log::debug;
 
-/// Trait for drag state behavior, allowing alternate implementations.
-pub trait DragStateBehavior: Debug + Clone + Sized {
-    fn initial_state(successful_placement: bool) -> Self;
-    fn step(&self, ctx: &DragContext) -> DragStepResult<Self>;
-}
-
-pub struct DragStepResult<S>(pub Action, pub S, pub Option<Error>);
+pub struct DragStepResult(pub Action, pub DragState, pub Option<Error>);
 
 /// Context for drag operations, containing all read-only state needed for decision-making.
 pub struct DragContext<'a> {
@@ -42,11 +34,11 @@ impl<'a> DragContext<'a> {
 }
 
 /// Handles dragging in a straight line (no rotations).
-pub struct LineDrag<'a, S: DragStateBehavior = DragState> {
+pub struct LineDrag<'a> {
     pub(super) world: &'a mut WorldImpl,
     pub(super) ray: Ray,
     pub(super) tier: BeltTier,
-    last_state: S,
+    last_state: DragState,
     last_position: i32,
     // Some tiles we just placed may change other belt's curvature; however we
     // want the logic to be independent of what we've placed. As such, we track
@@ -68,7 +60,7 @@ pub struct LineDrag<'a, S: DragStateBehavior = DragState> {
     pub(super) rotation_pivot_direction: DragDirection,
 }
 
-impl<'a, S: DragStateBehavior> LineDrag<'a, S> {
+impl<'a> LineDrag<'a> {
     /// Starts a drag.
     /// The very first click may fast-replace something, forcing something to be overwritten.
     fn new_drag(
@@ -79,7 +71,7 @@ impl<'a, S: DragStateBehavior> LineDrag<'a, S> {
         belt_direction: Direction,
         first_belt_direction: Direction,
         allow_fast_replace: bool,
-    ) -> LineDrag<'a, S> {
+    ) -> LineDrag<'a> {
         let can_place =
             world.can_place_or_fast_replace_belt(start_pos, belt_direction, allow_fast_replace);
         let tile_history = can_place.then(|| world.belt_connections_at(start_pos));
@@ -90,7 +82,7 @@ impl<'a, S: DragStateBehavior> LineDrag<'a, S> {
             error_handler(start_pos, Error::EntityInTheWay);
         }
 
-        let initial_state = S::initial_state(can_place);
+        let initial_state = DragState::initial_state(can_place);
 
         LineDrag {
             world,
@@ -117,7 +109,7 @@ impl<'a, S: DragStateBehavior> LineDrag<'a, S> {
         tier: BeltTier,
         start_pos: TilePosition,
         belt_direction: Direction,
-    ) -> LineDrag<'a, S> {
+    ) -> LineDrag<'a> {
         Self::new_drag(
             world,
             error_handler,
@@ -196,7 +188,7 @@ impl<'a, S: DragStateBehavior> LineDrag<'a, S> {
     fn apply_step(
         &mut self,
         error_handler: &mut dyn FnMut(TilePosition, Error),
-        step: DragStepResult<S>,
+        step: DragStepResult,
         direction: DragDirection,
     ) {
         let DragStepResult(action, next_state, error) = step;

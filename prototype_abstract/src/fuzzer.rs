@@ -2,7 +2,7 @@ use crate::{
     BELT_TIERS, Belt, BeltCollidable, BeltConnectable, BeltConnectableTrait, BeltTier,
     CollidingEntityOrTile, Direction, ImpassableTile, LoaderLike, Splitter, TilePosition,
     UndergroundBelt, WorldImpl, pos,
-    smart_belt::{DragState, DragStateBehavior, LineDrag, action::Error},
+    smart_belt::{LineDrag, action::Error},
     test_case::print_world,
     world::ReadonlyWorld,
 };
@@ -129,8 +129,8 @@ pub fn generate_test_case(seed: u64, config: &FuzzConfig) -> FuzzTestCase {
     }
 }
 
-/// Run a fuzz test case with a specific state implementation
-pub fn run_fuzz_test_with_state<S: DragStateBehavior>(test_case: &FuzzTestCase) -> Result<FuzzResult, String> {
+/// Run a fuzz test case
+pub fn run_fuzz_test(test_case: &FuzzTestCase) -> Result<FuzzResult, String> {
     let start_pos = test_case.start_pos();
     let end_pos = test_case.end_pos();
     let world_before = test_case.world.clone();
@@ -141,7 +141,7 @@ pub fn run_fuzz_test_with_state<S: DragStateBehavior>(test_case: &FuzzTestCase) 
         errors.push((pos, err));
     };
     let furthest_placement = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let mut drag = LineDrag::<S>::start_drag(
+        let mut drag = LineDrag::start_drag(
             &mut world_after,
             &mut error_handler,
             test_case.tier,
@@ -175,11 +175,6 @@ pub fn run_fuzz_test_with_state<S: DragStateBehavior>(test_case: &FuzzTestCase) 
         tier: test_case.tier,
         furthest_placement,
     })
-}
-
-/// Run a fuzz test case using the default DragState implementation
-pub fn run_fuzz_test(test_case: &FuzzTestCase) -> Result<FuzzResult, String> {
-    run_fuzz_test_with_state::<DragState>(test_case)
 }
 
 fn is_belt_connected_to_previous_tile(world: &WorldImpl, next_distance: i32) -> bool {

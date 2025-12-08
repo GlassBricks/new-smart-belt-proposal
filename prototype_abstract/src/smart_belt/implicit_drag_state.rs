@@ -1,4 +1,4 @@
-use crate::smart_belt::drag::{DragContext, DragStateBehavior, DragStepResult};
+use crate::smart_belt::drag::{DragContext, DragStepResult};
 
 /// Implicit drag state implementation.
 /// Uses an implicit representation of state based on world queries rather than
@@ -9,12 +9,12 @@ pub enum ImplicitDragState {
     Placeholder,
 }
 
-impl DragStateBehavior for ImplicitDragState {
-    fn initial_state(_successful_placement: bool) -> Self {
+impl ImplicitDragState {
+    pub fn initial_state(_successful_placement: bool) -> Self {
         todo!("ImplicitDragState::initial_state")
     }
 
-    fn step(&self, _ctx: &DragContext) -> DragStepResult<Self> {
+    pub fn step(&self, _ctx: &DragContext) -> DragStepResult {
         todo!("ImplicitDragState::step")
     }
 }
