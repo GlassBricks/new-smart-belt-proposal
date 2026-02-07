@@ -4,7 +4,6 @@
 //!   drag_direction: Fundamental type for drag direction (forward/backward)
 //!   tile_classification: determines what is an obstacle, what should be integrated, etc.
 //!   drag_state: "State machine" for the drag. Defines all possible states and transitions
-//!   implicit_drag_state: Alternative state implementation using implicit world queries
 //!   action: defines all actions that might be performed when dragging; including error notifications.
 //!   belt_curving: Logic for belt curvature. Includes keeping track of tile history
 //!   world_view: Utilities for queries on entities, used by tile_classification.
@@ -14,7 +13,6 @@ pub mod belt_curving;
 pub mod drag;
 pub mod drag_direction;
 pub mod drag_state;
-pub mod implicit_drag_state;
 pub mod tile_classification;
 pub mod world_view;
 
@@ -22,6 +20,5 @@ use action::*;
 pub use drag::{DragContext, LineDrag};
 pub use drag_direction::DragDirection;
 pub use drag_state::DragState;
-pub use implicit_drag_state::ImplicitDragState;
 use tile_classification::*;
 use world_view::*;
