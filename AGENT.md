@@ -21,7 +21,7 @@ These are turned into runnable tests:
 
 - In rust, tests are generated using build.rs.
 - In TS, tests are generated using `bun run generate-tests`, need to manually run this before bun tests.
-- There is no equivalent for the mod version.
+- In the mod, tests are generated into `prototype_mod/mod-tests/generated/` and run in-game via the `factorio-test` framework. `prototype_mod/mod-tests/test_helpers.ts` provides the test harness for in-game mod tests:
 
 ## Debugging rust vs TS
 
