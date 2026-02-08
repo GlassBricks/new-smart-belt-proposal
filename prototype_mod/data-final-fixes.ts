@@ -8,6 +8,16 @@ import {
 } from "factorio:prototype"
 
 declare const data: PrototypeData
+declare namespace table {
+  function deepcopy<T>(obj: T): T
+}
+
+data.extend([
+  {
+    type: "collision-layer",
+    name: "smarter_belt_impassable",
+  } as any,
+])
 
 const undergroundCollisionMasks: Record<string, CollisionMaskConnector> = {}
 
@@ -81,8 +91,11 @@ for (const [name, beltProto] of pairs(data.raw["transport-belt"])) {
   data.extend([newItem, newEntity])
   let ugProto =
     data.raw["underground-belt"][beltProto.related_underground_belt]!
-  undergroundCollisionMasks[ugProto.name] =
-    ugProto.underground_collision_mask ?? { layers: {} }
+  ugProto.underground_collision_mask ??= { layers: {} }
+  ugProto.underground_collision_mask.layers[
+    "smarter_belt_impassable" as keyof typeof ugProto.underground_collision_mask.layers
+  ] = true as never
+  undergroundCollisionMasks[ugProto.name] = ugProto.underground_collision_mask
 }
 
 const smoke: TrivialSmokePrototype = {
@@ -100,4 +113,11 @@ const ugProtoData: ModData = {
   name: "smarter-belt-underground-collision-masks",
   data: undergroundCollisionMasks,
 }
-data.extend([smoke, ugProtoData])
+const outOfMap = data.raw.tile["out-of-map"]!
+const impassableTile = table.deepcopy(outOfMap)
+impassableTile.name = "smarter-belt-impassable"
+impassableTile.collision_mask.layers[
+  "smarter_belt_impassable" as keyof typeof impassableTile.collision_mask.layers
+] = true as never
+
+data.extend([smoke, ugProtoData, impassableTile])

@@ -15,7 +15,8 @@ export type AllBeltTypes = (typeof ALL_BELT_TYPES)[number]
 const beltTiers: Record<string, BeltTier> = {}
 const beltTiersByUgName: Record<string, BeltTier> = {}
 const ugCollisionMasks: Record<string, CollisionMaskConnector> = {}
-script.on_load(() => {
+
+function loadBeltTiers() {
   const ugData =
     prototypes.mod_data["smarter-belt-underground-collision-masks"]!
 
@@ -36,7 +37,10 @@ script.on_load(() => {
     beltTiersByUgName[undergroundProto.name] = beltTiers[beltName]
     ugCollisionMasks[beltName] = ugCollisionMask
   }
-})
+}
+
+script.on_init(loadBeltTiers)
+script.on_load(loadBeltTiers)
 
 export function beltTierFromBeltName(beltName: string): BeltTier | undefined {
   return beltTiers[beltName]

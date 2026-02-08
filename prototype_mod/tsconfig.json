@@ -3,7 +3,7 @@
   "compilerOptions": {
     "moduleResolution": "node",
     "target": "esnext",
-    "types": ["typed-factorio/runtime"],
+    "types": ["typed-factorio/runtime", "factorio-test"],
     "skipDefaultLibCheck": true,
     "strict": true,
     "experimentalDecorators": true,
@@ -19,13 +19,18 @@
   "tstl": {
     "luaTarget": "5.2",
     "noImplicitSelf": true,
-    "sourceMapTraceback": true
+    "sourceMapTraceback": true,
+    "noResolvePaths": [
+      "__factorio-test__/init",
+      "mod-tests.generated.init_tests"
+    ]
   },
   "include": [
     "control.ts",
     "data-final-fixes.ts",
     "common/**/*.ts",
-    "mod-scripts/**/*.ts"
+    "mod-scripts/**/*.ts",
+    "mod-tests/**/*.ts"
   ],
   "exclude": ["ts-only/"]
 }

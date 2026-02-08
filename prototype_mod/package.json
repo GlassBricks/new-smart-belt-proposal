@@ -4,21 +4,25 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "test": "bun test",
+    "test": "bun test ts-only/",
     "generate-tests": "bun run scripts/generate-tests.ts",
     "generate-blueprint": "bun run scripts/generate-blueprint.ts",
     "clean-mod": "rm mod/**/*.lua",
     "build-mod": "tstl",
     "watch-mod": "tstl --watch",
-    "publish-mod": "export $(xargs <.env) && cd mod && fmtk publish"
+    "publish-mod": "export $(xargs <.env) && cd mod && fmtk publish",
+    "generate-factorio-tests": "bun run scripts/generate-factorio-tests.ts",
+    "factorio-test": "bun run generate-factorio-tests && tstl && npx factorio-test run -p ./mod"
   },
   "devDependencies": {
     "@types/bun": "latest",
     "@types/js-yaml": "^4.0.9",
+    "factorio-test": "^3.0.0",
+    "factorio-test-cli": "^3.5.1",
     "lua-types": "^2.13.1",
     "typed-factorio": "^3.31.0",
-    "typescript-to-lua": "^1.32.0",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "typescript-to-lua": "^1.32.0"
   },
   "dependencies": {
     "@jensforstmann/factorio-blueprint-tools": "^2.1.0",
