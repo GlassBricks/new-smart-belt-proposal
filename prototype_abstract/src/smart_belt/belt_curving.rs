@@ -1,48 +1,7 @@
 use crate::world::{BeltConnections, ReadonlyWorld};
-use crate::{Belt, BeltCollidable, BeltConnectable, Direction, TilePosition, UndergroundBelt};
+use crate::{BeltCollidable, BeltConnectable, Direction, TilePosition, UndergroundBelt};
 
 pub type TileHistory = (TilePosition, BeltConnections);
-
-pub trait BeltCurveView {
-    fn output_direction_at(&self, position: TilePosition) -> Option<Direction>;
-    fn input_direction_at(&self, position: TilePosition) -> Option<Direction>;
-
-    fn belt_connections_at(&self, position: TilePosition) -> BeltConnections {
-        BeltConnections {
-            input: self.input_direction_at(position),
-            output: self.output_direction_at(position),
-        }
-    }
-
-    /// Computes what direction a belt should be inputting from. Decides belt curvature.
-    fn belt_curved_input_direction(
-        &self,
-        position: TilePosition,
-        belt_direction: Direction,
-    ) -> Direction {
-        let has_input_in = |direction: Direction| {
-            let query_pos = position - direction.to_vector();
-            self.output_direction_at(query_pos) == Some(direction)
-        };
-
-        if has_input_in(belt_direction) {
-            return belt_direction;
-        }
-        match (
-            has_input_in(belt_direction.rotate_cw()),
-            has_input_in(belt_direction.rotate_ccw()),
-        ) {
-            (true, false) => belt_direction.rotate_cw(),
-            (false, true) => belt_direction.rotate_ccw(),
-            _ => belt_direction,
-        }
-    }
-
-    fn belt_is_curved_at(&self, position: TilePosition, belt: &Belt) -> bool {
-        self.input_direction_at(position)
-            .is_some_and(|d| d.axis() != belt.direction.axis())
-    }
-}
 
 pub struct TileHistoryView<'a> {
     world: &'a dyn ReadonlyWorld,
@@ -100,5 +59,4 @@ impl<'a> ReadonlyWorld for TileHistoryView<'a> {
             }
         }
     }
-
 }
