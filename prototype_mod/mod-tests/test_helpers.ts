@@ -6,7 +6,12 @@ import {
     TileWrite,
 } from "factorio:runtime"
 import { Direction } from "../common/geometry"
-import { toTilePosition, translateDirection } from "../mod-scripts/real_world"
+import {
+    startErrorRecording,
+    stopErrorRecording,
+    toTilePosition,
+    translateDirection,
+} from "../mod-scripts/real_world"
 
 export interface EntityData {
     x: number
@@ -87,6 +92,7 @@ export function runDragTest(
     before: EntityData[],
     after: EntityData[],
     drag: DragConfig,
+    expectedErrors: string[] = [],
 ): void {
     const player = game.get_player(1 as PlayerIndex)!
     const surface = player.surface
@@ -111,6 +117,9 @@ export function runDragTest(
     if (!cursorStack.valid_for_read) {
         error("cursor_stack not valid_for_read after set_stack")
     }
+
+    startErrorRecording()
+
     if (drag.variant === "wiggle") {
         simulateWiggleDragEvents(player, surface, drag)
     } else if (drag.variant === "mega_wiggle") {
@@ -123,7 +132,10 @@ export function runDragTest(
     }
     player.clear_cursor()
 
+    const actualErrors = stopErrorRecording()
+
     assertEntities(surface, after, bounds)
+    assertErrors(expectedErrors, actualErrors, drag.variant)
 }
 
 interface Bounds {
@@ -577,5 +589,59 @@ function assertEntities(
                     `All expected:\n${formatEntities(expectedBelts)}\nAll actual:\n${formatEntities(actualBelts)}`,
             )
         }
+    }
+}
+
+function arrayToSet(arr: string[]): Record<string, true> {
+    const set: Record<string, true> = {}
+    for (const item of arr) {
+        set[item] = true
+    }
+    return set
+}
+
+function setsEqual(a: Record<string, true>, b: Record<string, true>): boolean {
+    for (const key in a) {
+        if (!b[key]) return false
+    }
+    for (const key in b) {
+        if (!a[key]) return false
+    }
+    return true
+}
+
+function isSubset(
+    subset: Record<string, true>,
+    superset: Record<string, true>,
+): boolean {
+    for (const key in subset) {
+        if (!superset[key]) return false
+    }
+    return true
+}
+
+function assertErrors(
+    expected: string[],
+    actual: string[],
+    variant: "wiggle" | "mega_wiggle" | undefined,
+): void {
+    const expectedSet = arrayToSet(expected)
+    const actualSet = arrayToSet(actual)
+
+    const isWiggleVariant = variant === "wiggle" || variant === "mega_wiggle"
+    const match = isWiggleVariant
+        ? expected.length === 0
+            ? actual.length === 0
+            : isSubset(expectedSet, actualSet)
+        : setsEqual(expectedSet, actualSet)
+
+    if (!match) {
+        const expectedSorted = [...expected].sort()
+        const actualSorted = [...actual].sort()
+        error(
+            `Error mismatch (variant=${variant ?? "normal"}):\n` +
+                `  Expected errors: [${expectedSorted.join(", ")}]\n` +
+                `  Actual errors:   [${actualSorted.join(", ")}]`,
+        )
     }
 }

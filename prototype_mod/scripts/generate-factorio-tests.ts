@@ -119,6 +119,12 @@ function entityDataToCode(entities: EntityDataLiteral[]): string {
     return `[\n        ${items.join(",\n        ")},\n      ]`
 }
 
+function errorsToCode(errors: string[]): string {
+    if (errors.length === 0) return "[]"
+    const items = errors.map((e) => `"${e}"`)
+    return `[${items.join(", ")}]`
+}
+
 function dragConfigToCode(drag: DragConfigLiteral): string {
     let code = `{ startX: ${drag.startX}, startY: ${drag.startY}, endX: ${drag.endX}, endY: ${drag.endY}, direction: ${drag.direction}, beltName: "${drag.beltName}"`
     if (drag.forwardBack) {
@@ -155,6 +161,7 @@ function generateTestFile(
         const { entities, forwardBack, notReversible, afterForReverse } = parsed
         const beforeData = worldToEntityData(entities.before.getEntities())
         const afterData = worldToEntityData(entities.after.getEntities())
+        const expectedErrors = Array.from(entities.expectedErrors).sort()
 
         let reverseBeforeData: EntityDataLiteral[] | undefined
         let reverseAfterData: EntityDataLiteral[] | undefined
@@ -209,6 +216,7 @@ function generateTestFile(
                     `      ${entityDataToCode(bd)},\n` +
                     `      ${entityDataToCode(ad)},\n` +
                     `      ${dragConfigToCode(dragData)},\n` +
+                    `      ${errorsToCode(expectedErrors)},\n` +
                     `    )\n` +
                     `  })`,
             )

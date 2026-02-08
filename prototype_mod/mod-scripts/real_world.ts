@@ -28,6 +28,18 @@ import {
   ugCollisionMaskFromBeltName,
 } from "./prototypes"
 
+let recordedErrors: string[] | undefined
+
+export function startErrorRecording(): void {
+  recordedErrors = []
+}
+
+export function stopErrorRecording(): string[] {
+  const result = recordedErrors ?? []
+  recordedErrors = undefined
+  return result
+}
+
 export function toMapPosition(position: TilePosition): MapPosition {
   return { x: position.x + 0.5, y: position.y + 0.5 }
 }
@@ -538,6 +550,7 @@ export class RealErrorHandler implements ErrorHandler {
     private world: RealWorld,
   ) {}
   handleError(position: TilePosition, error: ActionError) {
+    recordedErrors?.push(`${position.x},${position.y}:${error}`)
     const entity = this.world.get(position)
     const entityName = entity?.name
     const mapPosition = toMapPosition(position)
