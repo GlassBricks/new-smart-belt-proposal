@@ -41,7 +41,6 @@ function getPlayerData(player: PlayerIndex): PlayerDragData {
 }
 script.on_event(defines.events.on_pre_build, (event: OnPreBuildEvent) => {
   const player = game.get_player(event.player_index)!
-  const surface = player.surface
   const stack = player.cursor_stack
   if (stack && stack.valid_for_read && stack.name.startsWith("smarter-")) {
     const data = getPlayerData(player.index)
@@ -108,6 +107,7 @@ function handlePlayerBuilt(
   if (!existingDrag) {
     const drag = LineDrag.startDrag(world, errHandler, tier, pos, direction)
     data.drag = drag
+    data.previousDirection = direction
   } else {
     if (data.previousDirection != direction) {
       world.isFirst = true
