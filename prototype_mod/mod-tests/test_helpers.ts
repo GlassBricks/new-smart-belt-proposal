@@ -95,8 +95,8 @@ export function runDragTest(
 
     const bounds = computeBounds(before, after, drag)
 
-    clearArea(surface)
-    resetTiles(surface)
+    clearArea(surface, bounds)
+    resetTiles(surface, bounds)
 
     player.get_main_inventory()?.clear()
 
@@ -157,31 +157,23 @@ function computeBounds(
     return { minX: minX - 2, minY: minY - 2, maxX: maxX + 3, maxY: maxY + 3 }
 }
 
-function clearArea(surface: LuaSurface): void {
-    const area = {
-        left_top: { x: OFFSET_X - TILE_CLEAR_RADIUS, y: OFFSET_Y - TILE_CLEAR_RADIUS },
-        right_bottom: { x: OFFSET_X + TILE_CLEAR_RADIUS, y: OFFSET_Y + TILE_CLEAR_RADIUS },
+function boundsToArea(b: Bounds) {
+    return {
+        left_top: { x: b.minX + OFFSET_X, y: b.minY + OFFSET_Y },
+        right_bottom: { x: b.maxX + OFFSET_X, y: b.maxY + OFFSET_Y },
     }
-    for (const entity of surface.find_entities(area)) {
+}
+
+function clearArea(surface: LuaSurface, bounds: Bounds): void {
+    for (const entity of surface.find_entities(boundsToArea(bounds))) {
         if (entity.type !== "character") {
             entity.destroy()
         }
     }
 }
 
-const TILE_CLEAR_RADIUS = 30
-
-function resetTiles(surface: LuaSurface): void {
-    const tiles: TileWrite[] = []
-    for (let x = -TILE_CLEAR_RADIUS; x < TILE_CLEAR_RADIUS; x++) {
-        for (let y = -TILE_CLEAR_RADIUS; y < TILE_CLEAR_RADIUS; y++) {
-            tiles.push({
-                name: "landfill",
-                position: { x: x + OFFSET_X, y: y + OFFSET_Y },
-            })
-        }
-    }
-    surface.set_tiles(tiles)
+function resetTiles(surface: LuaSurface, bounds: Bounds): void {
+    surface.build_checkerboard(boundsToArea(bounds))
 }
 
 function placeImpassableTiles(
