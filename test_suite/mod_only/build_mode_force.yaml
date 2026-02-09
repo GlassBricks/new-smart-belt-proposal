@@ -29,3 +29,19 @@
   after: |
     g:> d:> g:>
   not_reversible: true
+
+- name: Force mode trees deconstructed ghost belts placed
+  build_mode: force
+  before: |
+    Xa Xa Xa
+  after: |
+    g:> g:> g:>
+  not_reversible: true
+
+- name: Force mode obstacle creates ghost underground correct orientation
+  build_mode: force
+  before: |
+    _ _ _ X _ _
+  after: |
+    g:> g:> g:>i X g:>o g:> g:>
+  not_reversible: true

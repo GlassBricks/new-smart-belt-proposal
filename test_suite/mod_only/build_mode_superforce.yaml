@@ -6,10 +6,34 @@
     g:> g:> g:>
   not_reversible: true
 
-- name: Superforce perpendicular belt invisible
+- name: Superforce over same-axis belt used
   build_mode: superforce
   before: |
-    _ ^ _
+    _ > _
   after: |
     g:> > g:>
+  not_reversible: true
+
+- name: Superforce over backwards belt rotated
+  build_mode: superforce
+  before: |
+    _ < _
+  after: |
+    g:> > g:>
+  not_reversible: true
+
+- name: Superforce over other axis belt deconstructed
+  build_mode: superforce
+  before: |
+    _ v _
+  after: |
+    g:> g:> g:>
+  not_reversible: true
+
+- name: Superforce over underground belt deconstructed
+  build_mode: superforce
+  before: |
+    _ >i _
+  after: |
+    g:> g:> g:>
   not_reversible: true

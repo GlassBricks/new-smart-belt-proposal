@@ -36,8 +36,6 @@ import {
   type DragTestCase,
 } from "../ts-only/test_case"
 
-const SKIPPED_FILES = new Set<string>([])
-
 import type { SmartBeltBuildMode } from "../mod-scripts/build_mode"
 
 interface DragConfigLiteral {
@@ -392,17 +390,10 @@ function main() {
   }
 
   const yamlFiles = readdirSync(testSuiteDir, { withFileTypes: true })
-    .filter(
-      (entry) =>
-        entry.isFile() &&
-        entry.name.endsWith(".yaml") &&
-        !SKIPPED_FILES.has(entry.name),
-    )
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".yaml"))
     .map((entry) => entry.name)
 
-  console.log(
-    `Found ${yamlFiles.length} shared test files (skipping ${SKIPPED_FILES.size})`,
-  )
+  console.log(`Found ${yamlFiles.length} shared test files`)
 
   const moduleNames: string[] = []
   let totalTests = 0

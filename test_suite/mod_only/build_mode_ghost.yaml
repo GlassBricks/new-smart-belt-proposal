@@ -28,3 +28,19 @@
   after: |
     g:> d:> g:>
   not_reversible: true
+
+- name: Ghost mode over existing real belt same direction
+  build_mode: ghost
+  before: |
+    _ > _
+  after: |
+    g:> > g:>
+  not_reversible: true
+
+- name: Ghost mode obstacle creates ghost underground correct orientation
+  build_mode: ghost
+  before: |
+    _ _ X _ _
+  after: |
+    g:> g:>i X g:>o g:> g:>
+  not_reversible: true

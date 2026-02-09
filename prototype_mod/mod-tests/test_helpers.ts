@@ -592,7 +592,7 @@ function assertEntities(
     right_bottom: { x: b.maxX + OFFSET_X, y: b.maxY + OFFSET_Y },
   }
 
-  const actualBelts: ResolvedBelt[] = []
+  let actualBelts: ResolvedBelt[] = []
 
   const realEntities = surface.find_entities_filtered({
     area,
@@ -664,6 +664,16 @@ function assertEntities(
       })
     }
   }
+
+  const positionKey = (x: number, y: number) => `${x},${y}`
+  const ghostPositions = new Set(
+    actualBelts
+      .filter((b) => b.state === "ghost")
+      .map((b) => positionKey(b.x, b.y)),
+  )
+  actualBelts = actualBelts.filter(
+    (b) => b.state !== "deconstructed" || !ghostPositions.has(positionKey(b.x, b.y)),
+  )
 
   function sortKey(this: unknown, a: ResolvedBelt, b: ResolvedBelt) {
     if (a.x !== b.x) return a.x - b.x
