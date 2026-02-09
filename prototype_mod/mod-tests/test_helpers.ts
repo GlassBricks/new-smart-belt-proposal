@@ -9,6 +9,10 @@ import { BELT_TIERS } from "../common/belt_tiers"
 import { Direction, type TilePosition } from "../common/geometry"
 import type { TestEntity } from "../common/test_entity"
 import {
+    toFactorioBuildMode,
+    type SmartBeltBuildMode,
+} from "../mod-scripts/build_mode"
+import {
     startErrorRecording,
     stopErrorRecording,
     toTilePosition,
@@ -26,6 +30,7 @@ export interface DragConfig {
     leftmostX?: number
     leftmostY?: number
     variant?: "wiggle" | "mega_wiggle"
+    buildMode?: SmartBeltBuildMode
 }
 
 const OFFSET_X = 0
@@ -47,6 +52,13 @@ function entityName(entity: TestEntity): string {
             return "stone-wall"
         case "impassable":
             return "smarter-belt-impassable"
+        case "ghost-belt":
+        case "deconstructed-belt":
+            return BELT_TIERS[entity.tier - 1]!.beltName
+        case "ghost-underground-belt":
+            return BELT_TIERS[entity.tier - 1]!.undergroundName
+        case "tree":
+            return "tree-01"
     }
 }
 
@@ -219,7 +231,7 @@ function placeBeforeEntities(
                 name,
                 position: mapPos,
                 force: player.force,
-            } as SurfaceCreateEntity)
+            })
         } else if (entity.kind === "splitter") {
             const isVertical =
                 entity.direction === Direction.North ||
@@ -229,14 +241,14 @@ function placeBeforeEntities(
                 position: mapPos,
                 direction: toFacDir(entity.direction),
                 force: player.force,
-            } as SurfaceCreateEntity)
+            })
         } else if (entity.kind === "belt") {
             surface.create_entity({
                 name,
                 position: mapPos,
                 direction: toFacDir(entity.direction),
                 force: player.force,
-            } as SurfaceCreateEntity)
+            })
         } else if (entity.kind === "loader") {
             surface.create_entity({
                 name,
@@ -244,7 +256,7 @@ function placeBeforeEntities(
                 direction: toFacDir(entity.direction),
                 type: entity.ioType,
                 force: player.force,
-            } as SurfaceCreateEntity)
+            })
         } else if (entity.kind === "underground-belt") {
             surface.create_entity({
                 name,
@@ -252,7 +264,39 @@ function placeBeforeEntities(
                 direction: toFacDir(entity.direction),
                 type: entity.ioType,
                 force: player.force,
-            } as SurfaceCreateEntity)
+            })
+        } else if (entity.kind === "ghost-belt") {
+            surface.create_entity({
+                name: "entity-ghost",
+                inner_name: name,
+                position: mapPos,
+                direction: toFacDir(entity.direction),
+                force: player.force,
+            })
+        } else if (entity.kind === "ghost-underground-belt") {
+            surface.create_entity({
+                name: "entity-ghost",
+                inner_name: name,
+                position: mapPos,
+                direction: toFacDir(entity.direction),
+                type: entity.ioType,
+                force: player.force,
+            })
+        } else if (entity.kind === "deconstructed-belt") {
+            const placed = surface.create_entity({
+                name,
+                position: mapPos,
+                direction: toFacDir(entity.direction),
+                force: player.force,
+            })
+            if (placed) {
+                placed.order_deconstruction(player.force, player)
+            }
+        } else if (entity.kind === "tree") {
+            surface.create_entity({
+                name,
+                position: mapPos,
+            })
         }
     }
 }
@@ -274,6 +318,7 @@ function simulateDragEvents(
 
     const facDir = toFacDir(drag.direction)
     const smarterName = "smarter-" + drag.beltName
+    const buildMode = drag.buildMode ?? "real"
 
     const dx = Math.sign(drag.endX - drag.startX)
     const dy = Math.sign(drag.endY - drag.startY)
@@ -292,6 +337,7 @@ function simulateDragEvents(
             cy + OFFSET_Y + 0.5,
             facDir,
             !first,
+            buildMode,
         )
         first = false
         if (cx === drag.endX && cy === drag.endY) break
@@ -317,6 +363,7 @@ function simulateBackwardDragEvents(
 
     const facDir = toFacDir(drag.direction)
     const smarterName = "smarter-" + drag.beltName
+    const buildMode = drag.buildMode ?? "real"
 
     const leftmostX = drag.leftmostX ?? 0
     const leftmostY = drag.leftmostY ?? drag.startY
@@ -336,6 +383,7 @@ function simulateBackwardDragEvents(
             cy + OFFSET_Y + 0.5,
             facDir,
             true,
+            buildMode,
         )
         if (cx === leftmostX && cy === leftmostY) break
         cx += dx
@@ -360,6 +408,7 @@ function simulateWiggleDragEvents(
 
     const facDir = toFacDir(drag.direction)
     const smarterName = "smarter-" + drag.beltName
+    const buildMode = drag.buildMode ?? "real"
 
     const dx = Math.sign(drag.endX - drag.startX)
     const dy = Math.sign(drag.endY - drag.startY)
@@ -372,8 +421,16 @@ function simulateWiggleDragEvents(
     let cy = drag.startY
 
     fireSmartBeltEvent(
-        preBuildHandler, builtHandler, player, surface, smarterName,
-        cx + OFFSET_X + 0.5, cy + OFFSET_Y + 0.5, facDir, false,
+        preBuildHandler,
+        builtHandler,
+        player,
+        surface,
+        smarterName,
+        cx + OFFSET_X + 0.5,
+        cy + OFFSET_Y + 0.5,
+        facDir,
+        false,
+        buildMode,
     )
 
     function interpolateTo(tx: number, ty: number) {
@@ -383,8 +440,16 @@ function simulateWiggleDragEvents(
             cx += sdx
             cy += sdy
             fireSmartBeltEvent(
-                preBuildHandler, builtHandler, player, surface, smarterName,
-                cx + OFFSET_X + 0.5, cy + OFFSET_Y + 0.5, facDir, true,
+                preBuildHandler,
+                builtHandler,
+                player,
+                surface,
+                smarterName,
+                cx + OFFSET_X + 0.5,
+                cy + OFFSET_Y + 0.5,
+                facDir,
+                true,
+                buildMode,
             )
         }
     }
@@ -423,6 +488,7 @@ function simulateMegaWiggleDragEvents(
 
     const facDir = toFacDir(drag.direction)
     const smarterName = "smarter-" + drag.beltName
+    const buildMode = drag.buildMode ?? "real"
 
     const dx = Math.sign(drag.endX - drag.startX)
     const dy = Math.sign(drag.endY - drag.startY)
@@ -435,8 +501,16 @@ function simulateMegaWiggleDragEvents(
     let cy = drag.startY
 
     fireSmartBeltEvent(
-        preBuildHandler, builtHandler, player, surface, smarterName,
-        cx + OFFSET_X + 0.5, cy + OFFSET_Y + 0.5, facDir, false,
+        preBuildHandler,
+        builtHandler,
+        player,
+        surface,
+        smarterName,
+        cx + OFFSET_X + 0.5,
+        cy + OFFSET_Y + 0.5,
+        facDir,
+        false,
+        buildMode,
     )
 
     function interpolateTo(tx: number, ty: number) {
@@ -446,8 +520,16 @@ function simulateMegaWiggleDragEvents(
             cx += sdx
             cy += sdy
             fireSmartBeltEvent(
-                preBuildHandler, builtHandler, player, surface, smarterName,
-                cx + OFFSET_X + 0.5, cy + OFFSET_Y + 0.5, facDir, true,
+                preBuildHandler,
+                builtHandler,
+                player,
+                surface,
+                smarterName,
+                cx + OFFSET_X + 0.5,
+                cy + OFFSET_Y + 0.5,
+                facDir,
+                true,
+                buildMode,
             )
         }
     }
@@ -474,14 +556,16 @@ function fireSmartBeltEvent(
     mapY: number,
     facDir: defines.direction,
     createdByMoving: boolean,
+    buildMode: SmartBeltBuildMode,
 ): void {
     const position = { x: mapX, y: mapY }
+    const isGhostBuild = buildMode !== "real"
 
     preBuildHandler({
         player_index: player.index,
         position,
         direction: facDir,
-        build_mode: defines.build_mode.normal,
+        build_mode: toFactorioBuildMode(buildMode),
         created_by_moving: createdByMoving,
         shift_build: false,
         flip_horizontal: false,
@@ -490,12 +574,23 @@ function fireSmartBeltEvent(
         name: defines.events.on_pre_build,
     })
 
-    const entity = surface.create_entity({
-        name: smarterName,
-        position,
-        direction: facDir,
-        force: player.force,
-    } as SurfaceCreateEntity)
+    let entity
+    if (isGhostBuild) {
+        entity = surface.create_entity({
+            name: "entity-ghost",
+            inner_name: smarterName,
+            position,
+            direction: facDir,
+            force: player.force,
+        } as SurfaceCreateEntity)
+    } else {
+        entity = surface.create_entity({
+            name: smarterName,
+            position,
+            direction: facDir,
+            force: player.force,
+        } as SurfaceCreateEntity)
+    }
     if (!entity) {
         error(`Failed to create ${smarterName} at (${mapX}, ${mapY})`)
     }
@@ -508,6 +603,8 @@ function fireSmartBeltEvent(
     })
 }
 
+type EntityState = "real" | "ghost" | "deconstructed"
+
 interface ResolvedBelt {
     x: number
     y: number
@@ -515,16 +612,24 @@ interface ResolvedBelt {
     name: string
     direction: number
     ioType?: "input" | "output"
+    state: EntityState
 }
 
 function formatBelts(entities: ResolvedBelt[]): string {
     return entities
         .map((e) => {
-            let str = `  (${e.x},${e.y}) ${e.kind} ${e.name} dir=${e.direction}`
+            let str = `  (${e.x},${e.y}) ${e.state} ${e.kind} ${e.name} dir=${e.direction}`
             if (e.ioType) str += ` ioType=${e.ioType}`
             return str
         })
         .join("\n")
+}
+
+function testEntityToState(kind: TestEntity["kind"]): EntityState {
+    if (kind === "ghost-belt" || kind === "ghost-underground-belt")
+        return "ghost"
+    if (kind === "deconstructed-belt") return "deconstructed"
+    return "real"
 }
 
 function assertEntities(
@@ -534,15 +639,23 @@ function assertEntities(
 ): void {
     const expectedBelts: ResolvedBelt[] = []
     for (const [pos, entity] of expected) {
-        if (entity.kind === "belt") {
+        if (
+            entity.kind === "belt" ||
+            entity.kind === "ghost-belt" ||
+            entity.kind === "deconstructed-belt"
+        ) {
             expectedBelts.push({
                 x: pos.x,
                 y: pos.y,
                 kind: "belt",
                 name: entityName(entity),
                 direction: entity.direction,
+                state: testEntityToState(entity.kind),
             })
-        } else if (entity.kind === "underground-belt") {
+        } else if (
+            entity.kind === "underground-belt" ||
+            entity.kind === "ghost-underground-belt"
+        ) {
             expectedBelts.push({
                 x: pos.x,
                 y: pos.y,
@@ -550,24 +663,30 @@ function assertEntities(
                 name: entityName(entity),
                 direction: entity.direction,
                 ioType: entity.ioType,
+                state: testEntityToState(entity.kind),
             })
         }
     }
 
-    const actualLuaEntities = surface.find_entities_filtered({
-        area: {
-            left_top: { x: b.minX + OFFSET_X, y: b.minY + OFFSET_Y },
-            right_bottom: { x: b.maxX + OFFSET_X, y: b.maxY + OFFSET_Y },
-        },
-        type: ["transport-belt", "underground-belt"],
-    })
+    const area = {
+        left_top: { x: b.minX + OFFSET_X, y: b.minY + OFFSET_Y },
+        right_bottom: { x: b.maxX + OFFSET_X, y: b.maxY + OFFSET_Y },
+    }
 
     const actualBelts: ResolvedBelt[] = []
-    for (const luaEntity of actualLuaEntities) {
+
+    const realEntities = surface.find_entities_filtered({
+        area,
+        type: ["transport-belt", "underground-belt"],
+    })
+    for (const luaEntity of realEntities) {
         const tilePos = toTilePosition(luaEntity.position)
         const x = tilePos.x - OFFSET_X
         const y = tilePos.y - OFFSET_Y
         const dir = translateDirection(luaEntity.direction) as number
+        const state: EntityState = luaEntity.to_be_deconstructed()
+            ? "deconstructed"
+            : "real"
 
         if (luaEntity.type === "transport-belt") {
             actualBelts.push({
@@ -576,6 +695,7 @@ function assertEntities(
                 kind: "belt",
                 name: luaEntity.name,
                 direction: dir,
+                state,
             })
         } else if (luaEntity.type === "underground-belt") {
             actualBelts.push({
@@ -585,12 +705,55 @@ function assertEntities(
                 name: luaEntity.name,
                 direction: dir,
                 ioType: luaEntity.belt_to_ground_type as "input" | "output",
+                state,
+            })
+        }
+    }
+
+    const ghostEntities = surface.find_entities_filtered({
+        area,
+        type: "entity-ghost",
+    })
+    for (const luaEntity of ghostEntities) {
+        const ghostType = luaEntity.ghost_type
+        if (
+            ghostType !== "transport-belt" &&
+            ghostType !== "underground-belt"
+        ) {
+            continue
+        }
+        const tilePos = toTilePosition(luaEntity.position)
+        const x = tilePos.x - OFFSET_X
+        const y = tilePos.y - OFFSET_Y
+        const dir = translateDirection(luaEntity.direction) as number
+
+        if (ghostType === "transport-belt") {
+            actualBelts.push({
+                x,
+                y,
+                kind: "belt",
+                name: luaEntity.ghost_name,
+                direction: dir,
+                state: "ghost",
+            })
+        } else {
+            actualBelts.push({
+                x,
+                y,
+                kind: "underground-belt",
+                name: luaEntity.ghost_name,
+                direction: dir,
+                ioType: luaEntity.belt_to_ground_type as "input" | "output",
+                state: "ghost",
             })
         }
     }
 
     function sortKey(this: unknown, a: ResolvedBelt, b: ResolvedBelt) {
-        return a.x !== b.x ? a.x - b.x : a.y - b.y
+        if (a.x !== b.x) return a.x - b.x
+        if (a.y !== b.y) return a.y - b.y
+        if (a.state !== b.state) return a.state < b.state ? -1 : 1
+        return 0
     }
     expectedBelts.sort(sortKey)
     actualBelts.sort(sortKey)
@@ -611,12 +774,13 @@ function assertEntities(
             exp.kind !== act.kind ||
             exp.name !== act.name ||
             exp.direction !== act.direction ||
-            exp.ioType !== act.ioType
+            exp.ioType !== act.ioType ||
+            exp.state !== act.state
         ) {
             error(
                 `Entity mismatch at index ${i}:\n` +
-                    `  Expected: (${exp.x},${exp.y}) ${exp.kind} ${exp.name} dir=${exp.direction}${exp.ioType ? ` ioType=${exp.ioType}` : ""}\n` +
-                    `  Actual:   (${act.x},${act.y}) ${act.kind} ${act.name} dir=${act.direction}${act.ioType ? ` ioType=${act.ioType}` : ""}\n\n` +
+                    `  Expected: (${exp.x},${exp.y}) ${exp.state} ${exp.kind} ${exp.name} dir=${exp.direction}${exp.ioType ? ` ioType=${exp.ioType}` : ""}\n` +
+                    `  Actual:   (${act.x},${act.y}) ${act.state} ${act.kind} ${act.name} dir=${act.direction}${act.ioType ? ` ioType=${act.ioType}` : ""}\n\n` +
                     `All expected:\n${formatBelts(expectedBelts)}\nAll actual:\n${formatBelts(actualBelts)}`,
             )
         }

@@ -1,0 +1,35 @@
+- name: Ghost belt survives unrelated drag
+  before: |
+    *_ _
+    g:> _
+  after: |
+    > >
+    g:> _
+  not_reversible: true
+
+- name: Ghost underground belt survives unrelated drag
+  before: |
+    *_ _
+    g:>i _
+  after: |
+    > >
+    g:>i _
+  not_reversible: true
+
+- name: Deconstructed belt survives unrelated drag
+  before: |
+    *_ _
+    d:> _
+  after: |
+    > >
+    d:> _
+  not_reversible: true
+
+- name: Tree placement does not crash
+  before: |
+    *_ _
+    Xa _
+  after: |
+    > >
+    _ _
+  not_reversible: true

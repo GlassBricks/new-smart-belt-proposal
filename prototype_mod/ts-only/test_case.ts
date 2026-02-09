@@ -128,8 +128,20 @@ function parseWord(input: string): TestEntity | undefined {
   if (input === "#") {
     return { kind: "impassable" }
   }
+  if (input === "Xa") {
+    return { kind: "tree" }
+  }
 
   let i = 0
+
+  let prefix: "ghost" | "deconstructed" | undefined
+  if (input.startsWith("g:")) {
+    prefix = "ghost"
+    i = 2
+  } else if (input.startsWith("d:")) {
+    prefix = "deconstructed"
+    i = 2
+  }
 
   let tierNum = 1
   if (i < input.length && input[i]! >= "1" && input[i]! <= "9") {
@@ -152,6 +164,40 @@ function parseWord(input: string): TestEntity | undefined {
   i++
 
   const typeChar = i < input.length ? input[i] : undefined
+
+  if (prefix === "ghost") {
+    switch (typeChar) {
+      case undefined:
+      case "b":
+        return { kind: "ghost-belt", direction, tier: tierNum }
+      case "i":
+        return {
+          kind: "ghost-underground-belt",
+          direction,
+          tier: tierNum,
+          ioType: "input",
+        }
+      case "o":
+        return {
+          kind: "ghost-underground-belt",
+          direction,
+          tier: tierNum,
+          ioType: "output",
+        }
+      default:
+        throw new Error(`Invalid ghost entity type: ${typeChar}`)
+    }
+  }
+
+  if (prefix === "deconstructed") {
+    switch (typeChar) {
+      case undefined:
+      case "b":
+        return { kind: "deconstructed-belt", direction, tier: tierNum }
+      default:
+        throw new Error(`Invalid deconstructed entity type: ${typeChar}`)
+    }
+  }
 
   switch (typeChar) {
     case undefined:
@@ -182,7 +228,7 @@ function parseWord(input: string): TestEntity | undefined {
   }
 }
 
-export function toBeltCollider(entity: TestEntity): BeltCollider {
+export function toBeltCollider(entity: TestEntity): BeltCollider | undefined {
   switch (entity.kind) {
     case "belt":
       return new Belt(entity.direction, BELT_TIERS[entity.tier - 1]!)
@@ -207,6 +253,11 @@ export function toBeltCollider(entity: TestEntity): BeltCollider {
       return new CollidingEntityOrTile("X")
     case "impassable":
       return new ImpassableTile("#")
+    case "ghost-belt":
+    case "ghost-underground-belt":
+    case "deconstructed-belt":
+    case "tree":
+      return undefined
   }
 }
 
@@ -215,7 +266,10 @@ export function toSimulatedWorld(
 ): SimulatedWorld {
   const world = new SimulatedWorld()
   for (const [position, entity] of entities) {
-    world.set(position, toBeltCollider(entity))
+    const collider = toBeltCollider(entity)
+    if (collider) {
+      world.set(position, collider)
+    }
   }
   return world
 }
@@ -314,6 +368,23 @@ function printEntity(entity: TestEntity): string {
       return "X"
     case "impassable":
       return "#"
+    case "ghost-belt": {
+      const dirChar = directionToChar(entity.direction)
+      return entity.tier === 1 ? `g:${dirChar}` : `g:${entity.tier}${dirChar}`
+    }
+    case "ghost-underground-belt": {
+      const dirChar = directionToChar(entity.direction)
+      const typeChar = entity.ioType === "input" ? "i" : "o"
+      return entity.tier === 1
+        ? `g:${dirChar}${typeChar}`
+        : `g:${entity.tier}${dirChar}${typeChar}`
+    }
+    case "deconstructed-belt": {
+      const dirChar = directionToChar(entity.direction)
+      return entity.tier === 1 ? `d:${dirChar}` : `d:${entity.tier}${dirChar}`
+    }
+    case "tree":
+      return "Xa"
   }
 }
 
@@ -385,7 +456,11 @@ export function parseTestCase(yamlContent: string): DragTestCase {
 function isBeltLikeEntity(
   entity: TestEntity,
 ): entity is Extract<TestEntity, { direction: Direction }> {
-  return entity.kind !== "obstacle" && entity.kind !== "impassable"
+  return (
+    entity.kind !== "obstacle" &&
+    entity.kind !== "impassable" &&
+    entity.kind !== "tree"
+  )
 }
 
 function getEntities(serde: TestCaseSerialized): TestCaseEntities {
