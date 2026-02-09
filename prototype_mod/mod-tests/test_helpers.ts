@@ -1,10 +1,4 @@
-import {
-    LuaPlayer,
-    LuaSurface,
-    PlayerIndex,
-    SurfaceCreateEntity,
-    TileWrite,
-} from "factorio:runtime"
+import { LuaPlayer, LuaSurface, PlayerIndex, TileWrite } from "factorio:runtime"
 import { BELT_TIERS } from "../common/belt_tiers"
 import { Direction, type TilePosition } from "../common/geometry"
 import type { TestEntity } from "../common/test_entity"
@@ -130,13 +124,13 @@ export function runDragTest(
     startErrorRecording()
 
     if (drag.variant === "wiggle") {
-        simulateWiggleDragEvents(player, surface, drag)
+        simulateWiggleDragEvents(player, drag)
     } else if (drag.variant === "mega_wiggle") {
-        simulateMegaWiggleDragEvents(player, surface, drag)
+        simulateMegaWiggleDragEvents(player, drag)
     } else {
-        simulateDragEvents(player, surface, drag)
+        simulateDragEvents(player, drag)
         if (drag.forwardBack) {
-            simulateBackwardDragEvents(player, surface, drag)
+            simulateBackwardDragEvents(player, drag)
         }
     }
     player.clear_cursor()
@@ -301,21 +295,7 @@ function placeBeforeEntities(
     }
 }
 
-function simulateDragEvents(
-    player: LuaPlayer,
-    surface: LuaSurface,
-    drag: DragConfig,
-): void {
-    const preBuildHandler = script.get_event_handler(
-        defines.events.on_pre_build,
-    )
-    const builtHandler = script.get_event_handler(
-        defines.events.on_built_entity,
-    )
-    if (!preBuildHandler || !builtHandler) {
-        error("Smarter belt event handlers not registered")
-    }
-
+function simulateDragEvents(player: LuaPlayer, drag: DragConfig): void {
     const facDir = toFacDir(drag.direction)
     const smarterName = "smarter-" + drag.beltName
     const buildMode = drag.buildMode ?? "real"
@@ -328,13 +308,9 @@ function simulateDragEvents(
 
     while (true) {
         fireSmartBeltEvent(
-            preBuildHandler,
-            builtHandler,
             player,
-            surface,
             smarterName,
-            cx + OFFSET_X + 0.5,
-            cy + OFFSET_Y + 0.5,
+            { x: cx + OFFSET_X + 0.5, y: cy + OFFSET_Y + 0.5 },
             facDir,
             !first,
             buildMode,
@@ -346,21 +322,7 @@ function simulateDragEvents(
     }
 }
 
-function simulateBackwardDragEvents(
-    player: LuaPlayer,
-    surface: LuaSurface,
-    drag: DragConfig,
-): void {
-    const preBuildHandler = script.get_event_handler(
-        defines.events.on_pre_build,
-    )
-    const builtHandler = script.get_event_handler(
-        defines.events.on_built_entity,
-    )
-    if (!preBuildHandler || !builtHandler) {
-        error("Smarter belt event handlers not registered")
-    }
-
+function simulateBackwardDragEvents(player: LuaPlayer, drag: DragConfig): void {
     const facDir = toFacDir(drag.direction)
     const smarterName = "smarter-" + drag.beltName
     const buildMode = drag.buildMode ?? "real"
@@ -374,13 +336,9 @@ function simulateBackwardDragEvents(
 
     while (true) {
         fireSmartBeltEvent(
-            preBuildHandler,
-            builtHandler,
             player,
-            surface,
             smarterName,
-            cx + OFFSET_X + 0.5,
-            cy + OFFSET_Y + 0.5,
+            { x: cx + OFFSET_X + 0.5, y: cy + OFFSET_Y + 0.5 },
             facDir,
             true,
             buildMode,
@@ -391,21 +349,7 @@ function simulateBackwardDragEvents(
     }
 }
 
-function simulateWiggleDragEvents(
-    player: LuaPlayer,
-    surface: LuaSurface,
-    drag: DragConfig,
-): void {
-    const preBuildHandler = script.get_event_handler(
-        defines.events.on_pre_build,
-    )
-    const builtHandler = script.get_event_handler(
-        defines.events.on_built_entity,
-    )
-    if (!preBuildHandler || !builtHandler) {
-        error("Smarter belt event handlers not registered")
-    }
-
+function simulateWiggleDragEvents(player: LuaPlayer, drag: DragConfig): void {
     const facDir = toFacDir(drag.direction)
     const smarterName = "smarter-" + drag.beltName
     const buildMode = drag.buildMode ?? "real"
@@ -421,13 +365,9 @@ function simulateWiggleDragEvents(
     let cy = drag.startY
 
     fireSmartBeltEvent(
-        preBuildHandler,
-        builtHandler,
         player,
-        surface,
         smarterName,
-        cx + OFFSET_X + 0.5,
-        cy + OFFSET_Y + 0.5,
+        { x: cx + OFFSET_X + 0.5, y: cy + OFFSET_Y + 0.5 },
         facDir,
         false,
         buildMode,
@@ -440,13 +380,9 @@ function simulateWiggleDragEvents(
             cx += sdx
             cy += sdy
             fireSmartBeltEvent(
-                preBuildHandler,
-                builtHandler,
                 player,
-                surface,
                 smarterName,
-                cx + OFFSET_X + 0.5,
-                cy + OFFSET_Y + 0.5,
+                { x: cx + OFFSET_X + 0.5, y: cy + OFFSET_Y + 0.5 },
                 facDir,
                 true,
                 buildMode,
@@ -473,19 +409,8 @@ function simulateWiggleDragEvents(
 
 function simulateMegaWiggleDragEvents(
     player: LuaPlayer,
-    surface: LuaSurface,
     drag: DragConfig,
 ): void {
-    const preBuildHandler = script.get_event_handler(
-        defines.events.on_pre_build,
-    )
-    const builtHandler = script.get_event_handler(
-        defines.events.on_built_entity,
-    )
-    if (!preBuildHandler || !builtHandler) {
-        error("Smarter belt event handlers not registered")
-    }
-
     const facDir = toFacDir(drag.direction)
     const smarterName = "smarter-" + drag.beltName
     const buildMode = drag.buildMode ?? "real"
@@ -501,13 +426,9 @@ function simulateMegaWiggleDragEvents(
     let cy = drag.startY
 
     fireSmartBeltEvent(
-        preBuildHandler,
-        builtHandler,
         player,
-        surface,
         smarterName,
-        cx + OFFSET_X + 0.5,
-        cy + OFFSET_Y + 0.5,
+        { x: cx + OFFSET_X + 0.5, y: cy + OFFSET_Y + 0.5 },
         facDir,
         false,
         buildMode,
@@ -520,13 +441,9 @@ function simulateMegaWiggleDragEvents(
             cx += sdx
             cy += sdy
             fireSmartBeltEvent(
-                preBuildHandler,
-                builtHandler,
                 player,
-                surface,
                 smarterName,
-                cx + OFFSET_X + 0.5,
-                cy + OFFSET_Y + 0.5,
+                { x: cx + OFFSET_X + 0.5, y: cy + OFFSET_Y + 0.5 },
                 facDir,
                 true,
                 buildMode,
@@ -547,18 +464,24 @@ function simulateMegaWiggleDragEvents(
 }
 
 function fireSmartBeltEvent(
-    preBuildHandler: (event: any) => void,
-    builtHandler: (event: any) => void,
     player: LuaPlayer,
-    surface: LuaSurface,
     smarterName: string,
-    mapX: number,
-    mapY: number,
+    position: { x: number; y: number },
     facDir: defines.direction,
     createdByMoving: boolean,
     buildMode: SmartBeltBuildMode,
 ): void {
-    const position = { x: mapX, y: mapY }
+    const preBuildHandler = script.get_event_handler(
+        defines.events.on_pre_build,
+    )
+    const builtHandler = script.get_event_handler(
+        defines.events.on_built_entity,
+    )
+    if (!preBuildHandler || !builtHandler) {
+        error("Smarter belt event handlers not registered")
+    }
+
+    const surface = player.surface
     const isGhostBuild = buildMode !== "real"
 
     preBuildHandler({
@@ -567,7 +490,7 @@ function fireSmartBeltEvent(
         direction: facDir,
         build_mode: toFactorioBuildMode(buildMode),
         created_by_moving: createdByMoving,
-        shift_build: false,
+        mirror: false,
         flip_horizontal: false,
         flip_vertical: false,
         tick: game.tick,
@@ -582,17 +505,19 @@ function fireSmartBeltEvent(
             position,
             direction: facDir,
             force: player.force,
-        } as SurfaceCreateEntity)
+        })
     } else {
         entity = surface.create_entity({
             name: smarterName,
             position,
             direction: facDir,
             force: player.force,
-        } as SurfaceCreateEntity)
+        })
     }
     if (!entity) {
-        error(`Failed to create ${smarterName} at (${mapX}, ${mapY})`)
+        error(
+            `Failed to create ${smarterName} at (${position.x}, ${position.y})`,
+        )
     }
 
     builtHandler({
@@ -600,6 +525,7 @@ function fireSmartBeltEvent(
         player_index: player.index,
         tick: game.tick,
         name: defines.events.on_built_entity,
+        consumed_items: undefined!,
     })
 }
 
