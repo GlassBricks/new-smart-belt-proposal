@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { UndergroundBelt } from "../common/belts"
 import { Direction } from "../common/geometry"
-import { RED_BELT, YELLOW_BELT } from "./belt_tiers"
+import { RED_BELT, YELLOW_BELT } from "../common/belt_tiers"
 
 describe("belts", () => {
   describe("UndergroundBelt", () => {

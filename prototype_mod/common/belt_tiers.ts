@@ -1,4 +1,5 @@
-import type { BeltTier } from "../common/belts"
+import type { BeltTier } from "./belts"
+
 export const YELLOW_BELT: BeltTier = {
   beltName: "transport-belt",
   undergroundName: "underground-belt",

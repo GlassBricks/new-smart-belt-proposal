@@ -3,7 +3,7 @@ import { beltCurvedInputDirection } from "../common/belt_curving"
 import { Belt, Splitter, UndergroundBelt } from "../common/belts"
 import { Direction, pos } from "../common/geometry"
 import { WorldOps } from "../common/world"
-import { BLUE_BELT, RED_BELT, YELLOW_BELT } from "./belt_tiers"
+import { BLUE_BELT, RED_BELT, YELLOW_BELT } from "../common/belt_tiers"
 import { SimulatedWorld } from "./simulated_world"
 import { createTransform } from "./test-utils"
 

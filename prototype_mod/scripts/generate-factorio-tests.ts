@@ -9,6 +9,7 @@ import {
 } from "fs"
 import * as yaml from "js-yaml"
 import { join } from "path"
+import { BELT_TIERS } from "../common/belt_tiers"
 import {
     Belt,
     CollidingEntityOrTile,
@@ -18,7 +19,12 @@ import {
     UndergroundBelt,
     type BeltCollider,
 } from "../common/belts"
-import { oppositeDirection, type TilePosition } from "../common/geometry"
+import {
+    Direction,
+    oppositeDirection,
+    type TilePosition,
+} from "../common/geometry"
+import type { TestEntity } from "../common/test_entity"
 import {
     getTestVariants,
     loadTestCasesFromYaml,
@@ -29,21 +35,12 @@ import { parseTestCase, type DragTestCase } from "../ts-only/test_case"
 
 const SKIPPED_FILES = new Set<string>([])
 
-interface EntityDataLiteral {
-    x: number
-    y: number
-    kind: string
-    name: string
-    direction: number
-    ioType?: "input" | "output"
-}
-
 interface DragConfigLiteral {
     startX: number
     startY: number
     endX: number
     endY: number
-    direction: number
+    direction: Direction
     beltName: string
     forwardBack?: boolean
     leftmostX?: number
@@ -51,74 +48,97 @@ interface DragConfigLiteral {
     variant?: "wiggle" | "mega_wiggle"
 }
 
-function worldToEntityData(
-    entities: IterableIterator<[TilePosition, BeltCollider]>,
-): EntityDataLiteral[] {
-    const result: EntityDataLiteral[] = []
-    for (const [pos, entity] of entities) {
-        if (entity instanceof Belt) {
-            result.push({
-                x: pos.x,
-                y: pos.y,
-                kind: "belt",
-                name: entity.tier.beltName,
-                direction: entity.direction,
-            })
-        } else if (entity instanceof UndergroundBelt) {
-            result.push({
-                x: pos.x,
-                y: pos.y,
-                kind: "underground-belt",
-                name: entity.tier.undergroundName,
-                direction: entity.direction,
-                ioType: entity.isInput ? "input" : "output",
-            })
-        } else if (entity instanceof CollidingEntityOrTile) {
-            result.push({
-                x: pos.x,
-                y: pos.y,
-                kind: "obstacle",
-                name: "stone-wall",
-                direction: 0,
-            })
-        } else if (entity instanceof ImpassableTile) {
-            result.push({
-                x: pos.x,
-                y: pos.y,
-                kind: "impassable",
-                name: "smarter-belt-impassable",
-                direction: 0,
-            })
-        } else if (entity instanceof Splitter) {
-            result.push({
-                x: pos.x,
-                y: pos.y,
-                kind: "splitter",
-                name: entity.name,
-                direction: entity.direction,
-            })
-        } else if (entity instanceof LoaderLike) {
-            result.push({
-                x: pos.x,
-                y: pos.y,
-                kind: "loader",
-                name: "loader-1x1",
-                direction: entity.direction,
-                ioType: entity.isInput ? "input" : "output",
-            })
+interface EntityWithPos {
+    pos: TilePosition
+    entity: TestEntity
+}
+
+function beltColliderToTestEntity(collider: BeltCollider): TestEntity {
+    if (collider instanceof Belt) {
+        return {
+            kind: "belt",
+            direction: collider.direction,
+            tier: BELT_TIERS.indexOf(collider.tier) + 1,
         }
+    }
+    if (collider instanceof UndergroundBelt) {
+        return {
+            kind: "underground-belt",
+            direction: collider.direction,
+            tier: BELT_TIERS.indexOf(collider.tier) + 1,
+            ioType: collider.isInput ? "input" : "output",
+        }
+    }
+    if (collider instanceof Splitter) {
+        return {
+            kind: "splitter",
+            direction: collider.direction,
+            tier:
+                BELT_TIERS.findIndex(
+                    (t) => t.splitterName === collider.name,
+                ) + 1,
+        }
+    }
+    if (collider instanceof LoaderLike) {
+        return {
+            kind: "loader",
+            direction: collider.direction,
+            tier:
+                BELT_TIERS.findIndex(
+                    (t) => collider.name === t.beltName + "-loader",
+                ) + 1,
+            ioType: collider.isInput ? "input" : "output",
+        }
+    }
+    if (collider instanceof CollidingEntityOrTile) {
+        return { kind: "obstacle" }
+    }
+    return { kind: "impassable" }
+}
+
+function worldToEntities(
+    entries: IterableIterator<[TilePosition, BeltCollider]>,
+): EntityWithPos[] {
+    const result: EntityWithPos[] = []
+    for (const [pos, collider] of entries) {
+        result.push({ pos, entity: beltColliderToTestEntity(collider) })
     }
     return result
 }
 
-function entityDataToCode(entities: EntityDataLiteral[]): string {
+function directionName(dir: Direction): string {
+    switch (dir) {
+        case Direction.North:
+            return "Direction.North"
+        case Direction.East:
+            return "Direction.East"
+        case Direction.South:
+            return "Direction.South"
+        case Direction.West:
+            return "Direction.West"
+    }
+}
+
+function entityTupleToCode(pos: TilePosition, entity: TestEntity): string {
+    switch (entity.kind) {
+        case "belt":
+            return `[{ x: ${pos.x}, y: ${pos.y} }, { kind: "belt", direction: ${directionName(entity.direction)}, tier: ${entity.tier} }]`
+        case "underground-belt":
+            return `[{ x: ${pos.x}, y: ${pos.y} }, { kind: "underground-belt", direction: ${directionName(entity.direction)}, tier: ${entity.tier}, ioType: "${entity.ioType}" }]`
+        case "splitter":
+            return `[{ x: ${pos.x}, y: ${pos.y} }, { kind: "splitter", direction: ${directionName(entity.direction)}, tier: ${entity.tier} }]`
+        case "loader":
+            return `[{ x: ${pos.x}, y: ${pos.y} }, { kind: "loader", direction: ${directionName(entity.direction)}, tier: ${entity.tier}, ioType: "${entity.ioType}" }]`
+        case "obstacle":
+            return `[{ x: ${pos.x}, y: ${pos.y} }, { kind: "obstacle" }]`
+        case "impassable":
+            return `[{ x: ${pos.x}, y: ${pos.y} }, { kind: "impassable" }]`
+    }
+}
+
+function entitiesToCode(entities: EntityWithPos[]): string {
     if (entities.length === 0) return "[]"
-    const items = entities.map((e) => {
-        let code = `{ x: ${e.x}, y: ${e.y}, kind: "${e.kind}", name: "${e.name}", direction: ${e.direction}`
-        if (e.ioType) code += `, ioType: "${e.ioType}"`
-        code += ` }`
-        return code
-    })
+    const items = entities.map((e) => entityTupleToCode(e.pos, e.entity))
     return `[\n        ${items.join(",\n        ")},\n      ]`
 }
 
@@ -129,7 +149,7 @@ function errorsToCode(errors: string[]): string {
 }
 
 function dragConfigToCode(drag: DragConfigLiteral): string {
-    let code = `{ startX: ${drag.startX}, startY: ${drag.startY}, endX: ${drag.endX}, endY: ${drag.endY}, direction: ${drag.direction}, beltName: "${drag.beltName}"`
+    let code = `{ startX: ${drag.startX}, startY: ${drag.startY}, endX: ${drag.endX}, endY: ${drag.endY}, direction: ${directionName(drag.direction)}, beltName: "${drag.beltName}"`
     if (drag.forwardBack) {
         code += `, forwardBack: true, leftmostX: ${drag.leftmostX}, leftmostY: ${drag.leftmostY}`
     }
@@ -162,19 +182,19 @@ function generateTestFile(
         }
 
         const { entities, forwardBack, notReversible, afterForReverse } = parsed
-        const beforeData = worldToEntityData(entities.before.getEntities())
-        const afterData = worldToEntityData(entities.after.getEntities())
+        const beforeData = worldToEntities(entities.before.getEntities())
+        const afterData = worldToEntities(entities.after.getEntities())
         const expectedErrors = Array.from(entities.expectedErrors).sort()
 
-        let reverseBeforeData: EntityDataLiteral[] | undefined
-        let reverseAfterData: EntityDataLiteral[] | undefined
+        let reverseBeforeData: EntityWithPos[] | undefined
+        let reverseAfterData: EntityWithPos[] | undefined
         if (!notReversible) {
             const flippedBefore = entities.before.flipAllEntities()
             const flippedAfter = (
                 afterForReverse || entities.after
             ).flipAllEntities()
-            reverseBeforeData = worldToEntityData(flippedBefore.getEntities())
-            reverseAfterData = worldToEntityData(flippedAfter.getEntities())
+            reverseBeforeData = worldToEntities(flippedBefore.getEntities())
+            reverseAfterData = worldToEntities(flippedAfter.getEntities())
         }
 
         const variants = getTestVariants({
@@ -216,8 +236,8 @@ function generateTestFile(
             tests.push(
                 `  test("${variantName}", () => {\n` +
                     `    runDragTest(\n` +
-                    `      ${entityDataToCode(bd)},\n` +
-                    `      ${entityDataToCode(ad)},\n` +
+                    `      ${entitiesToCode(bd)},\n` +
+                    `      ${entitiesToCode(ad)},\n` +
                     `      ${dragConfigToCode(dragData)},\n` +
                     `      ${errorsToCode(expectedErrors)},\n` +
                     `    )\n` +
@@ -229,7 +249,7 @@ function generateTestFile(
     if (tests.length === 0) return undefined
 
     return (
-        `import { runDragTest } from "../test_helpers"\n\n` +
+        `import { Direction } from "../../common/geometry"\nimport { runDragTest } from "../test_helpers"\n\n` +
         `describe("${fileStem}", () => {\n` +
         tests.join("\n\n") +
         `\n})\n`

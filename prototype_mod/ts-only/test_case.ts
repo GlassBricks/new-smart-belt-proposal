@@ -27,7 +27,9 @@ import {
   type ActionError,
   type ErrorHandler,
 } from "../common/smart_belt/index"
-import { BELT_TIERS } from "./belt_tiers"
+import { BELT_TIERS } from "../common/belt_tiers"
+export type { TestEntity } from "../common/test_entity"
+import type { TestEntity } from "../common/test_entity"
 import { SimulatedWorld } from "./simulated_world"
 import {
   allUniqueTransforms,
@@ -35,24 +37,6 @@ import {
   transformPosition,
   type Transform,
 } from "./test-utils"
-
-export type TestEntity =
-  | { kind: "belt"; direction: Direction; tier: number }
-  | {
-      kind: "underground-belt"
-      direction: Direction
-      tier: number
-      ioType: "input" | "output"
-    }
-  | { kind: "splitter"; direction: Direction; tier: number }
-  | {
-      kind: "loader"
-      direction: Direction
-      tier: number
-      ioType: "input" | "output"
-    }
-  | { kind: "obstacle" }
-  | { kind: "impassable" }
 
 export enum TestVariant {
   Normal,

@@ -21,7 +21,7 @@ import {
   type BeltCollider,
 } from "../common/belts"
 import { Direction, type TilePosition } from "../common/geometry"
-import { BELT_TIERS } from "../ts-only/belt_tiers"
+import { BELT_TIERS } from "../common/belt_tiers"
 import { SimulatedWorld } from "../ts-only/simulated_world"
 import { loadTestCasesFromYaml } from "../ts-only/test-utils"
 import { flipTestCase, parseTestCase } from "../ts-only/test_case"

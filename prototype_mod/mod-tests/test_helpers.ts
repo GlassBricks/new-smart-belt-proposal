@@ -5,28 +5,15 @@ import {
     SurfaceCreateEntity,
     TileWrite,
 } from "factorio:runtime"
-import { Direction } from "../common/geometry"
+import { BELT_TIERS } from "../common/belt_tiers"
+import { Direction, type TilePosition } from "../common/geometry"
+import type { TestEntity } from "../common/test_entity"
 import {
     startErrorRecording,
     stopErrorRecording,
     toTilePosition,
     translateDirection,
 } from "../mod-scripts/real_world"
-
-export interface EntityData {
-    x: number
-    y: number
-    kind:
-        | "belt"
-        | "underground-belt"
-        | "obstacle"
-        | "impassable"
-        | "splitter"
-        | "loader"
-    name: string
-    direction: number
-    ioType?: "input" | "output"
-}
 
 export interface DragConfig {
     startX: number
@@ -45,6 +32,23 @@ const OFFSET_X = 0
 const OFFSET_Y = 0
 
 declare const storage: { players: Record<number, object> }
+
+function entityName(entity: TestEntity): string {
+    switch (entity.kind) {
+        case "belt":
+            return BELT_TIERS[entity.tier - 1]!.beltName
+        case "underground-belt":
+            return BELT_TIERS[entity.tier - 1]!.undergroundName
+        case "splitter":
+            return BELT_TIERS[entity.tier - 1]!.splitterName!
+        case "loader":
+            return "loader-1x1"
+        case "obstacle":
+            return "stone-wall"
+        case "impassable":
+            return "smarter-belt-impassable"
+    }
+}
 
 function resetPlayerDragState(player: LuaPlayer): void {
     storage.players ??= {} as any
@@ -81,19 +85,9 @@ function dirVecFromDirection(direction: number): { dx: number; dy: number } {
     }
 }
 
-function formatEntities(entities: EntityData[]): string {
-    return entities
-        .map((e) => {
-            let str = `  (${e.x},${e.y}) ${e.kind} ${e.name} dir=${e.direction}`
-            if (e.ioType) str += ` ioType=${e.ioType}`
-            return str
-        })
-        .join("\n")
-}
-
 export function runDragTest(
-    before: EntityData[],
-    after: EntityData[],
+    before: [TilePosition, TestEntity][],
+    after: [TilePosition, TestEntity][],
     drag: DragConfig,
     expectedErrors: string[] = [],
 ): void {
@@ -149,8 +143,8 @@ interface Bounds {
 }
 
 function computeBounds(
-    before: EntityData[],
-    after: EntityData[],
+    before: [TilePosition, TestEntity][],
+    after: [TilePosition, TestEntity][],
     drag: DragConfig,
 ): Bounds {
     let minX = Math.min(drag.startX, drag.endX)
@@ -163,11 +157,11 @@ function computeBounds(
     if (drag.forwardBack && drag.leftmostY !== undefined) {
         minY = Math.min(minY, drag.leftmostY)
     }
-    for (const e of [...before, ...after]) {
-        minX = Math.min(minX, e.x)
-        maxX = Math.max(maxX, e.x)
-        minY = Math.min(minY, e.y)
-        maxY = Math.max(maxY, e.y)
+    for (const [pos] of [...before, ...after]) {
+        minX = Math.min(minX, pos.x)
+        maxX = Math.max(maxX, pos.x)
+        minY = Math.min(minY, pos.y)
+        maxY = Math.max(maxY, pos.y)
     }
     return { minX: minX - 2, minY: minY - 2, maxX: maxX + 3, maxY: maxY + 3 }
 }
@@ -193,14 +187,14 @@ function resetTiles(surface: LuaSurface, bounds: Bounds): void {
 
 function placeImpassableTiles(
     surface: LuaSurface,
-    entities: EntityData[],
+    entities: [TilePosition, TestEntity][],
 ): void {
     const tiles: TileWrite[] = []
-    for (const e of entities) {
-        if (e.kind === "impassable") {
+    for (const [pos, entity] of entities) {
+        if (entity.kind === "impassable") {
             tiles.push({
                 name: "smarter-belt-impassable",
-                position: { x: e.x + OFFSET_X, y: e.y + OFFSET_Y },
+                position: { x: pos.x + OFFSET_X, y: pos.y + OFFSET_Y },
             })
         }
     }
@@ -211,50 +205,52 @@ function placeImpassableTiles(
 
 function placeBeforeEntities(
     surface: LuaSurface,
-    entities: EntityData[],
+    entities: [TilePosition, TestEntity][],
     player: LuaPlayer,
 ): void {
-    for (const e of entities) {
-        if (e.kind === "impassable") continue
+    for (const [pos, entity] of entities) {
+        if (entity.kind === "impassable") continue
 
-        const mapPos = { x: e.x + OFFSET_X + 0.5, y: e.y + OFFSET_Y + 0.5 }
+        const mapPos = { x: pos.x + OFFSET_X + 0.5, y: pos.y + OFFSET_Y + 0.5 }
+        const name = entityName(entity)
 
-        if (e.kind === "obstacle") {
+        if (entity.kind === "obstacle") {
             surface.create_entity({
-                name: "stone-wall",
+                name,
                 position: mapPos,
                 force: player.force,
             } as SurfaceCreateEntity)
-        } else if (e.kind === "splitter") {
+        } else if (entity.kind === "splitter") {
             const isVertical =
-                e.direction === Direction.North || e.direction === Direction.South
+                entity.direction === Direction.North ||
+                entity.direction === Direction.South
             surface.create_entity({
-                name: isVertical ? "lane-splitter" : e.name,
+                name: isVertical ? "lane-splitter" : name,
                 position: mapPos,
-                direction: toFacDir(e.direction),
+                direction: toFacDir(entity.direction),
                 force: player.force,
             } as SurfaceCreateEntity)
-        } else if (e.kind === "belt") {
+        } else if (entity.kind === "belt") {
             surface.create_entity({
-                name: e.name,
+                name,
                 position: mapPos,
-                direction: toFacDir(e.direction),
+                direction: toFacDir(entity.direction),
                 force: player.force,
             } as SurfaceCreateEntity)
-        } else if (e.kind === "loader") {
+        } else if (entity.kind === "loader") {
             surface.create_entity({
-                name: e.name,
+                name,
                 position: mapPos,
-                direction: toFacDir(e.direction),
-                type: e.ioType!,
+                direction: toFacDir(entity.direction),
+                type: entity.ioType,
                 force: player.force,
             } as SurfaceCreateEntity)
-        } else if (e.kind === "underground-belt") {
+        } else if (entity.kind === "underground-belt") {
             surface.create_entity({
-                name: e.name,
+                name,
                 position: mapPos,
-                direction: toFacDir(e.direction),
-                type: e.ioType!,
+                direction: toFacDir(entity.direction),
+                type: entity.ioType,
                 force: player.force,
             } as SurfaceCreateEntity)
         }
@@ -510,17 +506,53 @@ function fireSmartBeltEvent(
         tick: game.tick,
         name: defines.events.on_built_entity,
     })
+}
 
+interface ResolvedBelt {
+    x: number
+    y: number
+    kind: "belt" | "underground-belt"
+    name: string
+    direction: number
+    ioType?: "input" | "output"
+}
+
+function formatBelts(entities: ResolvedBelt[]): string {
+    return entities
+        .map((e) => {
+            let str = `  (${e.x},${e.y}) ${e.kind} ${e.name} dir=${e.direction}`
+            if (e.ioType) str += ` ioType=${e.ioType}`
+            return str
+        })
+        .join("\n")
 }
 
 function assertEntities(
     surface: LuaSurface,
-    expected: EntityData[],
+    expected: [TilePosition, TestEntity][],
     b: Bounds,
 ): void {
-    const expectedBelts = expected.filter(
-        (e) => e.kind === "belt" || e.kind === "underground-belt",
-    )
+    const expectedBelts: ResolvedBelt[] = []
+    for (const [pos, entity] of expected) {
+        if (entity.kind === "belt") {
+            expectedBelts.push({
+                x: pos.x,
+                y: pos.y,
+                kind: "belt",
+                name: entityName(entity),
+                direction: entity.direction,
+            })
+        } else if (entity.kind === "underground-belt") {
+            expectedBelts.push({
+                x: pos.x,
+                y: pos.y,
+                kind: "underground-belt",
+                name: entityName(entity),
+                direction: entity.direction,
+                ioType: entity.ioType,
+            })
+        }
+    }
 
     const actualLuaEntities = surface.find_entities_filtered({
         area: {
@@ -530,34 +562,34 @@ function assertEntities(
         type: ["transport-belt", "underground-belt"],
     })
 
-    const actualBelts: EntityData[] = []
-    for (const entity of actualLuaEntities) {
-        const tilePos = toTilePosition(entity.position)
+    const actualBelts: ResolvedBelt[] = []
+    for (const luaEntity of actualLuaEntities) {
+        const tilePos = toTilePosition(luaEntity.position)
         const x = tilePos.x - OFFSET_X
         const y = tilePos.y - OFFSET_Y
-        const dir = translateDirection(entity.direction) as number
+        const dir = translateDirection(luaEntity.direction) as number
 
-        if (entity.type === "transport-belt") {
+        if (luaEntity.type === "transport-belt") {
             actualBelts.push({
                 x,
                 y,
                 kind: "belt",
-                name: entity.name,
+                name: luaEntity.name,
                 direction: dir,
             })
-        } else if (entity.type === "underground-belt") {
+        } else if (luaEntity.type === "underground-belt") {
             actualBelts.push({
                 x,
                 y,
                 kind: "underground-belt",
-                name: entity.name,
+                name: luaEntity.name,
                 direction: dir,
-                ioType: entity.belt_to_ground_type as "input" | "output",
+                ioType: luaEntity.belt_to_ground_type as "input" | "output",
             })
         }
     }
 
-    function sortKey(this: unknown, a: EntityData, b: EntityData) {
+    function sortKey(this: unknown, a: ResolvedBelt, b: ResolvedBelt) {
         return a.x !== b.x ? a.x - b.x : a.y - b.y
     }
     expectedBelts.sort(sortKey)
@@ -566,7 +598,7 @@ function assertEntities(
     if (expectedBelts.length !== actualBelts.length) {
         error(
             `Entity count mismatch: expected ${expectedBelts.length}, got ${actualBelts.length}\n` +
-                `Expected:\n${formatEntities(expectedBelts)}\nActual:\n${formatEntities(actualBelts)}`,
+                `Expected:\n${formatBelts(expectedBelts)}\nActual:\n${formatBelts(actualBelts)}`,
         )
     }
 
@@ -585,7 +617,7 @@ function assertEntities(
                 `Entity mismatch at index ${i}:\n` +
                     `  Expected: (${exp.x},${exp.y}) ${exp.kind} ${exp.name} dir=${exp.direction}${exp.ioType ? ` ioType=${exp.ioType}` : ""}\n` +
                     `  Actual:   (${act.x},${act.y}) ${act.kind} ${act.name} dir=${act.direction}${act.ioType ? ` ioType=${act.ioType}` : ""}\n\n` +
-                    `All expected:\n${formatEntities(expectedBelts)}\nAll actual:\n${formatEntities(actualBelts)}`,
+                    `All expected:\n${formatBelts(expectedBelts)}\nAll actual:\n${formatBelts(actualBelts)}`,
             )
         }
     }
