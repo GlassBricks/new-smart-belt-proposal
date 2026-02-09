@@ -1,7 +1,6 @@
 import * as yaml from "js-yaml"
 import {
   Belt,
-  BeltConnectable,
   CollidingEntityOrTile,
   ImpassableTile,
   LoaderLike,
@@ -36,6 +35,24 @@ import {
   transformPosition,
   type Transform,
 } from "./test-utils"
+
+export type TestEntity =
+  | { kind: "belt"; direction: Direction; tier: number }
+  | {
+      kind: "underground-belt"
+      direction: Direction
+      tier: number
+      ioType: "input" | "output"
+    }
+  | { kind: "splitter"; direction: Direction; tier: number }
+  | {
+      kind: "loader"
+      direction: Direction
+      tier: number
+      ioType: "input" | "output"
+    }
+  | { kind: "obstacle" }
+  | { kind: "impassable" }
 
 export enum TestVariant {
   Normal,
@@ -73,7 +90,10 @@ interface TestCaseSerialized {
   forward_back?: boolean
 }
 
-export type WorldParse = [SimulatedWorld, TilePosition[]]
+export interface WorldParseResult {
+  entities: [TilePosition, TestEntity][]
+  markers: TilePosition[]
+}
 
 export function serializeError(pos: TilePosition, error: ActionError): string {
   return `${pos.x},${pos.y}:${error}`
@@ -85,8 +105,8 @@ export function deserializeError(str: string): [TilePosition, ActionError] {
   return [pos(Number(xStr), Number(yStr)), errorStr as ActionError]
 }
 
-export function parseWorld(input: string): WorldParse {
-  const world = new SimulatedWorld()
+export function parseWorld(input: string): WorldParseResult {
+  const entities: [TilePosition, TestEntity][] = []
   const markers: TilePosition[] = []
 
   const lines = input.split("\n")
@@ -106,23 +126,23 @@ export function parseWorld(input: string): WorldParse {
 
       const entity = parseWord(word)
       if (entity !== undefined) {
-        world.set(position, entity)
+        entities.push([position, entity])
       }
     }
   }
 
-  return [world, markers]
+  return { entities, markers }
 }
 
-function parseWord(input: string): BeltCollider | undefined {
+function parseWord(input: string): TestEntity | undefined {
   if (input === "" || input === "_") {
     return undefined
   }
   if (input === "X") {
-    return new CollidingEntityOrTile("X")
+    return { kind: "obstacle" }
   }
   if (input === "#") {
-    return new ImpassableTile("#")
+    return { kind: "impassable" }
   }
 
   let i = 0
@@ -136,7 +156,6 @@ function parseWord(input: string): BeltCollider | undefined {
   if (tierNum < 1 || tierNum > BELT_TIERS.length) {
     throw new Error(`Invalid tier: ${tierNum}`)
   }
-  const tier = BELT_TIERS[tierNum - 1]!
 
   if (i >= input.length) {
     throw new Error(`Missing direction in: ${input}`)
@@ -153,20 +172,106 @@ function parseWord(input: string): BeltCollider | undefined {
   switch (typeChar) {
     case undefined:
     case "b":
-      return new Belt(direction, tier)
+      return { kind: "belt", direction, tier: tierNum }
     case "i":
-      return new UndergroundBelt(direction, true, tier)
+      return {
+        kind: "underground-belt",
+        direction,
+        tier: tierNum,
+        ioType: "input",
+      }
     case "o":
-      return new UndergroundBelt(direction, false, tier)
+      return {
+        kind: "underground-belt",
+        direction,
+        tier: tierNum,
+        ioType: "output",
+      }
     case "s":
-      return new Splitter(direction, tier.splitterName!)
+      return { kind: "splitter", direction, tier: tierNum }
     case "I":
-      return new LoaderLike(direction, true, tier.beltName + "-loader")
+      return { kind: "loader", direction, tier: tierNum, ioType: "input" }
     case "O":
-      return new LoaderLike(direction, false, tier.beltName + "-loader")
+      return { kind: "loader", direction, tier: tierNum, ioType: "output" }
     default:
       throw new Error(`Invalid entity type: ${typeChar}`)
   }
+}
+
+export function toBeltCollider(entity: TestEntity): BeltCollider {
+  switch (entity.kind) {
+    case "belt":
+      return new Belt(entity.direction, BELT_TIERS[entity.tier - 1]!)
+    case "underground-belt":
+      return new UndergroundBelt(
+        entity.direction,
+        entity.ioType === "input",
+        BELT_TIERS[entity.tier - 1]!,
+      )
+    case "splitter":
+      return new Splitter(
+        entity.direction,
+        BELT_TIERS[entity.tier - 1]!.splitterName!,
+      )
+    case "loader":
+      return new LoaderLike(
+        entity.direction,
+        entity.ioType === "input",
+        BELT_TIERS[entity.tier - 1]!.beltName + "-loader",
+      )
+    case "obstacle":
+      return new CollidingEntityOrTile("X")
+    case "impassable":
+      return new ImpassableTile("#")
+  }
+}
+
+export function toSimulatedWorld(
+  entities: [TilePosition, TestEntity][],
+): SimulatedWorld {
+  const world = new SimulatedWorld()
+  for (const [position, entity] of entities) {
+    world.set(position, toBeltCollider(entity))
+  }
+  return world
+}
+
+function beltColliderToTestEntity(entity: BeltCollider): TestEntity {
+  if (entity instanceof Belt) {
+    return {
+      kind: "belt",
+      direction: entity.direction,
+      tier: BELT_TIERS.indexOf(entity.tier) + 1,
+    }
+  }
+  if (entity instanceof UndergroundBelt) {
+    return {
+      kind: "underground-belt",
+      direction: entity.direction,
+      tier: BELT_TIERS.indexOf(entity.tier) + 1,
+      ioType: entity.isInput ? "input" : "output",
+    }
+  }
+  if (entity instanceof Splitter) {
+    return {
+      kind: "splitter",
+      direction: entity.direction,
+      tier: BELT_TIERS.findIndex((t) => t.splitterName === entity.name) + 1,
+    }
+  }
+  if (entity instanceof LoaderLike) {
+    return {
+      kind: "loader",
+      direction: entity.direction,
+      tier:
+        BELT_TIERS.findIndex((t) => entity.name === t.beltName + "-loader") + 1,
+      ioType: entity.isInput ? "input" : "output",
+    }
+  }
+  if (entity instanceof CollidingEntityOrTile) {
+    return { kind: "obstacle" }
+  }
+  return { kind: "impassable" }
 }
 
 export function directionToChar(dir: Direction): string {
@@ -197,38 +302,34 @@ export function directionFromChar(char: string): Direction | undefined {
   }
 }
 
-function printEntity(entity: BeltCollider): string {
-  if (entity instanceof Belt) {
-    const tierNum = BELT_TIERS.indexOf(entity.tier) + 1
-    const dirChar = directionToChar(entity.direction)
-    return tierNum === 1 ? dirChar : `${tierNum}${dirChar}`
-  } else if (entity instanceof UndergroundBelt) {
-    const tierNum = BELT_TIERS.indexOf(entity.tier) + 1
-    const dirChar = directionToChar(entity.direction)
-    const typeChar = entity.isInput ? "i" : "o"
-    return tierNum === 1
-      ? `${dirChar}${typeChar}`
-      : `${tierNum}${dirChar}${typeChar}`
-  } else if (entity instanceof Splitter) {
-    const tierNum =
-      BELT_TIERS.findIndex((tier) => entity.name == tier.splitterName) + 1
-    const dirChar = directionToChar(entity.direction)
-    return tierNum === 1 ? `${dirChar}s` : `${tierNum}${dirChar}s`
-  } else if (entity instanceof LoaderLike) {
-    const tierNum = BELT_TIERS.findIndex(
-      (tier) => entity.name == tier.beltName + "-loader",
-    )
-    const dirChar = directionToChar(entity.direction)
-    const typeChar = entity.isInput ? "I" : "O"
-    return tierNum === 1
-      ? `${dirChar}${typeChar}`
-      : `${tierNum}${dirChar}${typeChar}`
-  } else if (entity instanceof CollidingEntityOrTile) {
-    return "X"
-  } else if (entity instanceof ImpassableTile) {
-    return "#"
-  } else {
-    return "?"
+function printEntity(entity: TestEntity): string {
+  switch (entity.kind) {
+    case "belt": {
+      const dirChar = directionToChar(entity.direction)
+      return entity.tier === 1 ? dirChar : `${entity.tier}${dirChar}`
+    }
+    case "underground-belt": {
+      const dirChar = directionToChar(entity.direction)
+      const typeChar = entity.ioType === "input" ? "i" : "o"
+      return entity.tier === 1
+        ? `${dirChar}${typeChar}`
+        : `${entity.tier}${dirChar}${typeChar}`
+    }
+    case "splitter": {
+      const dirChar = directionToChar(entity.direction)
+      return entity.tier === 1 ? `${dirChar}s` : `${entity.tier}${dirChar}s`
+    }
+    case "loader": {
+      const dirChar = directionToChar(entity.direction)
+      const typeChar = entity.ioType === "input" ? "I" : "O"
+      return entity.tier === 1
+        ? `${dirChar}${typeChar}`
+        : `${entity.tier}${dirChar}${typeChar}`
+    }
+    case "obstacle":
+      return "X"
+    case "impassable":
+      return "#"
   }
 }
 
@@ -253,7 +354,7 @@ export function printWorld(
 
       let word: string
       if (entity) {
-        word = printEntity(entity)
+        word = printEntity(beltColliderToTestEntity(entity))
         if (markers.some((m) => m.x === position.x && m.y === position.y)) {
           word = "*" + word
         }
@@ -282,8 +383,10 @@ export function parseTestCase(yamlContent: string): DragTestCase {
 
   let afterForReverse: SimulatedWorld | undefined = undefined
   if (serialized.after_for_reverse) {
-    const [world] = parseWorld(serialized.after_for_reverse)
-    afterForReverse = world
+    const { entities: reverseEntities } = parseWorld(
+      serialized.after_for_reverse,
+    )
+    afterForReverse = toSimulatedWorld(reverseEntities)
   }
 
   return {
@@ -295,9 +398,22 @@ export function parseTestCase(yamlContent: string): DragTestCase {
   }
 }
 
+function isBeltLikeEntity(
+  entity: TestEntity,
+): entity is Extract<TestEntity, { direction: Direction }> {
+  return entity.kind !== "obstacle" && entity.kind !== "impassable"
+}
+
 function getEntities(serde: TestCaseSerialized): TestCaseEntities {
-  const [before, beforeMarkers] = parseWorld(serde.before)
-  const [after, afterMarkers] = parseWorld(serde.after)
+  const { entities: beforeEntities, markers: beforeMarkers } = parseWorld(
+    serde.before,
+  )
+  const { entities: afterEntities, markers: afterMarkers } = parseWorld(
+    serde.after,
+  )
+
+  const before = toSimulatedWorld(beforeEntities)
+  const after = toSimulatedWorld(afterEntities)
 
   const expectedErrorsList = serde.expected_errors || []
 
@@ -321,36 +437,31 @@ function getEntities(serde: TestCaseSerialized): TestCaseEntities {
     }
     startPos = beforeMarkers[0]!
   } else {
-    const entities = Array.from(after.getEntities())
-    const firstAtX0 = entities.find(([pos]) => pos.x === 0)
+    const firstAtX0 = afterEntities.find(([p]) => p.x === 0)
     if (!firstAtX0) {
       throw new Error("No first position found")
     }
     startPos = firstAtX0[0]
   }
 
-  const entitiesInRow = Array.from(after.getEntities())
+  const entitiesInRow = afterEntities
     .filter(([p]) => p.y === startPos.y && p.x >= startPos.x)
     .sort((a, b) => a[0].x - b[0].x)
 
-  const firstBelt = entitiesInRow.find(
-    ([, ent]) => ent instanceof BeltConnectable,
-  )
+  const firstBelt = entitiesInRow.find(([, ent]) => isBeltLikeEntity(ent))
   if (!firstBelt) {
     throw new Error("No belt found in drag row")
   }
 
-  const firstBeltEntity = firstBelt[1] as BeltConnectable
-  const tier =
-    firstBeltEntity.tier ??
-    BELT_TIERS.find((tier) => tier.splitterName == firstBeltEntity.name)!
+  const firstBeltEntity = firstBelt[1] as Extract<
+    TestEntity,
+    { direction: Direction }
+  >
+  const tier = BELT_TIERS[firstBeltEntity.tier - 1]!
   const direction = firstBeltEntity.direction
 
-  const maxX = Math.max(
-    ...Array.from(before.getEntities())
-      .map(([p]) => p.x)
-      .concat(Array.from(after.getEntities()).map(([p]) => p.x)),
-  )
+  const allPositions = [...beforeEntities, ...afterEntities].map(([p]) => p.x)
+  const maxX = Math.max(...allPositions)
   const endPos = pos(maxX, startPos.y)
 
   const leftmostPos = pos(0, startPos.y)

@@ -1,16 +1,11 @@
 import type { Direction } from "./geometry"
 import { oppositeDirection } from "./geometry"
 
-export interface BeltCollider {
-  readonly type: string
-  readonly name: string
-}
-
-export class CollidingEntityOrTile implements BeltCollider {
+export class CollidingEntityOrTile {
   readonly type = "Colliding" as const
   constructor(readonly name: string) {}
 }
-export class ImpassableTile implements BeltCollider {
+export class ImpassableTile {
   readonly type = "Impassable" as const
   constructor(readonly name: string) {}
 }
@@ -22,7 +17,7 @@ export interface BeltTier {
   readonly undergroundDistance: number
 }
 
-export abstract class BeltConnectable implements BeltCollider {
+export abstract class BeltConnectable {
   abstract readonly type: string
   abstract readonly name: string
   abstract readonly direction: Direction
@@ -153,3 +148,11 @@ export class Splitter extends BeltConnectable {
     return true
   }
 }
+
+export type BeltCollider =
+  | Belt
+  | UndergroundBelt
+  | Splitter
+  | LoaderLike
+  | CollidingEntityOrTile
+  | ImpassableTile

@@ -18,15 +18,14 @@ export interface EntityData {
     y: number
     kind:
         | "belt"
-        | "underground-input"
-        | "underground-output"
+        | "underground-belt"
         | "obstacle"
         | "impassable"
         | "splitter"
-        | "loader-input"
-        | "loader-output"
+        | "loader"
     name: string
     direction: number
+    ioType?: "input" | "output"
 }
 
 export interface DragConfig {
@@ -84,7 +83,11 @@ function dirVecFromDirection(direction: number): { dx: number; dy: number } {
 
 function formatEntities(entities: EntityData[]): string {
     return entities
-        .map((e) => `  (${e.x},${e.y}) ${e.kind} ${e.name} dir=${e.direction}`)
+        .map((e) => {
+            let str = `  (${e.x},${e.y}) ${e.kind} ${e.name} dir=${e.direction}`
+            if (e.ioType) str += ` ioType=${e.ioType}`
+            return str
+        })
         .join("\n")
 }
 
@@ -238,20 +241,20 @@ function placeBeforeEntities(
                 direction: toFacDir(e.direction),
                 force: player.force,
             } as SurfaceCreateEntity)
-        } else if (e.kind === "loader-input" || e.kind === "loader-output") {
+        } else if (e.kind === "loader") {
             surface.create_entity({
                 name: e.name,
                 position: mapPos,
                 direction: toFacDir(e.direction),
-                type: e.kind === "loader-input" ? "input" : "output",
+                type: e.ioType!,
                 force: player.force,
             } as SurfaceCreateEntity)
-        } else {
+        } else if (e.kind === "underground-belt") {
             surface.create_entity({
                 name: e.name,
                 position: mapPos,
                 direction: toFacDir(e.direction),
-                type: e.kind === "underground-input" ? "input" : "output",
+                type: e.ioType!,
                 force: player.force,
             } as SurfaceCreateEntity)
         }
@@ -516,10 +519,7 @@ function assertEntities(
     b: Bounds,
 ): void {
     const expectedBelts = expected.filter(
-        (e) =>
-            e.kind === "belt" ||
-            e.kind === "underground-input" ||
-            e.kind === "underground-output",
+        (e) => e.kind === "belt" || e.kind === "underground-belt",
     )
 
     const actualLuaEntities = surface.find_entities_filtered({
@@ -549,12 +549,10 @@ function assertEntities(
             actualBelts.push({
                 x,
                 y,
-                kind:
-                    entity.belt_to_ground_type === "input"
-                        ? "underground-input"
-                        : "underground-output",
+                kind: "underground-belt",
                 name: entity.name,
                 direction: dir,
+                ioType: entity.belt_to_ground_type as "input" | "output",
             })
         }
     }
@@ -580,12 +578,13 @@ function assertEntities(
             exp.y !== act.y ||
             exp.kind !== act.kind ||
             exp.name !== act.name ||
-            exp.direction !== act.direction
+            exp.direction !== act.direction ||
+            exp.ioType !== act.ioType
         ) {
             error(
                 `Entity mismatch at index ${i}:\n` +
-                    `  Expected: (${exp.x},${exp.y}) ${exp.kind} ${exp.name} dir=${exp.direction}\n` +
-                    `  Actual:   (${act.x},${act.y}) ${act.kind} ${act.name} dir=${act.direction}\n\n` +
+                    `  Expected: (${exp.x},${exp.y}) ${exp.kind} ${exp.name} dir=${exp.direction}${exp.ioType ? ` ioType=${exp.ioType}` : ""}\n` +
+                    `  Actual:   (${act.x},${act.y}) ${act.kind} ${act.name} dir=${act.direction}${act.ioType ? ` ioType=${act.ioType}` : ""}\n\n` +
                     `All expected:\n${formatEntities(expectedBelts)}\nAll actual:\n${formatEntities(actualBelts)}`,
             )
         }

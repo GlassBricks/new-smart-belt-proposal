@@ -35,6 +35,7 @@ interface EntityDataLiteral {
     kind: string
     name: string
     direction: number
+    ioType?: "input" | "output"
 }
 
 interface DragConfigLiteral {
@@ -67,11 +68,10 @@ function worldToEntityData(
             result.push({
                 x: pos.x,
                 y: pos.y,
-                kind: entity.isInput
-                    ? "underground-input"
-                    : "underground-output",
+                kind: "underground-belt",
                 name: entity.tier.undergroundName,
                 direction: entity.direction,
+                ioType: entity.isInput ? "input" : "output",
             })
         } else if (entity instanceof CollidingEntityOrTile) {
             result.push({
@@ -101,9 +101,10 @@ function worldToEntityData(
             result.push({
                 x: pos.x,
                 y: pos.y,
-                kind: entity.isInput ? "loader-input" : "loader-output",
+                kind: "loader",
                 name: "loader-1x1",
                 direction: entity.direction,
+                ioType: entity.isInput ? "input" : "output",
             })
         }
     }
@@ -112,10 +113,12 @@ function worldToEntityData(
 
 function entityDataToCode(entities: EntityDataLiteral[]): string {
     if (entities.length === 0) return "[]"
-    const items = entities.map(
-        (e) =>
-            `{ x: ${e.x}, y: ${e.y}, kind: "${e.kind}", name: "${e.name}", direction: ${e.direction} }`,
-    )
+    const items = entities.map((e) => {
+        let code = `{ x: ${e.x}, y: ${e.y}, kind: "${e.kind}", name: "${e.name}", direction: ${e.direction}`
+        if (e.ioType) code += `, ioType: "${e.ioType}"`
+        code += ` }`
+        return code
+    })
     return `[\n        ${items.join(",\n        ")},\n      ]`
 }
 
