@@ -22,7 +22,7 @@
     "sourceMapTraceback": true,
     "noResolvePaths": [
       "__factorio-test__/init",
-      "mod-tests.generated.init_tests"
+      "mod-tests.init_tests"
     ]
   },
   "include": [

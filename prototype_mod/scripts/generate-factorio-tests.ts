@@ -109,69 +109,10 @@ function worldToEntities(
     return result
 }
 
-function directionName(dir: Direction): string {
-    switch (dir) {
-        case Direction.North:
-            return "Direction.North"
-        case Direction.East:
-            return "Direction.East"
-        case Direction.South:
-            return "Direction.South"
-        case Direction.West:
-            return "Direction.West"
-    }
-}
-
-function entityTupleToCode(pos: TilePosition, entity: TestEntity): string {
-    switch (entity.kind) {
-        case "belt":
-            return `[{ x: ${pos.x}, y: ${pos.y} }, { kind: "belt", direction: ${directionName(entity.direction)}, tier: ${entity.tier} }]`
-        case "underground-belt":
-            return `[{ x: ${pos.x}, y: ${pos.y} }, { kind: "underground-belt", direction: ${directionName(entity.direction)}, tier: ${entity.tier}, ioType: "${entity.ioType}" }]`
-        case "splitter":
-            return `[{ x: ${pos.x}, y: ${pos.y} }, { kind: "splitter", direction: ${directionName(entity.direction)}, tier: ${entity.tier} }]`
-        case "loader":
-            return `[{ x: ${pos.x}, y: ${pos.y} }, { kind: "loader", direction: ${directionName(entity.direction)}, tier: ${entity.tier}, ioType: "${entity.ioType}" }]`
-        case "obstacle":
-            return `[{ x: ${pos.x}, y: ${pos.y} }, { kind: "obstacle" }]`
-        case "impassable":
-            return `[{ x: ${pos.x}, y: ${pos.y} }, { kind: "impassable" }]`
-        case "ghost-belt":
-            return `[{ x: ${pos.x}, y: ${pos.y} }, { kind: "ghost-belt", direction: ${directionName(entity.direction)}, tier: ${entity.tier} }]`
-        case "ghost-underground-belt":
-            return `[{ x: ${pos.x}, y: ${pos.y} }, { kind: "ghost-underground-belt", direction: ${directionName(entity.direction)}, tier: ${entity.tier}, ioType: "${entity.ioType}" }]`
-        case "deconstructed-belt":
-            return `[{ x: ${pos.x}, y: ${pos.y} }, { kind: "deconstructed-belt", direction: ${directionName(entity.direction)}, tier: ${entity.tier} }]`
-        case "tree":
-            return `[{ x: ${pos.x}, y: ${pos.y} }, { kind: "tree" }]`
-    }
-}
-
-function entitiesToCode(entities: EntityWithPos[]): string {
+function entitiesToJson(entities: EntityWithPos[]): string {
     if (entities.length === 0) return "[]"
-    const items = entities.map((e) => entityTupleToCode(e.pos, e.entity))
+    const items = entities.map((e) => JSON.stringify([e.pos, e.entity]))
     return `[\n        ${items.join(",\n        ")},\n      ]`
-}
-
-function errorsToCode(errors: string[]): string {
-    if (errors.length === 0) return "[]"
-    const items = errors.map((e) => `"${e}"`)
-    return `[${items.join(", ")}]`
-}
-
-function dragConfigToCode(drag: DragConfigLiteral): string {
-    let code = `{ startX: ${drag.startX}, startY: ${drag.startY}, endX: ${drag.endX}, endY: ${drag.endY}, direction: ${directionName(drag.direction)}, beltName: "${drag.beltName}"`
-    if (drag.forwardBack) {
-        code += `, forwardBack: true, leftmostX: ${drag.leftmostX}, leftmostY: ${drag.leftmostY}`
-    }
-    if (drag.variant) {
-        code += `, variant: "${drag.variant}"`
-    }
-    if (drag.buildMode) {
-        code += `, buildMode: "${drag.buildMode}"`
-    }
-    code += ` }`
-    return code
 }
 
 function generateTestFile(
@@ -250,10 +191,10 @@ function generateTestFile(
             tests.push(
                 `  test("${variantName}", () => {\n` +
                     `    runDragTest(\n` +
-                    `      ${entitiesToCode(bd)},\n` +
-                    `      ${entitiesToCode(ad)},\n` +
-                    `      ${dragConfigToCode(dragData)},\n` +
-                    `      ${errorsToCode(expectedErrors)},\n` +
+                    `      ${entitiesToJson(bd)},\n` +
+                    `      ${entitiesToJson(ad)},\n` +
+                    `      ${JSON.stringify(dragData)},\n` +
+                    `      ${JSON.stringify(expectedErrors)},\n` +
                     `    )\n` +
                     `  })`,
             )
@@ -263,7 +204,7 @@ function generateTestFile(
     if (tests.length === 0) return undefined
 
     return (
-        `import { Direction } from "../../common/geometry"\nimport { runDragTest } from "../test_helpers"\n\n` +
+        `import { runDragTest } from "../test_helpers"\n\n` +
         `describe("${fileStem}", () => {\n` +
         tests.join("\n\n") +
         `\n})\n`
@@ -370,10 +311,10 @@ function generateModOnlyTestFile(
         tests.push(
             `  test("${sanitizedName}", () => {\n` +
                 `    runDragTest(\n` +
-                `      ${entitiesToCode(beforeData)},\n` +
-                `      ${entitiesToCode(afterData)},\n` +
-                `      ${dragConfigToCode(dragData)},\n` +
-                `      ${errorsToCode(expectedErrors)},\n` +
+                `      ${entitiesToJson(beforeData)},\n` +
+                `      ${entitiesToJson(afterData)},\n` +
+                `      ${JSON.stringify(dragData)},\n` +
+                `      ${JSON.stringify(expectedErrors)},\n` +
                 `    )\n` +
                 `  })`,
         )
@@ -394,10 +335,10 @@ function generateModOnlyTestFile(
             tests.push(
                 `  test("${sanitizedName}_reverse", () => {\n` +
                     `    runDragTest(\n` +
-                    `      ${entitiesToCode(reverseBeforeData)},\n` +
-                    `      ${entitiesToCode(reverseAfterData)},\n` +
-                    `      ${dragConfigToCode(reverseDragData)},\n` +
-                    `      ${errorsToCode(expectedErrors)},\n` +
+                    `      ${entitiesToJson(reverseBeforeData)},\n` +
+                    `      ${entitiesToJson(reverseAfterData)},\n` +
+                    `      ${JSON.stringify(reverseDragData)},\n` +
+                    `      ${JSON.stringify(expectedErrors)},\n` +
                     `    )\n` +
                     `  })`,
             )
@@ -407,7 +348,7 @@ function generateModOnlyTestFile(
     if (tests.length === 0) return undefined
 
     return (
-        `import { Direction } from "../../common/geometry"\nimport { runDragTest } from "../test_helpers"\n\n` +
+        `import { runDragTest } from "../test_helpers"\n\n` +
         `describe("${fileStem}", () => {\n` +
         tests.join("\n\n") +
         `\n})\n`
@@ -421,13 +362,11 @@ function flipEntityDirection(entity: TestEntity): TestEntity {
     return entity
 }
 
-function generateInitFile(moduleNames: string[]): string {
-    const filesList = moduleNames
-        .map((name) => `  "mod-tests.generated.${name}",`)
-        .join("\n")
-    return (
-        `const init = require("__factorio-test__/init") as (files: string[], config?: object) => void\n` +
-        `init([\n${filesList}\n])\n`
+function generateTestList(moduleNames: string[]): string {
+    return JSON.stringify(
+        moduleNames.map((name) => `mod-tests.generated.${name}`),
+        null,
+        2,
     )
 }
 
@@ -511,8 +450,8 @@ function main() {
         }
     }
 
-    const initCode = generateInitFile(moduleNames)
-    writeFileSync(join(generatedDir, "init_tests.ts"), initCode)
+    const testListJson = generateTestList(moduleNames)
+    writeFileSync(join(generatedDir, "test_list.json"), testListJson)
 
     console.log(
         `\nGenerated ${totalTests} tests across ${moduleNames.length} files`,
