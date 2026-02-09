@@ -20,6 +20,8 @@ import {
 import { Direction, oppositeDirection, TilePosition } from "../common/geometry"
 import { ActionError, ErrorHandler } from "../common/smart_belt"
 import { World } from "../common/world"
+import { SmartBeltBuildMode } from "./build_mode"
+import { CursorManager } from "./cursor_manager"
 import {
   ALL_BELT_TYPES,
   AllBeltTypes,
@@ -201,13 +203,18 @@ function checkForImpassableTile(
 }
 
 export class RealWorld implements World {
+  private readonly isGhostBuild: boolean
+
   constructor(
     private surface: LuaSurface,
     private tier: BeltTier,
     private player: LuaPlayer,
-    private isGhostBuild: boolean,
+    readonly buildMode: SmartBeltBuildMode,
     public isFirst: boolean,
-  ) {}
+    private cursorManager?: CursorManager,
+  ) {
+    this.isGhostBuild = buildMode !== "real"
+  }
 
   getWithGhosts(
     position: TilePosition,
