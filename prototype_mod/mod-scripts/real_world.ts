@@ -17,10 +17,15 @@ import {
   Splitter,
   UndergroundBelt,
 } from "../common/belts"
-import { Direction, oppositeDirection, TilePosition } from "../common/geometry"
+import {
+  Direction,
+  oppositeDirection,
+  TilePosition,
+  type Ray,
+} from "../common/geometry"
 import { ActionError, ErrorHandler } from "../common/smart_belt"
 import { World } from "../common/world"
-import { SmartBeltBuildMode } from "./build_mode"
+import { SmartBeltBuildMode, toFactorioBuildMode } from "./build_mode"
 import { CursorManager } from "./cursor_manager"
 import {
   ALL_BELT_TYPES,
@@ -204,6 +209,8 @@ function checkForImpassableTile(
 
 export class RealWorld implements World {
   private readonly isGhostBuild: boolean
+  readonly currentDirection: defines.direction
+  currentRay: Ray | undefined
 
   constructor(
     private surface: LuaSurface,
@@ -211,51 +218,90 @@ export class RealWorld implements World {
     private player: LuaPlayer,
     readonly buildMode: SmartBeltBuildMode,
     public isFirst: boolean,
+    beltDirection: Direction,
     private cursorManager?: CursorManager,
   ) {
     this.isGhostBuild = buildMode !== "real"
+    this.currentDirection = revTranslateDirection(beltDirection)
   }
 
-  getWithGhosts(
-    position: TilePosition,
-    includeGhosts = this.isGhostBuild,
-  ): BeltCollider | undefined {
-    const beltEntity = findBeltAtTile(this.surface, position, includeGhosts)
-    if (beltEntity) {
-      return translateBeltEntity(beltEntity)
-    }
+  private findBeltEntityForMode(position: TilePosition): LuaEntity | undefined {
+    const mapPosition = toMapPosition(position)
+
+    const realEntity = this.surface.find_entities_filtered({
+      position: mapPosition,
+      radius: 0,
+      type: ALL_BELT_TYPES,
+      limit: 1,
+    })[0]
+
     if (
-      !this.surface.can_place_entity({
-        name: this.tier.beltName,
-        position,
-        build_check_type: this.isGhostBuild
-          ? defines.build_check_type.manual_ghost
-          : defines.build_check_type.manual,
-        force: this.player.force,
-      })
+      realEntity &&
+      (this.buildMode === "real" || !realEntity.to_be_deconstructed())
     ) {
-      const impassableTile = checkForImpassableTile(
-        this.surface,
-        position,
-        this.tier,
-      )
-      if (impassableTile) {
-        return impassableTile
-      }
-      const collidingEntity = findBeltCollidingAtTile(
-        this.surface,
-        position,
-        this.tier.beltName,
-        this.isGhostBuild,
-      )
-      return new CollidingEntityOrTile(collidingEntity?.name ?? "<unknown>")
+      return realEntity
     }
+
+    if (this.buildMode !== "real") {
+      return this.surface.find_entities_filtered({
+        position: mapPosition,
+        radius: 0,
+        type: "entity-ghost",
+        limit: 1,
+      })[0]
+    }
+
     return undefined
   }
-  get(position: TilePosition): BeltCollider | undefined {
-    const entity = this.getWithGhosts(position)
 
-    return entity
+  private findBeltForCurvature(
+    position: TilePosition,
+  ): BeltCollider | undefined {
+    const entity = findBeltAtTile(this.surface, position, true)
+    return entity ? translateBeltEntity(entity) : undefined
+  }
+
+  private classifyObstacle(position: TilePosition): BeltCollider {
+    const impassableTile = checkForImpassableTile(
+      this.surface,
+      position,
+      this.tier,
+    )
+    if (impassableTile) return impassableTile
+
+    const collidingEntity = findBeltCollidingAtTile(
+      this.surface,
+      position,
+      this.tier.beltName,
+      this.isGhostBuild,
+    )
+    return new CollidingEntityOrTile(collidingEntity?.name ?? "<unknown>")
+  }
+
+  getWithGhosts(position: TilePosition): BeltCollider | undefined {
+    if (this.buildMode !== "superforce") {
+      const beltEntity = this.findBeltEntityForMode(position)
+      if (beltEntity) {
+        const translated = translateBeltEntity(beltEntity)
+        if (translated) return translated
+      }
+    }
+
+    if (
+      this.player.can_build_from_cursor({
+        position: toMapPosition(position),
+        direction: this.currentDirection,
+        build_mode: toFactorioBuildMode(this.buildMode),
+      })
+    ) {
+      return undefined
+    }
+
+    return this.classifyObstacle(position)
+  }
+
+  get(position: TilePosition): BeltCollider | undefined {
+    return this.getWithGhosts(position)
   }
 
   tryBuild(position: TilePosition, entity: Belt | UndergroundBelt): boolean {
@@ -481,14 +527,15 @@ export class RealWorld implements World {
     }
   }
   outputDirectionAt(position: TilePosition): Direction | undefined {
-    const beltEntity = this.getWithGhosts(position, true)
+    const beltEntity = this.findBeltForCurvature(position)
     if (beltEntity instanceof BeltConnectable) {
       return beltEntity.outputDirection()
     }
     return undefined
   }
+
   inputDirectionAt(position: TilePosition): Direction | undefined {
-    const entity = this.getWithGhosts(position, true)
+    const entity = this.findBeltForCurvature(position)
     if (entity instanceof Belt) {
       return beltCurvedInputDirection(this, position, entity.direction)
     }
@@ -503,33 +550,12 @@ export class RealWorld implements World {
     allowFastReplace: boolean,
   ): boolean {
     const existingEntity = this.get(position)
-    if (existingEntity) {
-      if (existingEntity instanceof CollidingEntityOrTile) {
-        return false
-      }
-      if (existingEntity instanceof Belt) {
-        return existingEntity.direction !== oppositeDirection(beltDirection)
-      }
-      if (!allowFastReplace) {
-        return false
-      }
+    if (!existingEntity) return true
+    if (!(existingEntity instanceof BeltConnectable)) return false
+    if (existingEntity instanceof Belt) {
+      return existingEntity.direction !== oppositeDirection(beltDirection)
     }
-    const mapPosition = toMapPosition(position)
-    const params = {
-      name: this.tier.beltName,
-      position: mapPosition,
-      direction: revTranslateDirection(beltDirection),
-      force: this.player.force,
-    }
-    return (
-      this.surface.can_place_entity({
-        ...params,
-        build_check_type: this.isGhostBuild
-          ? defines.build_check_type.manual_ghost
-          : defines.build_check_type.manual,
-      }) ||
-      (allowFastReplace && this.surface.can_fast_replace(params))
-    )
+    return allowFastReplace
   }
   private orderUpgrade(luaEntity: LuaEntity, target: string) {
     const position = luaEntity.position
@@ -552,7 +578,6 @@ export class RealWorld implements World {
 
 export class RealErrorHandler implements ErrorHandler {
   constructor(
-    private surface: LuaSurface,
     private player: LuaPlayer,
     private world: RealWorld,
   ) {}

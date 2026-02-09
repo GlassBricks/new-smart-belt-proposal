@@ -46,13 +46,8 @@ export class CursorManager {
     }
   }
 
-  private setupCursor(itemName: string, buildMode: SmartBeltBuildMode): void {
-    if (buildMode === "real") {
-      this.player.cursor_ghost = undefined
-      this.player.cursor_stack?.set_stack({ name: itemName, count: 99 })
-    } else {
-      this.player.cursor_stack?.clear()
-      this.player.cursor_ghost = itemName
-    }
+  private setupCursor(itemName: string, _buildMode: SmartBeltBuildMode): void {
+    this.player.cursor_ghost = undefined
+    this.player.cursor_stack?.set_stack({ name: itemName, count: 99 })
   }
 }

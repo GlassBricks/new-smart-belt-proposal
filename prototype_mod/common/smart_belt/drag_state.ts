@@ -153,7 +153,6 @@ export function takeStep(state: DragState, ctx: DragContext): DragStepResult {
   }
 }
 
-
 function getDragEnd(
   state: DragState,
   lastPosition: number,
@@ -343,7 +342,11 @@ function integrateUndergroundPair(
 
   const nextState =
     outputPos === ctx.furthestPlacementPos
-      ? DragState.BuildingUnderground(ctx.nextPosition, outputPos, ctx.direction)
+      ? DragState.BuildingUnderground(
+          ctx.nextPosition,
+          outputPos,
+          ctx.direction,
+        )
       : DragState.PassThrough(leftPos, rightPos)
 
   const err = errorOnImpassableExit(dragEnd, ctx)

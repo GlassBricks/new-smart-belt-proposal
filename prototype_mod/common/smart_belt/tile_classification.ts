@@ -234,7 +234,9 @@ export class TileClassifier {
     }
 
     if (entity instanceof Belt) {
-      return directionAxis(entity.direction) !== directionAxis(this.beltDirection())
+      return (
+        directionAxis(entity.direction) !== directionAxis(this.beltDirection())
+      )
     } else if (entity instanceof UndergroundBelt) {
       return !this.ugIsEnterable(entity)
     } else if (entity instanceof Splitter) {

@@ -1,0 +1,31 @@
+- name: Force mode drag through tree
+  build_mode: force
+  before: |
+    _ Xa _
+  after: |
+    g:> g:> g:>
+  not_reversible: true
+
+- name: Force mode obstacle creates ghost underground
+  build_mode: force
+  before: |
+    _ _ X
+  after: |
+    g:> g:>i X g:>o g:>
+  not_reversible: true
+
+- name: Force mode ghost entities visible
+  build_mode: force
+  before: |
+    _ g:> _
+  after: |
+    g:> g:> g:>
+  not_reversible: true
+
+- name: Force mode deconstructed opposite belt invisible
+  build_mode: force
+  before: |
+    _ d:< _
+  after: |
+    g:> d:> g:>
+  not_reversible: true

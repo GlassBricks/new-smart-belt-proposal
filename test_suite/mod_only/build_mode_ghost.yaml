@@ -1,0 +1,30 @@
+- name: Ghost mode drag on empty tiles
+  build_mode: ghost
+  before: ""
+  after: |
+    g:> g:> g:>
+  not_reversible: true
+
+- name: Ghost mode obstacle creates ghost underground
+  build_mode: ghost
+  before: |
+    _ _ X
+  after: |
+    g:> g:>i X g:>o g:>
+  not_reversible: true
+
+- name: Ghost mode sees ghost belt
+  build_mode: ghost
+  before: |
+    _ g:> _
+  after: |
+    g:> g:> g:>
+  not_reversible: true
+
+- name: Ghost mode deconstructed opposite belt invisible
+  build_mode: ghost
+  before: |
+    _ d:< _
+  after: |
+    g:> d:> g:>
+  not_reversible: true

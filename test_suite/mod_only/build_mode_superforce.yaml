@@ -1,0 +1,15 @@
+- name: Superforce drag through wall
+  build_mode: superforce
+  before: |
+    _ _ X
+  after: |
+    g:> g:> g:>
+  not_reversible: true
+
+- name: Superforce perpendicular belt invisible
+  build_mode: superforce
+  before: |
+    _ ^ _
+  after: |
+    g:> > g:>
+  not_reversible: true

@@ -1,6 +1,5 @@
 import {
   LuaPlayer,
-  LuaSurface,
   OnBuiltEntityEvent,
   OnPreBuildEvent,
   PlayerIndex,
@@ -78,7 +77,7 @@ script.on_event(defines.events.on_built_entity, (event: OnBuiltEntityEvent) => {
 
   const beltName = name.substring(8)
 
-  handlePlayerBuilt(player, beltName, surface, pos, direction, buildMode)
+  handlePlayerBuilt(player, beltName, pos, direction, buildMode)
 })
 
 script.on_event(defines.events.on_player_cursor_stack_changed, (event) => {
@@ -92,7 +91,6 @@ script.on_event(defines.events.on_player_cursor_stack_changed, (event) => {
 function handlePlayerBuilt(
   player: LuaPlayer,
   name: string,
-  surface: LuaSurface,
   pos: TilePosition,
   direction: Direction,
   buildMode: SmartBeltBuildMode,
@@ -116,9 +114,10 @@ function handlePlayerBuilt(
     player,
     buildMode,
     isFirst,
+    direction,
     cursorManager,
   )
-  const errHandler = new RealErrorHandler(surface, player, world)
+  const errHandler = new RealErrorHandler(player, world)
 
   cursorManager.setupForBelt(tier.beltName, buildMode)
   processingSmartBelt = true

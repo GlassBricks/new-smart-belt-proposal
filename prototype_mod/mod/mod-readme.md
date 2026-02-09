@@ -1,6 +1,7 @@
 # Smarter Belt
 
 A prototype for an improved and enhanced smarter belt system!
+
 - Fixes all the bugs
 - Support belt weaving!
 - Nearly always connects your belt
