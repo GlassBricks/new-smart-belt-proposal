@@ -8,11 +8,9 @@ The main prototype implementation is a rust crate, with tests.
 
 ## TS/mod prototype
 
-in prototype_mod/, another prototype, mostly a direct port of the rust prototype.
+in prototype_mod/, a prototype that is a direct port of the rust prototype, compiled to a Factorio mod using TypescriptToLua.
 
-Contains both pure Typescript, and a lua Factorio mod compiled using TypescriptToLua.
-3 subdirs for different parts:
-`prototype_mod/common/`, `prototype_mod/ts_only/`, and `prototype_mod/mod-scripts/` (mod-only).
+2 subdirs: `prototype_mod/common/` (shared logic) and `prototype_mod/mod-scripts/` (mod-only entry points).
 
 ## Testing
 
@@ -20,8 +18,7 @@ Testing is done through a shared test suite, test cases defined in `./test_suite
 These are turned into runnable tests:
 
 - In rust, tests are generated using build.rs.
-- In TS, tests are generated using `bun run generate-tests`, need to manually run this before bun tests.
-- In the mod, tests are generated into `prototype_mod/mod-tests/generated/` and run in-game via the `factorio-test` framework. `prototype_mod/mod-tests/test_helpers.ts` provides the test harness for in-game mod tests:
+- In the mod, tests are generated into `prototype_mod/mod-tests/generated/` via `bun run generate-factorio-tests`, and run in-game via the `factorio-test` framework. `prototype_mod/mod-tests/test_helpers.ts` provides the test harness. Manual tests live alongside generated tests in `mod-tests/`.
 
 ## Debugging rust vs TS
 

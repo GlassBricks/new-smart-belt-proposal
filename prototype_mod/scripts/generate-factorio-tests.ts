@@ -29,12 +29,12 @@ import {
   loadTestCasesFromYaml,
   sanitizeTestName,
   type TestCaseYaml,
-} from "../ts-only/test-utils"
+} from "./test-utils"
 import {
   parseTestCase,
   parseWorld,
   type DragTestCase,
-} from "../ts-only/test_case"
+} from "./test_case"
 
 type BuildModeString = "normal" | "forced" | "superforced"
 

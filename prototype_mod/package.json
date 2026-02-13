@@ -4,8 +4,6 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "test": "bun test ts-only/",
-    "generate-tests": "bun run scripts/generate-tests.ts",
     "generate-blueprint": "bun run scripts/generate-blueprint.ts",
     "clean-mod": "rm mod/**/*.lua",
     "build-mod": "tstl",
@@ -15,7 +13,6 @@
     "factorio-test": "bun run generate-factorio-tests && tstl && npx factorio-test run -p ./mod"
   },
   "devDependencies": {
-    "@types/bun": "latest",
     "@types/js-yaml": "^4.0.9",
     "factorio-test": "^3.0.0",
     "factorio-test-cli": "^3.5.1",

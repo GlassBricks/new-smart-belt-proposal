@@ -22,9 +22,9 @@ import {
 } from "../common/belts"
 import { Direction, type TilePosition } from "../common/geometry"
 import { BELT_TIERS } from "../common/belt_tiers"
-import { SimulatedWorld } from "../ts-only/simulated_world"
-import { loadTestCasesFromYaml } from "../ts-only/test-utils"
-import { flipTestCase, parseTestCase } from "../ts-only/test_case"
+import { SimulatedWorld } from "./simulated_world"
+import { loadTestCasesFromYaml } from "./test-utils"
+import { flipTestCase, parseTestCase } from "./test_case"
 
 // Grid configuration
 const TESTS_PER_ROW = 8

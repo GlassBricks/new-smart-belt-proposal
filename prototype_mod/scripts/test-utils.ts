@@ -1,7 +1,3 @@
-/**
- * Shared utilities for test case generation and execution.
- */
-
 import * as yaml from "js-yaml"
 import { Direction, pos, type TilePosition } from "../common/geometry"
 

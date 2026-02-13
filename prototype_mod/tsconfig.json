@@ -31,6 +31,5 @@
     "common/**/*.ts",
     "mod-scripts/**/*.ts",
     "mod-tests/**/*.ts"
-  ],
-  "exclude": ["ts-only/"]
+  ]
 }

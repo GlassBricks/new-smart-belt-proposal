@@ -1,3 +1,0 @@
-[jobs.ts-test]
-command = ["bun", "test"]
-watch = ["common", "ts-only"]
