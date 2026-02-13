@@ -44,15 +44,14 @@ Defines what makes smart belt behavior "correct". Try matching these to the bug 
 
 A few principles derived from above:
 
-- If we integrate a belt segment, it should be connectable to what we have.
-- In some scenarios if we MUST connect to a belt segment and we cannot continue it, we must fail.
-- If the last tile was a belt we integrated, and it connects to this belt, we must try to integrate this belt, or else fail.
-- If the last tile was a obstacle, and it connects to this belt, we treat this belt as an obstacle.
-  - Note: underground belt creation checking is handled elsewhere
-- In cases we have a choice to integrate a segment or not; we scan the belt segment ahead:
-  - If we can integrate the entire belt segment, we will;
-  - If we can't integrate and but can successfully underground over it, we will
-  - Otherwise, we are bound to encounter an error. This spec defaults to trying to integrating the belt segment, for simplicity.
+- If we integrate/connect to an existing a belt segment, we must use the entirety of the segment.
+- If we DO connect to a belt segment and we cannot continue it later, we must fail (notify player with error).
+- If the last tile was a belt we integrated, and the current tile is belt-connected to it, we must try to integrate the current tile, or else fail.
+- If the last tile was a obstacle, and the current tile is belt-connected to it, we must treat the current tile as an obstacle.
+- In cases where we have a choice if we want to  integrate a segment or underground over it; we will scan the belt segment ahead:
+  - If we can integrate the entire belt segment and continue it without errors, we integrate
+  - If we can't integrate the entire belt segment (will cause belt line to be not continuable) but can successfully underground over it, we underground over it
+  - Otherwise, we are forced to integrate it, and will encounter an error later.
 
 # Motivating Examples
 
