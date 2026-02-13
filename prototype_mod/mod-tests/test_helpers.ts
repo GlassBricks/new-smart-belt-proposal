@@ -27,6 +27,13 @@ export interface DragConfig {
   buildMode?: SmartBeltBuildMode
 }
 
+export interface DragResult {
+  player: LuaPlayer
+  surface: LuaSurface
+  bounds: Bounds
+  errors: string[]
+}
+
 const OFFSET_X = 0
 const OFFSET_Y = 0
 
@@ -91,12 +98,11 @@ function dirVecFromDirection(direction: number): { dx: number; dy: number } {
   }
 }
 
-export function runDragTest(
+export function setupAndDrag(
   before: [TilePosition, TestEntity][],
   after: [TilePosition, TestEntity][],
   drag: DragConfig,
-  expectedErrors: string[] = [],
-): void {
+): DragResult {
   const player = game.get_player(1 as PlayerIndex)!
   const surface = player.surface
 
@@ -135,13 +141,23 @@ export function runDragTest(
   }
   player.clear_cursor()
 
-  const actualErrors = stopErrorRecording()
+  const errors = stopErrorRecording()
 
-  assertEntities(surface, after, bounds)
-  assertErrors(expectedErrors, actualErrors, drag.variant)
+  return { player, surface, bounds, errors }
 }
 
-interface Bounds {
+export function runDragTest(
+  before: [TilePosition, TestEntity][],
+  after: [TilePosition, TestEntity][],
+  drag: DragConfig,
+  expectedErrors: string[] = [],
+): void {
+  const { surface, bounds, errors } = setupAndDrag(before, after, drag)
+  assertEntities(surface, after, bounds)
+  assertErrors(expectedErrors, errors, drag.variant)
+}
+
+export interface Bounds {
   minX: number
   minY: number
   maxX: number
@@ -551,7 +567,7 @@ function testEntityToState(kind: TestEntity["kind"]): EntityState {
   return "real"
 }
 
-function assertEntities(
+export function assertEntities(
   surface: LuaSurface,
   expected: [TilePosition, TestEntity][],
   b: Bounds,

@@ -210,7 +210,6 @@ function checkForImpassableTile(
 export class RealWorld implements World {
   private readonly isGhostBuild: boolean
   readonly currentDirection: defines.direction
-  currentRay: Ray | undefined
 
   constructor(
     private surface: LuaSurface,
