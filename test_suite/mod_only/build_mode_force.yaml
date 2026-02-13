@@ -27,7 +27,7 @@
   before: |
     _ d:< _
   after: |
-    g:> d:> g:>
+    g:> g:> g:>
   not_reversible: true
 
 - name: Force mode trees deconstructed ghost belts placed

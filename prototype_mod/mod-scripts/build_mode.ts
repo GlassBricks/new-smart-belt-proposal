@@ -3,8 +3,8 @@ export type SmartBeltBuildMode = "real" | "ghost" | "force" | "superforce"
 export function toFactorioBuildMode(
   mode: SmartBeltBuildMode,
 ): defines.build_mode {
-  if (mode === "force") return defines.build_mode.forced
   if (mode === "superforce") return defines.build_mode.superforced
+  if (mode === "ghost" || mode === "force") return defines.build_mode.forced
   return defines.build_mode.normal
 }
 

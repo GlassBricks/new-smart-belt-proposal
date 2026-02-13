@@ -26,7 +26,7 @@ describe("detectBuildMode", () => {
 describe("toFactorioBuildMode", () => {
   test.each([
     ["real → normal", "real", defines.build_mode.normal],
-    ["ghost → normal", "ghost", defines.build_mode.normal],
+    ["ghost → forced", "ghost", defines.build_mode.forced],
     ["force → forced", "force", defines.build_mode.forced],
     ["superforce → superforced", "superforce", defines.build_mode.superforced],
   ] as const)("%s", (_, mode, expected) => {

@@ -22,12 +22,12 @@
     g:> > g:>
   not_reversible: true
 
-- name: Superforce over other axis belt deconstructed
+- name: Superforce over other axis belt rotated
   build_mode: superforce
   before: |
     _ v _
   after: |
-    g:> g:> g:>
+    g:> > g:>
   not_reversible: true
 
 - name: Superforce over underground belt deconstructed
