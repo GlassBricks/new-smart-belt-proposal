@@ -10,7 +10,8 @@
     "watch-mod": "tstl --watch",
     "publish-mod": "export $(xargs <.env) && cd mod && fmtk publish",
     "generate-factorio-tests": "bun run scripts/generate-factorio-tests.ts",
-    "factorio-test": "bun run generate-factorio-tests && tstl && npx factorio-test run -p ./mod"
+    "pretest": "bun run generate-factorio-tests && tstl",
+    "test": "bunx factorio-test run -p ./mod"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
