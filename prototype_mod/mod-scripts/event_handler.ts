@@ -6,7 +6,6 @@ import {
 } from "factorio:runtime"
 import { Direction, TilePosition } from "../common/geometry"
 import { LineDrag } from "../common/smart_belt"
-import { detectBuildMode, SmartBeltBuildMode } from "./build_mode"
 import { CursorManager } from "./cursor_manager"
 import { beltTierFromBeltName } from "./prototypes"
 import {
@@ -23,7 +22,7 @@ interface PlayerDragData {
   }
   drag?: LineDrag
   previousDirection?: Direction
-  buildMode?: SmartBeltBuildMode
+  buildMode?: defines.build_mode
 }
 declare const storage: {
   players: Record<PlayerIndex, PlayerDragData>
@@ -65,10 +64,7 @@ script.on_event(defines.events.on_built_entity, (event: OnBuiltEntityEvent) => {
   if (!name.startsWith("smarter-")) return
   const player = game.get_player(event.player_index)!
   const data = getPlayerData(player.index)
-  const buildMode = detectBuildMode(
-    data.preBuildData?.mode ?? defines.build_mode.normal,
-    isGhost,
-  )
+  const buildMode = data.preBuildData?.mode ?? defines.build_mode.normal
   data.buildMode = buildMode
   const surface = entity.surface
   const pos = toTilePosition(entity.position)
@@ -93,7 +89,7 @@ function handlePlayerBuilt(
   name: string,
   pos: TilePosition,
   direction: Direction,
-  buildMode: SmartBeltBuildMode,
+  buildMode: defines.build_mode,
 ) {
   const data = getPlayerData(player.index)
   if (!data.preBuildData) return
@@ -119,7 +115,7 @@ function handlePlayerBuilt(
   )
   const errHandler = new RealErrorHandler(player, world)
 
-  cursorManager.setupForBelt(tier.beltName, buildMode)
+  cursorManager.setupForBelt(tier.beltName)
   processingSmartBelt = true
   try {
     if (!existingDrag) {

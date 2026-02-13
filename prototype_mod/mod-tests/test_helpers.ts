@@ -3,15 +3,24 @@ import { BELT_TIERS } from "../common/belt_tiers"
 import { Direction, type TilePosition } from "../common/geometry"
 import type { TestEntity } from "../common/test_entity"
 import {
-  toFactorioBuildMode,
-  type SmartBeltBuildMode,
-} from "../mod-scripts/build_mode"
-import {
   startErrorRecording,
   stopErrorRecording,
   toTilePosition,
   translateDirection,
 } from "../mod-scripts/real_world"
+
+export type BuildModeString = "normal" | "forced" | "superforced"
+
+function parseBuildMode(mode: BuildModeString): defines.build_mode {
+  switch (mode) {
+    case "normal":
+      return defines.build_mode.normal
+    case "forced":
+      return defines.build_mode.forced
+    case "superforced":
+      return defines.build_mode.superforced
+  }
+}
 
 export interface DragConfig {
   startX: number
@@ -24,7 +33,7 @@ export interface DragConfig {
   leftmostX?: number
   leftmostY?: number
   variant?: "wiggle" | "mega_wiggle"
-  buildMode?: SmartBeltBuildMode
+  buildMode?: BuildModeString
 }
 
 export interface DragResult {
@@ -314,7 +323,7 @@ function placeBeforeEntities(
 function simulateDragEvents(player: LuaPlayer, drag: DragConfig): void {
   const facDir = toFacDir(drag.direction)
   const smarterName = "smarter-" + drag.beltName
-  const buildMode = drag.buildMode ?? "real"
+  const buildMode = parseBuildMode(drag.buildMode ?? "normal")
 
   const dx = Math.sign(drag.endX - drag.startX)
   const dy = Math.sign(drag.endY - drag.startY)
@@ -341,7 +350,7 @@ function simulateDragEvents(player: LuaPlayer, drag: DragConfig): void {
 function simulateBackwardDragEvents(player: LuaPlayer, drag: DragConfig): void {
   const facDir = toFacDir(drag.direction)
   const smarterName = "smarter-" + drag.beltName
-  const buildMode = drag.buildMode ?? "real"
+  const buildMode = parseBuildMode(drag.buildMode ?? "normal")
 
   const leftmostX = drag.leftmostX ?? 0
   const leftmostY = drag.leftmostY ?? drag.startY
@@ -368,7 +377,7 @@ function simulateBackwardDragEvents(player: LuaPlayer, drag: DragConfig): void {
 function simulateWiggleDragEvents(player: LuaPlayer, drag: DragConfig): void {
   const facDir = toFacDir(drag.direction)
   const smarterName = "smarter-" + drag.beltName
-  const buildMode = drag.buildMode ?? "real"
+  const buildMode = parseBuildMode(drag.buildMode ?? "normal")
 
   const dx = Math.sign(drag.endX - drag.startX)
   const dy = Math.sign(drag.endY - drag.startY)
@@ -429,7 +438,7 @@ function simulateMegaWiggleDragEvents(
 ): void {
   const facDir = toFacDir(drag.direction)
   const smarterName = "smarter-" + drag.beltName
-  const buildMode = drag.buildMode ?? "real"
+  const buildMode = parseBuildMode(drag.buildMode ?? "normal")
 
   const dx = Math.sign(drag.endX - drag.startX)
   const dy = Math.sign(drag.endY - drag.startY)
@@ -485,7 +494,7 @@ function fireSmartBeltEvent(
   position: { x: number; y: number },
   facDir: defines.direction,
   createdByMoving: boolean,
-  buildMode: SmartBeltBuildMode,
+  buildMode: defines.build_mode,
 ): void {
   const preBuildHandler = script.get_event_handler(defines.events.on_pre_build)
   const builtHandler = script.get_event_handler(defines.events.on_built_entity)
@@ -494,13 +503,13 @@ function fireSmartBeltEvent(
   }
 
   const surface = player.surface
-  const isGhostBuild = buildMode !== "real"
+  const isGhostBuild = buildMode !== defines.build_mode.normal
 
   preBuildHandler({
     player_index: player.index,
     position,
     direction: facDir,
-    build_mode: toFactorioBuildMode(buildMode),
+    build_mode: buildMode,
     created_by_moving: createdByMoving,
     mirror: false,
     flip_horizontal: false,

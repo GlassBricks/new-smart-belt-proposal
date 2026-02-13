@@ -25,7 +25,6 @@ import {
 } from "../common/geometry"
 import { ActionError, ErrorHandler } from "../common/smart_belt"
 import { World } from "../common/world"
-import { SmartBeltBuildMode, toFactorioBuildMode } from "./build_mode"
 import { CursorManager } from "./cursor_manager"
 import {
   ALL_BELT_TYPES,
@@ -207,6 +206,9 @@ function checkForImpassableTile(
   return undefined
 }
 
+// Mod prototype uses Factorio's 3 build modes (normal/forced/superforced) directly.
+// C++ implementation will have 4 behaviors, splitting forced into separate force and ghost modes
+// with different entity visibility and obstacle handling rules.
 export class RealWorld implements World {
   private readonly isGhostBuild: boolean
   readonly currentDirection: defines.direction
@@ -215,12 +217,12 @@ export class RealWorld implements World {
     private surface: LuaSurface,
     private tier: BeltTier,
     private player: LuaPlayer,
-    readonly buildMode: SmartBeltBuildMode,
+    readonly buildMode: defines.build_mode,
     public isFirst: boolean,
     beltDirection: Direction,
     private cursorManager?: CursorManager,
   ) {
-    this.isGhostBuild = buildMode !== "real"
+    this.isGhostBuild = buildMode !== defines.build_mode.normal
     this.currentDirection = revTranslateDirection(beltDirection)
   }
 
@@ -236,12 +238,12 @@ export class RealWorld implements World {
 
     if (
       realEntity &&
-      (this.buildMode === "real" || !realEntity.to_be_deconstructed())
+      (this.buildMode === defines.build_mode.normal || !realEntity.to_be_deconstructed())
     ) {
       return realEntity
     }
 
-    if (this.buildMode !== "real") {
+    if (this.buildMode !== defines.build_mode.normal) {
       return this.surface.find_entities_filtered({
         position: mapPosition,
         radius: 0,
@@ -278,7 +280,7 @@ export class RealWorld implements World {
   }
 
   get(position: TilePosition): BeltCollider | undefined {
-    if (this.buildMode !== "superforce") {
+    if (this.buildMode !== defines.build_mode.superforced) {
       const beltEntity = this.findBeltEntityForMode(position)
       if (beltEntity) {
         const translated = translateBeltEntity(beltEntity)
@@ -290,13 +292,13 @@ export class RealWorld implements World {
       this.player.can_build_from_cursor({
         position: toMapPosition(position),
         direction: this.currentDirection,
-        build_mode: toFactorioBuildMode(this.buildMode),
+        build_mode: this.buildMode,
       })
     ) {
       return undefined
     }
 
-    if (this.buildMode === "superforce") {
+    if (this.buildMode === defines.build_mode.superforced) {
       const beltEntity = this.findBeltEntityForMode(position)
       if (beltEntity) {
         const translated = translateBeltEntity(beltEntity)
@@ -323,7 +325,7 @@ export class RealWorld implements World {
     this.player.build_from_cursor({
       position: mapPosition,
       direction,
-      build_mode: toFactorioBuildMode(this.buildMode),
+      build_mode: this.buildMode,
     })
     return true
   }
@@ -339,11 +341,11 @@ export class RealWorld implements World {
     const shapeDirection = revTranslateDirection(
       oppositeDirection(entity.shapeDirection()),
     )
-    this.cursorManager.setupForUnderground(entity.name, this.buildMode)
+    this.cursorManager.setupForUnderground(entity.name)
     this.player.build_from_cursor({
       position: mapPosition,
       direction: shapeDirection,
-      build_mode: toFactorioBuildMode(this.buildMode),
+      build_mode: this.buildMode,
     })
 
     const placed = this.surface.find_entities_filtered({

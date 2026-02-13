@@ -1,5 +1,5 @@
 - name: Superforce drag through wall
-  build_mode: superforce
+  build_mode: superforced
   before: |
     _ _ X
   after: |
@@ -7,7 +7,7 @@
   not_reversible: true
 
 - name: Superforce over same-axis belt used
-  build_mode: superforce
+  build_mode: superforced
   before: |
     _ > _
   after: |
@@ -15,7 +15,7 @@
   not_reversible: true
 
 - name: Superforce over backwards belt rotated
-  build_mode: superforce
+  build_mode: superforced
   before: |
     _ < _
   after: |
@@ -23,7 +23,7 @@
   not_reversible: true
 
 - name: Superforce over other axis belt rotated
-  build_mode: superforce
+  build_mode: superforced
   before: |
     _ v _
   after: |
@@ -31,7 +31,7 @@
   not_reversible: true
 
 - name: Superforce over underground belt deconstructed
-  build_mode: superforce
+  build_mode: superforced
   before: |
     _ >i _
   after: |

@@ -1,8 +1,8 @@
 import { Direction, type TilePosition } from "../common/geometry"
 import type { TestEntity } from "../common/test_entity"
-import { assertEntities, setupAndDrag, type DragConfig } from "./test_helpers"
+import { assertEntities, setupAndDrag, type BuildModeString, type DragConfig } from "./test_helpers"
 
-describe("ghost mode upgrade marker", () => {
+describe("forced mode upgrade marker", () => {
   test("underground belt pair gets upgrade marker when dragged with higher tier", () => {
     const before: [TilePosition, TestEntity][] = [
       [
@@ -65,7 +65,7 @@ describe("ghost mode upgrade marker", () => {
       endY: 0,
       direction: Direction.East,
       beltName: "fast-transport-belt",
-      buildMode: "ghost",
+      buildMode: "forced",
     }
 
     const { surface, bounds } = setupAndDrag(before, after, drag)
@@ -99,12 +99,11 @@ describe("ghost mode upgrade marker", () => {
 
 describe("underground orientation", () => {
   test.each([
-    ["real", "real", "belt", "underground-belt"],
-    ["ghost", "ghost", "ghost-belt", "ghost-underground-belt"],
-    ["force", "force", "ghost-belt", "ghost-underground-belt"],
+    ["normal", "normal", "belt", "underground-belt"],
+    ["forced", "forced", "ghost-belt", "ghost-underground-belt"],
   ] as const)(
     "correct in %s mode",
-    (_, buildMode, beltKind, ugKind) => {
+    (_, buildMode: BuildModeString, beltKind, ugKind) => {
       const before: [TilePosition, TestEntity][] = [
         [{ x: 3, y: 0 }, { kind: "obstacle" }],
       ]

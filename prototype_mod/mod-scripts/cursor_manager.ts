@@ -1,5 +1,4 @@
 import { LuaPlayer } from "factorio:runtime"
-import { SmartBeltBuildMode } from "./build_mode"
 
 interface SavedCursorState {
   type: "stack" | "ghost"
@@ -22,12 +21,12 @@ export class CursorManager {
     return { type: "stack", name: "", count: 0 }
   }
 
-  setupForBelt(beltName: string, buildMode: SmartBeltBuildMode): void {
-    this.setupCursor(beltName, buildMode)
+  setupForBelt(beltName: string): void {
+    this.setupCursor(beltName)
   }
 
-  setupForUnderground(ugName: string, buildMode: SmartBeltBuildMode): void {
-    this.setupCursor(ugName, buildMode)
+  setupForUnderground(ugName: string): void {
+    this.setupCursor(ugName)
   }
 
   restore(saved: SavedCursorState): void {
@@ -46,7 +45,7 @@ export class CursorManager {
     }
   }
 
-  private setupCursor(itemName: string, _buildMode: SmartBeltBuildMode): void {
+  private setupCursor(itemName: string): void {
     this.player.cursor_ghost = undefined
     this.player.cursor_stack?.set_stack({ name: itemName, count: 99 })
   }

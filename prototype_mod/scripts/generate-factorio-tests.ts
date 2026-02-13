@@ -36,7 +36,7 @@ import {
   type DragTestCase,
 } from "../ts-only/test_case"
 
-import type { SmartBeltBuildMode } from "../mod-scripts/build_mode"
+type BuildModeString = "normal" | "forced" | "superforced"
 
 interface DragConfigLiteral {
   startX: number
@@ -49,7 +49,7 @@ interface DragConfigLiteral {
   leftmostX?: number
   leftmostY?: number
   variant?: "wiggle" | "mega_wiggle"
-  buildMode?: SmartBeltBuildMode
+  buildMode?: BuildModeString
 }
 
 interface EntityWithPos {
@@ -209,7 +209,7 @@ interface ModOnlyTestCaseYaml {
   name?: string
   before: string
   after: string
-  build_mode?: SmartBeltBuildMode
+  build_mode?: BuildModeString
   expected_errors?: string[]
   not_reversible?: boolean
 }
@@ -234,7 +234,7 @@ function generateModOnlyTestFile(
     const testCase = testCases[i]!
     const testName = testCase.name || `test_${String(i + 1).padStart(3, "0")}`
     const sanitizedName = sanitizeTestName(testName)
-    const buildMode = testCase.build_mode ?? "real"
+    const buildMode = testCase.build_mode ?? "normal"
 
     let beforeEntities: [TilePosition, TestEntity][]
     let afterEntities: [TilePosition, TestEntity][]
