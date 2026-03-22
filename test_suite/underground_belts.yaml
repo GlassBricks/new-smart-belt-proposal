@@ -146,3 +146,9 @@
 - name: Pantabo's into backwards ug belt
   before: "_ X X <i"
   after: ">i X X >o >"
+
+- name: Backwards segment ending in underground output
+  before: |
+    _ < < <o _
+  after: |
+    > > > > >

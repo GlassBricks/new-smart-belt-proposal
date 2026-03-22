@@ -181,3 +181,9 @@
     _ _ >s <o <i
   after: |
     > > >s >i >o
+
+- name: Underground output to backwards splitter
+  before: |
+    _ 2<i < <s
+  after: |
+    >i 2<i < <s >o

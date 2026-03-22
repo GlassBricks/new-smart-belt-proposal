@@ -13,17 +13,17 @@
   after: ">i X >o > >"
   forward_back: true
 
-- name: Back from obstactle
+- name: Back from obstacle
   before: _ _ *_ X _
   after: "> > >i X >o >"
   forward_back: true
 
-- name: Back from untraversed obstactle
+- name: Back from untraversed obstacle
   before: _ *_ X X X
   after: "> > X X X"
   forward_back: true
 
-- name: Back from obstactle later
+- name: Back from obstacle later
   before: _ *_ _ X _
   after: "> > >i X >o >"
   forward_back: true

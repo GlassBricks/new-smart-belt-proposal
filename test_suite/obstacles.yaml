@@ -1,0 +1,99 @@
+# Obstacle handling: entity obstacles, impassable tiles, error propagation
+
+- name: Simple obstacle
+  before: _ _ X
+  after: "> >i X >o >"
+
+- name: Two obstacles
+  before: _ _ X X
+  after: "> >i X X >o >"
+
+- name: Obstacle too long
+  before: _ _ X X X X X
+  after: "> > X X X X X *> >"
+  expected_errors: [too_far_to_connect]
+
+- name: Underground extension
+  before: _ _ X X _ X
+  after: "> >i X X _ X >o >"
+
+- name: No extension
+  before: _ _ X _ _ X
+  after: "> >i X >o >i X >o >"
+
+- name: Extension then too long
+  before: _ _ X X _ X X
+  after: "> >i X X >o X X *> >"
+  expected_errors: [too_far_to_connect]
+
+- name: Blocked at start
+  before: X
+  after: "*X > >"
+  expected_errors: [entity_in_the_way]
+
+- name: Multiple obstacles at start
+  before: X X X X
+  after: "*X X X X >"
+  expected_errors: [entity_in_the_way]
+
+- name: Obstacle extension over backwards segment
+  before: |
+    _ _ _ _ v
+    _ X _ < <
+  after: |
+    _  _ _ _ v
+    >i X _ < < >o
+
+- name: Obstacle extension over two backwards segments
+  before: |
+    _ _ _ _ _ v
+    _ X _ X < <
+  after: |
+    _   _ _ _ _ v
+    2>i X _ X < < 2>o
+
+# Impassable tiles
+
+- name: Impassable tile blocks traversal
+  before: "_ # _"
+  after: "> # *>"
+  expected_errors: [belt_line_broken]
+
+- name: Obstacle then impassable tile
+  before: "_ X # _"
+  after: "> X # *>"
+  expected_errors: [belt_line_broken]
+
+- name: Impassable around obstacle
+  before: "_ # X # _"
+  after: "> # X # *>"
+  expected_errors: [belt_line_broken]
+
+- name: Multiple impassable tiles
+  before: "_ # # #"
+  after: "> # # # *>"
+  expected_errors: [belt_line_broken]
+
+- name: Impassable after error
+  before: |
+    *X # # > >
+  after: |
+    *X # # > >
+  expected_errors: [entity_in_the_way]
+
+# Error propagation to different entity types
+
+- name: Error propagation to empty tile
+  before: X _
+  after: "*X >"
+  expected_errors: [entity_in_the_way]
+
+- name: Error propagation to underground
+  before: X 2>i 2>o
+  after: "*X >i >o "
+  expected_errors: [entity_in_the_way]
+
+- name: Error propagation to splitter
+  before: X 2>s >
+  after: "*X >s >"
+  expected_errors: [entity_in_the_way]

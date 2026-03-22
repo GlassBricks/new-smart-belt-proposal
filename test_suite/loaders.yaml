@@ -18,3 +18,27 @@
 - name: Belt segments after loader are obstacles 2
   before: "_ <I < _"
   after: ">i <I < >o"
+
+- name: Underground output to backwards loader
+  before: |
+    _ 2<i < <O
+  after: |
+    >i 2<i < <O >o
+
+- name: Backwards segment ending in loader
+  before: |
+    _ < < <O
+  after: |
+    >i < < <O >o
+
+- name: Backwards segment ending in unconnected loader input
+  before: |
+    _ < < <I
+  after: |
+    > > >i <I >o
+
+- name: Backwards segment ending in unconnected loader output
+  before: |
+    _ < < >O >
+  after: |
+    > > >i >O > >o

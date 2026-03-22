@@ -1,4 +1,6 @@
-- name: Doesn't cut underground from error state
+# Regression tests found by fuzzer
+
+- name: Underground from error state preserves curvature
   before: |
     > ^ v <o
   after: |
@@ -6,7 +8,7 @@
   expected_errors: [belt_line_broken]
   not_reversible: true
 
-- name: Doesn't change curvature of excluded belt, from the right
+- name: Excluded belt curvature preserved from right
   before: |
     _ v
     _ > ^ <
@@ -14,8 +16,8 @@
     _ v
     >i > ^ < >o
   not_reversible: true
-# Explictitly NOT supporte
-# - name: Doesn't change excluded belt curvature on left
+# Explicitly NOT supported:
+# - name: Excluded belt curvature on left
 #   before: |
 #     _ _ _ v
 #     _ > ^ <

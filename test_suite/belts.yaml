@@ -1,0 +1,12 @@
+# Basic straight belt dragging
+- name: Empty world
+  before: ""
+  after: "> > >"
+
+- name: Overlapping existing belt
+  before: _ > >
+  after: "> > >"
+
+- name: Overlapping backwards belt
+  before: _ < <
+  after: "> > >"

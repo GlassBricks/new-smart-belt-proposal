@@ -1,0 +1,29 @@
+# Belt weaving: tier upgrade to pass over existing belt segments
+
+- name: Weave over backwards segment with curve
+  before: |
+    _ _ _  _  v
+    _ < <o <i <
+  after: |
+    _ _ _  _  v
+    2>i < <o <i < 2>o
+
+- name: Integrate backwards segment
+  before: _ <o <i <
+  after: 2> 2>i 2>o 2>
+
+- name: Cannot belt weave gives error
+  before: |
+    _ _ _  _  v
+    _ < <o <i <
+  after: |
+    _  _ _  _   v
+    > > >i >o *< >
+  expected_errors: [entity_in_the_way]
+
+- name: Underground output cannot belt weave
+  before: |
+    _ <i < <s
+  after: |
+    > > > <s *>
+  expected_errors: [belt_line_broken]

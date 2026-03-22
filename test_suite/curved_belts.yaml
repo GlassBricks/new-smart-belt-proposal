@@ -1,8 +1,10 @@
+# Curved and perpendicular belt interactions
+
 - name: Perpendicular belt
   before: _ _ ^
   after: "> >i ^ >o >"
 
-- name: Multiple perpendicular belt
+- name: Multiple perpendicular belts
   before: _ _ ^ v
   after: "> >i ^ v >o >"
 
@@ -40,7 +42,7 @@
     _  _ v _
     >i < < >o >
 
-- name: Forwards curved belt continuation, too long
+- name: Forwards curved belt continuation too long
   before: |
     _ _ v
     _ _ > > > > >
@@ -52,7 +54,7 @@
     > > v > > > > *>
   expected_errors: [too_far_to_connect]
 
-- name: Backwards curved belt continuation, too long to check
+- name: Backwards curved belt continuation too long
   before: |
     _ _ _ _ _ v
     _ < < < < <
@@ -61,7 +63,7 @@
     > > > > > < *>
   expected_errors: [belt_line_broken]
 
-- name: 2 backwards curved belts
+- name: Two backwards curved belts
   before: |
     _ _ ^ v
     _ _ ^ <
@@ -69,7 +71,7 @@
     _ _  ^ v _
     > >i ^ < >o >
 
-- name: 2 forwards curved belts
+- name: Two forwards curved belts
   before: |
     _ _ v ^
     _ _ > ^
@@ -77,13 +79,15 @@
     _ _  v ^ _
     > >i > ^ >o >
 
-- name: sideloaded belt is normal obstacle
+# Sideloading
+
+- name: Sideloaded belt is obstacle
   before: |
     _ _ > ^ <
   after: |
     > > >i ^ >o >
 
-- name: sideloaded belt is normal obstacle 2
+- name: Sideloaded belt is obstacle from curve
   before: |
     _ _ v
     _ _ v < _
@@ -91,7 +95,7 @@
     _ _  v
     > >i v >o >
 
-- name: sideloaded belt is not obstacle
+- name: Sideloaded belt is not obstacle
   before: |
     _ _ v
     _ > > _ _
@@ -99,7 +103,9 @@
     _ _ v
     > > > > >
 
-- name: curved belt after obstacle is obstacle
+# Curves after obstacles
+
+- name: Curved belt after obstacle
   before: |
     _ _ v
     _ X > >
@@ -107,7 +113,7 @@
     _  _ v
     >i X > > >o >
 
-- name: backwards curved belt after obstacle is obstacle
+- name: Backwards curved belt after obstacle
   before: |
     _ _ _ v
     _ X < <
@@ -115,7 +121,9 @@
     _  _ _ v
     >i X < < >o >
 
-- name: running into a curved belt is error
+# Curve errors
+
+- name: Running into curved belt is error
   before: |
     _ _ ^
     _ > ^
@@ -124,7 +132,7 @@
     > > ^ *>
   expected_errors: [belt_line_broken]
 
-- name: hovering over curved belt gives no error
+- name: Hovering over curved belt gives no error
   before: |
     _ _ ^
     _ > ^
@@ -132,7 +140,7 @@
     _ _ ^
     > > ^
 
-- name: curvy
+- name: Complex curves
   before: |
     _ _ _ ^ _ _ ^
     _ _ > ^ _ > ^
@@ -142,7 +150,7 @@
     2> 2>i > ^ _ > ^ 2>o
     _  _   ^ _ _ ^ _
 
-- name: first belt shouldn't change effective curvature
+- name: First belt should not change effective curvature
   before: |
     _ ^
     _ ^ <
@@ -150,76 +158,9 @@
     _  ^
     >i ^ < >o
 
-- name: Belt weaving over backwards belt segment with curve
-  before: |
-    _ _ _  _  v
-    _ < <o <i <
-  after: |
-    _ _ _  _  v
-    2>i < <o <i < 2>o
+# Obstacle then belt segment with curves
 
-- name: Integrating backwards belt segment
-  before: _ <o <i <
-  after: 2> 2>i 2>o 2>
-
-- name: If can't belt weave, is error
-  before: |
-    _ _ _  _  v
-    _ < <o <i <
-  after: |
-    _  _ _  _   v
-    > > >i >o *< >
-  expected_errors: [entity_in_the_way]
-
-- name: backwards segment ending in ug belt
-  before: |
-    _ < < <o _
-  after: |
-    > > > > >
-
-- name: backwards segment ending in loader
-  before: |
-    _ < < <O
-  after: |
-    >i < < <O >o
-
-- name: backwards segment ending in unconnected loader 1
-  before: |
-    _ < < <I
-  after: |
-    > > >i <I >o
-
-- name: backwards segment ending in unconnected loader 2
-  before: |
-    _ < < >O >
-  after: |
-    > > >i >O > >o
-
-- name: backwards segment ending in unrelated belt
-  before: |
-    _ _ _ v
-    _ < < v >
-  after: |
-    _ _ _  v
-    > > >i v >o
-
-- name: obstacle extension over backwards segment
-  before: |
-    _ _ _ _ v
-    _ X _ < <
-  after: |
-    _  _ _ _ v
-    >i X _ < < >o
-
-- name: obstacle extension2 over backwards segment
-  before: |
-    _ _ _ _ _ v
-    _ X _ X < <
-  after: |
-    _   _ _ _ _ v
-    2>i X _ X < < 2>o
-
-- name: obstacle then forwards belt segment needs scan 1
+- name: Obstacle then forwards segment needs scan
   before: |
     _ _ _ _ ^ _
     _ X > > ^
@@ -227,7 +168,7 @@
     _  _ _ _ ^ _
     >i X > > ^ >o
 
-- name: obstacle then forwards belt segment needs scan 2
+- name: Obstacle then forwards segment too long
   before: |
     _ _ _ _ _ ^ _
     _ X > > > ^
@@ -235,3 +176,45 @@
     _  _  _ _ _ ^ _
     >i X >o > > ^ *>
   expected_errors: [belt_line_broken]
+
+- name: Backwards segment ending in unrelated belt
+  before: |
+    _ _ _ v
+    _ < < v >
+  after: |
+    _ _ _  v
+    > > >i v >o
+
+# Underground output to curved belt segments
+
+- name: Underground output to curved segment
+  before: |
+    _ _  _  ^
+    _ 2>o > ^
+  after: |
+    _  _   _ ^
+    >i 2>o > ^ >o
+
+- name: Underground output to curved segment reversed
+  before: |
+    _ _  _  v
+    _ 2<i < <
+  after: |
+    _  _   _ v
+    >i 2<i < < >o
+
+- name: Underground output to segment with underground to curved segment
+  before: |
+    _ _   _   _   v
+    _ 2<i 2<o 2<i <
+  after: |
+    _  _   _   _   v
+    >i 2<i 2<o 2<i < >o
+
+- name: Underground output to segment with underground to curved segment reversed
+  before: |
+    _ _   _   _   ^
+    _ 2>o 2>i 2>o ^
+  after: |
+    _  _   _   _   ^
+    >i 2>o 2>i 2>o ^ >o
