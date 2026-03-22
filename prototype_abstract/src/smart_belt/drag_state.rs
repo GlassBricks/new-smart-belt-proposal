@@ -1,8 +1,9 @@
-use crate::smart_belt::drag::{DragContext, DragStepResult};
 use crate::BeltCollidable;
+use crate::Ray;
+use crate::smart_belt::drag::{DragContext, DragStepResult};
 use log::debug;
 
-use super::{Action, DragDirection, TileClassifier, TileType, action::Error};
+use super::{Action, RaySense, TileClassifier, TileType, action::Error};
 
 /// The state of the current drag we store. Needs to work in both directions.
 #[derive(Debug, Clone)]
@@ -16,16 +17,13 @@ pub enum DragState {
     BuildingUnderground {
         input_pos: i32,
         output_pos: Option<i32>,
-        direction: DragDirection,
+        ray_sense: RaySense,
     },
     /// An underground belt we will integrate (and not extend); just "passing-through" it.
-    PassThrough {
-        // input_pos < right_pos, always, no matter the direction
-        left_pos: i32,
-        right_pos: i32,
-    },
+    /// near_pos = Forward-entry side, far_pos = Forward-exit side.
+    PassThrough { near_pos: i32, far_pos: i32 },
     /// We are hovering over or have hovered over an impassable obstacle. Will error if we continue in the given direction.
-    OverImpassable { direction: DragDirection },
+    OverImpassable { ray_sense: RaySense },
     /// After any error (breaking the belt line). We will enter/place the next belt we see.
     ErrorRecovery,
 }
@@ -47,7 +45,7 @@ enum DragEndShape {
         output_pos: Option<i32>,
     },
     /// We are over an obstacle, which we've determined we can not go past. Error if trying to enter any new belt
-    OverImpassableObstacle { direction: DragDirection },
+    OverImpassableObstacle { ray_sense: RaySense },
     /// Error. We will enter any belt we see.
     Error,
 }
@@ -63,7 +61,7 @@ impl DragState {
 
     pub fn step(&self, ctx: &DragContext) -> DragStepResult {
         print_debug_info(ctx);
-        let Some(drag_end) = self.get_drag_end(ctx.last_position, ctx.direction) else {
+        let Some(drag_end) = self.get_drag_end(ctx.last_position, ctx.ray_sense, &ctx.ray) else {
             debug!("Do nothing");
             return DragStepResult(Action::None, self.clone(), None);
         };
@@ -95,51 +93,46 @@ impl DragState {
 impl DragState {
     /// Resolve the belt end shape, after taking into account the direction.
     /// If this returns None, that means that we should do nothing!
-    fn get_drag_end(&self, last_position: i32, direction: DragDirection) -> Option<DragEndShape> {
+    fn get_drag_end(
+        &self,
+        last_position: i32,
+        ray_sense: RaySense,
+        ray: &Ray,
+    ) -> Option<DragEndShape> {
         match *self {
             DragState::OverBelt => Some(DragEndShape::Belt),
             DragState::OverSplitter => Some(DragEndShape::IntegratedOutput),
-            DragState::OverImpassable { direction } => {
-                Some(DragEndShape::OverImpassableObstacle { direction })
+            DragState::OverImpassable { ray_sense } => {
+                Some(DragEndShape::OverImpassableObstacle { ray_sense })
             }
             DragState::ErrorRecovery => Some(DragEndShape::Error),
             DragState::BuildingUnderground {
                 input_pos,
                 output_pos,
-                direction: last_dir,
+                ray_sense: last_sense,
             } => {
-                if direction != last_dir {
-                    // Direction doesn't match, we are "un" dragging (hovering backwards over tiles we already passed)
+                if ray_sense != last_sense {
                     if output_pos.is_some() {
-                        // The input underground position is a underground. Check if we are on that input underground.
                         (last_position == input_pos).then_some(DragEndShape::IntegratedOutput)
                     } else {
-                        // The input underground position is a belt; check if we are overlapping it
-                        let next_position = last_position + direction.direction_multiplier();
+                        let next_position = last_position
+                            + ray.direction.axis_sign() * ray_sense.direction_multiplier();
+
                         (next_position == input_pos).then_some(DragEndShape::Belt)
                     }
                 } else if output_pos == Some(last_position) {
-                    // We just placed an underground belt.
                     Some(DragEndShape::ExtendableUnderground { input_pos })
                 } else {
-                    // We either have not placed an output underground belt, or
-                    // have placed it earlier, and are now hovering over an
-                    // obstacle.
                     Some(DragEndShape::TraversingObstacle {
                         input_pos,
                         output_pos,
                     })
                 }
             }
-            DragState::PassThrough {
-                left_pos,
-                right_pos,
-            } => {
-                // If we are in-between the undergrounds, do nothing
-                // If we are at an underground end, it's an integrated output.
-                if match direction {
-                    DragDirection::Forward => last_position < right_pos,
-                    DragDirection::Backward => last_position > left_pos,
+            DragState::PassThrough { near_pos, far_pos } => {
+                if match ray_sense {
+                    RaySense::Forward => ray.is_before(last_position, far_pos),
+                    RaySense::Backward => ray.is_before(near_pos, last_position),
                 } {
                     None
                 } else {
@@ -209,7 +202,7 @@ impl DragEndShape {
                 action,
                 DragState::BuildingUnderground {
                     input_pos,
-                    direction: ctx.direction,
+                    ray_sense: ctx.ray_sense,
                     output_pos: Some(next_position),
                 },
                 None,
@@ -217,25 +210,17 @@ impl DragEndShape {
         }
     }
 
-    fn integrate_underground_pair(
-        &self,
-        ctx: &DragContext,
-        output_pos: i32,
-    ) -> DragStepResult {
+    fn integrate_underground_pair(&self, ctx: &DragContext, output_pos: i32) -> DragStepResult {
         let input_pos = ctx.next_position();
-        let (left_pos, right_pos) = ctx.direction.swap_if_backwards(input_pos, output_pos);
+        let (near_pos, far_pos) = ctx.ray_sense.swap_if_backwards(input_pos, output_pos);
         let next_state = if output_pos == ctx.furthest_placement_pos {
-            // This is an ug we placed. Extend instead of integrate.
             DragState::BuildingUnderground {
                 input_pos,
                 output_pos: Some(output_pos),
-                direction: ctx.direction,
+                ray_sense: ctx.ray_sense,
             }
         } else {
-            DragState::PassThrough {
-                left_pos,
-                right_pos,
-            }
+            DragState::PassThrough { near_pos, far_pos }
         };
         let err = self.error_on_impassable_exit(ctx);
         DragStepResult(Action::IntegrateUndergroundPair, next_state, err)
@@ -245,12 +230,12 @@ impl DragEndShape {
         let new_state = match *self {
             DragEndShape::Belt => DragState::BuildingUnderground {
                 input_pos: ctx.last_position,
-                direction: ctx.direction,
+                ray_sense: ctx.ray_sense,
                 output_pos: None,
             },
             DragEndShape::ExtendableUnderground { input_pos } => DragState::BuildingUnderground {
                 input_pos,
-                direction: ctx.direction,
+                ray_sense: ctx.ray_sense,
                 output_pos: Some(ctx.last_position),
             },
             DragEndShape::TraversingObstacle {
@@ -258,12 +243,12 @@ impl DragEndShape {
                 output_pos,
             } => DragState::BuildingUnderground {
                 input_pos,
-                direction: ctx.direction,
+                ray_sense: ctx.ray_sense,
                 output_pos,
             },
             DragEndShape::Error | DragEndShape::IntegratedOutput => DragState::ErrorRecovery,
-            DragEndShape::OverImpassableObstacle { direction } => {
-                DragState::OverImpassable { direction }
+            DragEndShape::OverImpassableObstacle { ray_sense } => {
+                DragState::OverImpassable { ray_sense }
             }
         };
         let error = match *self {
@@ -274,16 +259,16 @@ impl DragEndShape {
     }
 
     fn handle_impassable_obstacle(&self, ctx: &DragContext) -> DragStepResult {
-        let direction = match *self {
-            DragEndShape::OverImpassableObstacle { direction } => direction,
-            _ => ctx.direction,
+        let ray_sense = match *self {
+            DragEndShape::OverImpassableObstacle { ray_sense } => ray_sense,
+            _ => ctx.ray_sense,
         };
-        DragStepResult(Action::None, DragState::OverImpassable { direction }, None)
+        DragStepResult(Action::None, DragState::OverImpassable { ray_sense }, None)
     }
 
     fn error_on_impassable_exit(&self, ctx: &DragContext) -> Option<Error> {
         match *self {
-            DragEndShape::OverImpassableObstacle { direction } if direction == ctx.direction => {
+            DragEndShape::OverImpassableObstacle { ray_sense } if ray_sense == ctx.ray_sense => {
                 Some(Error::BeltLineBroken)
             }
             _ => None,
@@ -294,7 +279,7 @@ impl DragEndShape {
 fn print_debug_info(ctx: &DragContext) {
     let pos = ctx.next_position();
     let world_pos = ctx.ray.get_position(pos);
-    debug!("STEP: {:?}, pos: {:?}", ctx.direction, world_pos);
+    debug!("STEP: {:?}, pos: {:?}", ctx.ray_sense, world_pos);
     let next_entity = ctx.world.get(world_pos);
     debug!("Entity: {next_entity:?}");
 }
@@ -313,12 +298,10 @@ fn check_underground_path(
         return Err(Error::TooFarToConnect);
     }
 
-    // 2. Check for intercepting entities between check_from_pos and output_pos
-    let (start, end) = if check_from_pos < output_pos {
-        (check_from_pos + 1, output_pos - 1)
-    } else {
-        (output_pos + 1, check_from_pos - 1)
-    };
+    let (start, end) = (
+        check_from_pos.min(output_pos) + 1,
+        check_from_pos.max(output_pos) - 1,
+    );
 
     for pos in start..=end {
         let entity = ctx.world.get(ctx.ray.get_position(pos));

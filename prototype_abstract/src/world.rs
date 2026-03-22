@@ -4,8 +4,8 @@ use arrayvec::ArrayVec;
 use euclid::vec2;
 
 use crate::{
-    Belt, BeltConnectable, BeltTier, BoundingBox, Direction, BeltCollidable,
-    LoaderLike, Splitter, TilePosition, Transform, UndergroundBelt,
+    Belt, BeltCollidable, BeltConnectable, BeltTier, BoundingBox, Direction, LoaderLike, Splitter,
+    TilePosition, Transform, UndergroundBelt,
 };
 
 /// Trait for read-only world queries, including belt curvature logic
@@ -314,17 +314,16 @@ impl WorldImpl {
         position: TilePosition,
         underground: &UndergroundBelt,
     ) -> Option<(TilePosition, &UndergroundBelt)> {
-        let query_direction = underground.shape_direction().opposite();
+        let scan_direction = underground.structure_direction();
         for i in 1..=underground.tier.underground_distance {
-            let query_pos = position + query_direction.to_vector() * i as i32;
+            let query_pos = position + scan_direction.to_vector() * i as i32;
             if let Some(BeltCollidable::UndergroundBelt(other_ug)) = self.get(query_pos)
                 && other_ug.tier == underground.tier
             {
-                if other_ug.shape_direction() == query_direction {
+                if other_ug.structure_direction() == scan_direction.opposite() {
                     return Some((query_pos, other_ug));
-                } else if other_ug.shape_direction() == underground.shape_direction() {
-                    // Found another underground of same tier and same shape direction
-                    // This would interfere with pairing, so return None
+                } else if other_ug.structure_direction() == scan_direction {
+                    // Found another underground of same tier and same structure direction, would intercept pairing
                     return None;
                 }
             }
@@ -340,7 +339,8 @@ impl ReadonlyWorld for WorldImpl {
     }
 
     fn get_belt(&self, position: TilePosition) -> Option<BeltConnectable> {
-        self.get(position).and_then(|e| BeltConnectable::try_from(e).ok())
+        self.get(position)
+            .and_then(|e| BeltConnectable::try_from(e).ok())
     }
 
     fn get_ug_pair(
@@ -352,8 +352,7 @@ impl ReadonlyWorld for WorldImpl {
     }
 
     fn output_direction_at(&self, position: TilePosition) -> Option<Direction> {
-        self.get_belt(position)
-            .and_then(|e| e.output_direction())
+        self.get_belt(position).and_then(|e| e.output_direction())
     }
 
     fn input_direction_at(&self, position: TilePosition) -> Option<Direction> {
@@ -395,20 +394,22 @@ impl World for WorldImpl {
 impl Transform {
     pub fn transform_entity(&self, entity: &BeltCollidable) -> BeltCollidable {
         match entity {
-            BeltCollidable::Belt(belt) => Belt::new(self.transform_direction(belt.direction), belt.tier).into(),
+            BeltCollidable::Belt(belt) => {
+                Belt::new(self.transform_direction(belt.direction), belt.tier).into()
+            }
             BeltCollidable::UndergroundBelt(ug) => {
-                UndergroundBelt::new(self.transform_direction(ug.direction), ug.is_input, ug.tier).into()
+                UndergroundBelt::new(self.transform_direction(ug.direction), ug.is_input, ug.tier)
+                    .into()
             }
             BeltCollidable::Splitter(splitter) => {
                 Splitter::new(self.transform_direction(splitter.direction), splitter.tier).into()
             }
-            BeltCollidable::LoaderLike(loader) => {
-                LoaderLike::new(
-                    self.transform_direction(loader.direction),
-                    loader.is_input,
-                    loader.tier,
-                ).into()
-            }
+            BeltCollidable::LoaderLike(loader) => LoaderLike::new(
+                self.transform_direction(loader.direction),
+                loader.is_input,
+                loader.tier,
+            )
+            .into(),
             other => other.clone(),
         }
     }
@@ -443,7 +444,8 @@ impl WorldImpl {
                     Splitter::new(splitter.direction.opposite(), splitter.tier).into()
                 }
                 BeltCollidable::LoaderLike(loader) => {
-                    LoaderLike::new(loader.direction.opposite(), !loader.is_input, loader.tier).into()
+                    LoaderLike::new(loader.direction.opposite(), !loader.is_input, loader.tier)
+                        .into()
                 }
                 other => other.clone(),
             };

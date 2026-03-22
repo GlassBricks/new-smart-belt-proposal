@@ -99,8 +99,8 @@ export class UndergroundBelt extends BeltConnectable {
     )
   }
 
-  shapeDirection(): Direction {
-    return this.isInput ? oppositeDirection(this.direction) : this.direction
+  structureDirection(): Direction {
+    return this.isInput ? this.direction : oppositeDirection(this.direction)
   }
 }
 
@@ -124,8 +124,8 @@ export class LoaderLike extends BeltConnectable {
     return this.isInput
   }
 
-  shapeDirection(): Direction {
-    return this.isInput ? oppositeDirection(this.direction) : this.direction
+  structureDirection(): Direction {
+    return this.isInput ? this.direction : oppositeDirection(this.direction)
   }
 }
 

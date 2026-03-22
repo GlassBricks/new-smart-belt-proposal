@@ -7,8 +7,9 @@ import {
   Direction,
   directionAxis,
   getRayPosition,
+  isBeforeOnRay,
   pos,
-  rayDistance,
+  rayPosition,
   rayRelativeDirection,
 } from "../common/geometry"
 
@@ -22,55 +23,80 @@ describe("geometry", () => {
     })
   })
 
-  describe("rayDistance", () => {
+  describe("rayPosition", () => {
     test("North", () => {
       const ray = createRay(pos(0, 0), Direction.North)
-      assert(rayDistance(ray, pos(0, -5)) === 5)
-      assert(rayDistance(ray, pos(0, 5)) === -5)
+      assert(rayPosition(ray, pos(0, -5)) === -5)
+      assert(rayPosition(ray, pos(0, 5)) === 5)
     })
 
     test("East", () => {
       const ray = createRay(pos(0, 0), Direction.East)
-      assert(rayDistance(ray, pos(5, 0)) === 5)
-      assert(rayDistance(ray, pos(-5, 0)) === -5)
+      assert(rayPosition(ray, pos(5, 0)) === 5)
+      assert(rayPosition(ray, pos(-5, 0)) === -5)
     })
 
     test("South", () => {
       const ray = createRay(pos(0, 0), Direction.South)
-      assert(rayDistance(ray, pos(0, 5)) === 5)
-      assert(rayDistance(ray, pos(0, -5)) === -5)
+      assert(rayPosition(ray, pos(0, 5)) === 5)
+      assert(rayPosition(ray, pos(0, -5)) === -5)
     })
 
     test("West", () => {
       const ray = createRay(pos(0, 0), Direction.West)
-      assert(rayDistance(ray, pos(5, 0)) === -5)
-      assert(rayDistance(ray, pos(-5, 0)) === 5)
+      assert(rayPosition(ray, pos(5, 0)) === 5)
+      assert(rayPosition(ray, pos(-5, 0)) === -5)
     })
   })
 
   describe("getRayPosition", () => {
     test("North", () => {
       const ray = createRay(pos(1, 1), Direction.North)
-      const result = getRayPosition(ray, 5)
+      const result = getRayPosition(ray, -4)
       assert(result.x === 1 && result.y === -4)
     })
 
     test("East", () => {
       const ray = createRay(pos(1, 1), Direction.East)
-      const result = getRayPosition(ray, 5)
+      const result = getRayPosition(ray, 6)
       assert(result.x === 6 && result.y === 1)
     })
 
     test("South", () => {
       const ray = createRay(pos(1, 1), Direction.South)
-      const result = getRayPosition(ray, 5)
+      const result = getRayPosition(ray, 6)
       assert(result.x === 1 && result.y === 6)
     })
 
     test("West", () => {
       const ray = createRay(pos(1, 1), Direction.West)
-      const result = getRayPosition(ray, 5)
+      const result = getRayPosition(ray, -4)
       assert(result.x === -4 && result.y === 1)
+    })
+  })
+
+  describe("isBeforeOnRay", () => {
+    test("South", () => {
+      const ray = createRay(pos(0, 0), Direction.South)
+      assert(isBeforeOnRay(ray, 3, 5) === true)
+      assert(isBeforeOnRay(ray, 5, 3) === false)
+      assert(isBeforeOnRay(ray, 3, 3) === false)
+    })
+
+    test("North", () => {
+      const ray = createRay(pos(0, 0), Direction.North)
+      assert(isBeforeOnRay(ray, 5, 3) === true)
+      assert(isBeforeOnRay(ray, 3, 5) === false)
+    })
+
+    test("East", () => {
+      const ray = createRay(pos(0, 0), Direction.East)
+      assert(isBeforeOnRay(ray, 3, 5) === true)
+    })
+
+    test("West", () => {
+      const ray = createRay(pos(0, 0), Direction.West)
+      assert(isBeforeOnRay(ray, 5, 3) === true)
     })
   })
 

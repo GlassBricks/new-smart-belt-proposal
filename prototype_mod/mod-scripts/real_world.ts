@@ -17,12 +17,7 @@ import {
   Splitter,
   UndergroundBelt,
 } from "../common/belts"
-import {
-  Direction,
-  oppositeDirection,
-  TilePosition,
-  type Ray,
-} from "../common/geometry"
+import { Direction, oppositeDirection, TilePosition } from "../common/geometry"
 import { ActionError, ErrorHandler } from "../common/smart_belt"
 import { World } from "../common/world"
 import { CursorManager } from "./cursor_manager"
@@ -238,7 +233,8 @@ export class RealWorld implements World {
 
     if (
       realEntity &&
-      (this.buildMode === defines.build_mode.normal || !realEntity.to_be_deconstructed())
+      (this.buildMode === defines.build_mode.normal ||
+        !realEntity.to_be_deconstructed())
     ) {
       return realEntity
     }
@@ -338,9 +334,7 @@ export class RealWorld implements World {
       return false
     }
 
-    const shapeDirection = revTranslateDirection(
-      oppositeDirection(entity.shapeDirection()),
-    )
+    const shapeDirection = revTranslateDirection(entity.structureDirection())
     this.cursorManager.setupForUnderground(entity.name)
     this.player.build_from_cursor({
       position: mapPosition,

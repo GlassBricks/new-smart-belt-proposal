@@ -2,7 +2,7 @@ use crate::belts::{Belt, BeltTier, LoaderLike, Splitter, UndergroundBelt};
 use crate::{BeltCollidable, BeltConnectable, Direction};
 use std::fmt::Debug;
 
-use super::{DragDirection, DragWorldView};
+use super::{DragWorldView, RaySense};
 
 /// Every tile we encounter is classified as exactly one of the following:
 #[derive(Debug, Clone, PartialEq)]
@@ -22,13 +22,10 @@ pub(super) enum TileType {
 pub(super) struct TileClassifier<'a> {
     world_view: DragWorldView<'a>,
     tier: BeltTier,
-    /// The only data about the previous state the classifier needs to know about.
     can_enter_next_tile: bool,
-    /// Defined only if it's currently possible to create an underground at some earlier point.
     underground_input_pos: Option<i32>,
     is_error_state: bool,
     last_position: i32,
-    direction: DragDirection,
 }
 
 impl<'a> TileClassifier<'a> {
@@ -45,19 +42,17 @@ impl<'a> TileClassifier<'a> {
             underground_input_pos,
             is_error_state,
             last_position: ctx.last_position,
-            direction: ctx.direction,
         }
     }
 
-    // Util methods
-    fn drag_direction(&self) -> DragDirection {
-        self.direction
+    fn ray_sense(&self) -> RaySense {
+        self.world_view.ray_sense()
     }
-    fn direction_multiplier(&self) -> i32 {
-        self.direction.direction_multiplier()
+    fn step_sign(&self) -> i32 {
+        self.world_view.step_sign()
     }
     fn next_position(&self) -> i32 {
-        self.last_position + self.direction_multiplier()
+        self.last_position + self.step_sign()
     }
     fn ray_direction(&self) -> Direction {
         self.world_view.ray_direction()
@@ -176,7 +171,7 @@ impl<'a> TileClassifier<'a> {
 
     /// If this underground is facing the right way to enter it
     fn ug_is_enterable(&self, ug: &UndergroundBelt) -> bool {
-        self.ray_direction() == ug.shape_direction().opposite()
+        self.ray_direction() == ug.structure_direction()
     }
 
     fn classify_splitter(&self, splitter: &Splitter) -> TileType {
@@ -215,8 +210,8 @@ impl<'a> TileClassifier<'a> {
     }
 
     fn belt_connects_into_loader(&self, loader: &LoaderLike) -> bool {
-        loader.shape_direction() == self.ray_direction().opposite()
-            && loader.is_input == (self.drag_direction() == DragDirection::Forward)
+        loader.structure_direction() == self.ray_direction()
+            && loader.is_input == (self.ray_sense() == RaySense::Forward)
     }
 
     fn is_connected_to_previous_obstacle_belt(&self) -> bool {
@@ -245,9 +240,7 @@ impl<'a> TileClassifier<'a> {
             return true;
         };
         match belt_connectable {
-            BeltConnectable::Belt(belt) => {
-                belt.direction.axis() != self.belt_direction().axis()
-            }
+            BeltConnectable::Belt(belt) => belt.direction.axis() != self.belt_direction().axis(),
             BeltConnectable::UndergroundBelt(underground_belt) => {
                 !self.ug_is_enterable(&underground_belt)
             }
@@ -285,22 +278,21 @@ impl<'a> TileClassifier<'a> {
             return true;
         };
 
-        let direction_multiplier = self.direction_multiplier();
+        let step_sign = self.step_sign();
         let start_pos = self.next_position();
 
-        // Start at the tile in front of start.
-        let mut scan_pos = start_pos + direction_multiplier;
+        let mut scan_pos = start_pos + step_sign;
 
         if skip_initial_splitters {
-            while scan_pos * direction_multiplier < max_underground_position * direction_multiplier
+            while scan_pos * step_sign < max_underground_position * step_sign
                 && let Some(belt_connectable) = self.world_view.get_belt_connectable(scan_pos)
                 && let BeltConnectable::Splitter(Splitter { direction, .. }) = belt_connectable
                 && direction == self.belt_direction()
             {
-                scan_pos += direction_multiplier;
+                scan_pos += step_sign;
             }
             // if the next entity after a splitter is a "trivial" obstacle, we can't exit it -- so underground over it
-            if scan_pos * direction_multiplier < max_underground_position * direction_multiplier
+            if scan_pos * step_sign < max_underground_position * step_sign
                 && let Some(entity) = self.world_view.get_entity(scan_pos)
                 && self.is_trivial_obstacle(entity, scan_pos)
             {
@@ -308,45 +300,36 @@ impl<'a> TileClassifier<'a> {
             }
         }
 
-        // Scan the belt segment.
-        while scan_pos * direction_multiplier < max_underground_position * direction_multiplier
+        while scan_pos * step_sign < max_underground_position * step_sign
             && let Some(belt_connectable) = self.world_view.get_belt_connectable(scan_pos)
             && self.world_view.is_belt_connected_to_previous_tile(scan_pos)
         {
             match belt_connectable {
                 BeltConnectable::Belt(belt) => {
                     if self.world_view.belt_was_curved(scan_pos, &belt) {
-                        // Curved belt case!
                         return false;
                     }
-                    // else, belt segment continues.
                 }
                 BeltConnectable::UndergroundBelt(ug) => {
                     if ug.tier == self.tier {
-                        // We can't underground over this.
                         break;
                     }
                     let Some(pair_pos) = self.world_view.get_ug_pair_pos(scan_pos, &ug) else {
-                        // Unpaired underground we can enter is treated as normal belt. Ends belt segment
                         break;
                     };
-                    // Jump scan to after the underground pair
                     scan_pos = pair_pos;
                 }
                 BeltConnectable::Splitter(_) | BeltConnectable::LoaderLike(_) => {
-                    // If true: we should always integrate same direction splitters or loaders
-                    // If false: backwards splitters or loaders would break the belt segment, so we underground over it
                     return segment_belt_direction_matches;
                 }
             }
-            scan_pos += direction_multiplier;
+            scan_pos += step_sign;
         }
-        // if we found nothing problematic, we can integrate it!
         true
     }
 
     fn max_underground_position(&self) -> Option<i32> {
         self.underground_input_pos
-            .map(|pos| pos + (self.tier.underground_distance as i32) * self.direction_multiplier())
+            .map(|pos| pos + (self.tier.underground_distance as i32) * self.step_sign())
     }
 }

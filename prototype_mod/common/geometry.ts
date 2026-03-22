@@ -94,43 +94,70 @@ export function directionAxis(dir: Direction): Axis {
   }
 }
 
+export function axisSign(dir: Direction): number {
+  switch (dir) {
+    case Direction.North:
+      return -1
+    case Direction.South:
+      return 1
+    case Direction.East:
+      return 1
+    case Direction.West:
+      return -1
+  }
+}
+
 export interface Ray {
-  readonly startPosition: TilePosition
+  readonly crossAxisValue: number
   readonly direction: Direction
 }
 
 export function createRay(position: TilePosition, direction: Direction): Ray {
-  return { startPosition: position, direction }
+  const crossAxisValue =
+    directionAxis(direction) === Axis.Y ? position.x : position.y
+  return { crossAxisValue, direction }
 }
 
-export function rayDistance(ray: Ray, position: TilePosition): number {
-  const offset = subPos(position, ray.startPosition)
-  const dirVec = directionToVector(ray.direction)
-  return dotVec(offset, dirVec)
+export function rayDirection(ray: Ray): Direction {
+  return ray.direction
 }
 
-export function getRayPosition(ray: Ray, index: number): TilePosition {
-  return addVec(
-    ray.startPosition,
-    mulVec(directionToVector(ray.direction), index),
-  )
+export function rayPosition(ray: Ray, position: TilePosition): number {
+  return directionAxis(ray.direction) === Axis.Y ? position.y : position.x
+}
+
+export function getRayPosition(ray: Ray, pos: number): TilePosition {
+  return directionAxis(ray.direction) === Axis.Y
+    ? { x: ray.crossAxisValue, y: pos }
+    : { x: pos, y: ray.crossAxisValue }
+}
+
+export function raySnap(ray: Ray, position: TilePosition): TilePosition {
+  return getRayPosition(ray, rayPosition(ray, position))
+}
+
+export function isBeforeOnRay(ray: Ray, a: number, b: number): boolean {
+  return (b - a) * axisSign(ray.direction) > 0
 }
 
 export function rayRelativeDirection(
   ray: Ray,
   position: TilePosition,
 ): Direction | undefined {
-  const offset = subPos(position, ray.startPosition)
+  const cross =
+    directionAxis(ray.direction) === Axis.Y
+      ? position.x - ray.crossAxisValue
+      : position.y - ray.crossAxisValue
 
   switch (ray.direction) {
     case Direction.North:
     case Direction.South:
-      if (offset.x === 0) return undefined
-      return offset.x > 0 ? Direction.East : Direction.West
+      if (cross === 0) return undefined
+      return cross > 0 ? Direction.East : Direction.West
     case Direction.East:
     case Direction.West:
-      if (offset.y === 0) return undefined
-      return offset.y > 0 ? Direction.South : Direction.North
+      if (cross === 0) return undefined
+      return cross > 0 ? Direction.South : Direction.North
   }
 }
 

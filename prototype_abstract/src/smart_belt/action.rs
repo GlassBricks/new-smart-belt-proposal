@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-use super::{DragDirection, LineDrag};
+use super::{LineDrag, RaySense};
 use crate::belts::{Belt, BeltTier, UndergroundBelt};
 use crate::world::{ReadonlyWorld, World, WorldImpl};
 use crate::{BeltCollidable, Direction, TilePosition};
@@ -35,9 +35,9 @@ impl<'a> LineDrag<'a> {
         &mut self,
         error_handler: &mut dyn FnMut(TilePosition, Error),
         action: Action,
-        direction: DragDirection,
+        ray_sense: RaySense,
     ) {
-        let position = self.create_context(direction).next_position();
+        let position = self.create_context(ray_sense).next_position();
         let world_pos = self.ray.get_position(position);
         match action {
             Action::None => {}
@@ -57,7 +57,7 @@ impl<'a> LineDrag<'a> {
                 self.world.place_underground_belt(
                     input_world_pos,
                     self.ray.direction,
-                    direction == DragDirection::Forward,
+                    ray_sense == RaySense::Forward,
                     self.tier,
                     false,
                 );
@@ -65,7 +65,7 @@ impl<'a> LineDrag<'a> {
                 self.world.place_underground_belt(
                     output_world_pos,
                     self.ray.direction,
-                    direction == DragDirection::Backward,
+                    ray_sense == RaySense::Backward,
                     self.tier,
                     true,
                 );
@@ -84,26 +84,28 @@ impl<'a> LineDrag<'a> {
                 self.world.place_underground_belt(
                     new_output_world_pos,
                     self.ray.direction,
-                    direction == DragDirection::Backward,
+                    ray_sense == RaySense::Backward,
                     self.tier,
                     false,
                 );
             }
             Action::IntegrateUndergroundPair => {
                 let (is_input, tier) = {
-                    let Some(BeltCollidable::UndergroundBelt(ug)) = self.world.get(world_pos) else {
+                    let Some(BeltCollidable::UndergroundBelt(ug)) = self.world.get(world_pos)
+                    else {
                         panic!("Expected UndergroundBelt at position");
                     };
                     (ug.is_input, ug.tier)
                 };
 
-                if is_input != (direction == DragDirection::Forward) {
+                if is_input != (ray_sense == RaySense::Forward) {
                     self.world.flip_ug(world_pos);
                 }
 
                 if tier != self.tier {
                     let output_world_pos = {
-                        let Some(BeltCollidable::UndergroundBelt(ug)) = self.world.get(world_pos) else {
+                        let Some(BeltCollidable::UndergroundBelt(ug)) = self.world.get(world_pos)
+                        else {
                             panic!("Expected UndergroundBelt at position");
                         };
                         self.world
@@ -113,11 +115,11 @@ impl<'a> LineDrag<'a> {
                     };
                     let output_pos = self.ray.ray_position(output_world_pos);
 
-                    let ctx = self.create_context(direction);
+                    let ctx = self.create_context(ray_sense);
                     if super::drag_state::can_upgrade_underground(&ctx, output_pos) {
                         self.world.upgrade_ug(world_pos, self.tier);
                     } else {
-                        self.add_error(error_handler, Error::CannotUpgradeUnderground, direction);
+                        self.add_error(error_handler, Error::CannotUpgradeUnderground, ray_sense);
                     }
                 }
             }
@@ -140,7 +142,10 @@ impl WorldImpl {
         tier: BeltTier,
         verify_direction: bool,
     ) {
-        self.build_unchecked(position, UndergroundBelt::new(direction, is_input, tier).into());
+        self.build_unchecked(
+            position,
+            UndergroundBelt::new(direction, is_input, tier).into(),
+        );
         if verify_direction
             && let Some(BeltCollidable::UndergroundBelt(ug)) = self.get(position)
             && ug.direction != direction

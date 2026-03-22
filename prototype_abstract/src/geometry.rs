@@ -81,51 +81,78 @@ impl Direction {
             _ => None,
         }
     }
+
+    /// Sign of the direction vector's nonzero component on its axis.
+    pub const fn axis_sign(self) -> i32 {
+        match self {
+            Direction::North => -1,
+            Direction::South => 1,
+            Direction::East => 1,
+            Direction::West => -1,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct Ray {
-    pub start_position: TilePosition,
+    cross_axis_value: i32,
     pub direction: Direction,
 }
 
 impl Ray {
-    pub const fn new(position: TilePosition, direction: Direction) -> Self {
+    pub fn new(position: TilePosition, direction: Direction) -> Self {
+        let cross_axis_value = match direction.axis() {
+            Axis::Y => position.x,
+            Axis::X => position.y,
+        };
         Self {
-            start_position: position,
+            cross_axis_value,
             direction,
         }
     }
 
     pub fn ray_position(&self, position: TilePosition) -> i32 {
-        let offset = position - self.start_position;
-        let dir_vec = self.direction.to_vector();
-        offset.dot(dir_vec)
+        match self.direction.axis() {
+            Axis::Y => position.y,
+            Axis::X => position.x,
+        }
     }
-    /// Get position at index along ray using euclid vector arithmetic
-    pub fn get_position(&self, index: i32) -> TilePosition {
-        self.start_position + self.direction.to_vector() * index
+
+    pub fn get_position(&self, pos: i32) -> TilePosition {
+        match self.direction.axis() {
+            Axis::Y => TilePosition::new(self.cross_axis_value, pos),
+            Axis::X => TilePosition::new(pos, self.cross_axis_value),
+        }
     }
+
     pub fn snap(&self, position: TilePosition) -> TilePosition {
         self.get_position(self.ray_position(position))
     }
 
+    /// True when `a` is strictly before `b` along the ray direction.
+    pub fn is_before(&self, a: i32, b: i32) -> bool {
+        (b - a) * self.direction.axis_sign() > 0
+    }
+
     pub fn relative_direction(&self, position: TilePosition) -> Option<Direction> {
-        let offset = position - self.start_position;
+        let cross = match self.direction.axis() {
+            Axis::Y => position.x - self.cross_axis_value,
+            Axis::X => position.y - self.cross_axis_value,
+        };
         match self.direction {
             Direction::North | Direction::South => {
-                if offset.x == 0 {
+                if cross == 0 {
                     None
-                } else if offset.x > 0 {
+                } else if cross > 0 {
                     Some(Direction::East)
                 } else {
                     Some(Direction::West)
                 }
             }
             Direction::East | Direction::West => {
-                if offset.y == 0 {
+                if cross == 0 {
                     None
-                } else if offset.y > 0 {
+                } else if cross > 0 {
                     Some(Direction::South)
                 } else {
                     Some(Direction::North)
@@ -249,10 +276,10 @@ mod tests {
     }
 
     #[test]
-    fn test_ray_distance() {
+    fn test_ray_position() {
         let ray_north = Ray::new(pos(0, 0), Direction::North);
-        assert_eq!(ray_north.ray_position(pos(0, -5)), 5);
-        assert_eq!(ray_north.ray_position(pos(0, 5)), -5);
+        assert_eq!(ray_north.ray_position(pos(0, -5)), -5);
+        assert_eq!(ray_north.ray_position(pos(0, 5)), 5);
 
         let ray_east = Ray::new(pos(0, 0), Direction::East);
         assert_eq!(ray_east.ray_position(pos(5, 0)), 5);
@@ -263,23 +290,23 @@ mod tests {
         assert_eq!(ray_south.ray_position(pos(0, -5)), -5);
 
         let ray_west = Ray::new(pos(0, 0), Direction::West);
-        assert_eq!(ray_west.ray_position(pos(5, 0)), -5);
-        assert_eq!(ray_west.ray_position(pos(-5, 0)), 5);
+        assert_eq!(ray_west.ray_position(pos(5, 0)), 5);
+        assert_eq!(ray_west.ray_position(pos(-5, 0)), -5);
     }
 
     #[test]
-    fn test_position_at() {
+    fn test_get_position() {
         let ray_north = Ray::new(pos(1, 1), Direction::North);
-        assert_eq!(ray_north.get_position(5), pos(1, -4));
+        assert_eq!(ray_north.get_position(-4), pos(1, -4));
 
         let ray_east = Ray::new(pos(1, 1), Direction::East);
-        assert_eq!(ray_east.get_position(5), pos(6, 1));
+        assert_eq!(ray_east.get_position(6), pos(6, 1));
 
         let ray_south = Ray::new(pos(1, 1), Direction::South);
-        assert_eq!(ray_south.get_position(5), pos(1, 6));
+        assert_eq!(ray_south.get_position(6), pos(1, 6));
 
         let ray_west = Ray::new(pos(1, 1), Direction::West);
-        assert_eq!(ray_west.get_position(5), pos(-4, 1));
+        assert_eq!(ray_west.get_position(-4), pos(-4, 1));
     }
 
     #[test]
@@ -295,6 +322,24 @@ mod tests {
 
         let ray_west = Ray::new(pos(1, 1), Direction::West);
         assert_eq!(ray_west.snap(pos(-4, 5)), pos(-4, 1));
+    }
+
+    #[test]
+    fn test_is_before() {
+        let ray_south = Ray::new(pos(0, 0), Direction::South);
+        assert!(ray_south.is_before(3, 5));
+        assert!(!ray_south.is_before(5, 3));
+        assert!(!ray_south.is_before(3, 3));
+
+        let ray_north = Ray::new(pos(0, 0), Direction::North);
+        assert!(ray_north.is_before(5, 3));
+        assert!(!ray_north.is_before(3, 5));
+
+        let ray_east = Ray::new(pos(0, 0), Direction::East);
+        assert!(ray_east.is_before(3, 5));
+
+        let ray_west = Ray::new(pos(0, 0), Direction::West);
+        assert!(ray_west.is_before(5, 3));
     }
 
     #[test]

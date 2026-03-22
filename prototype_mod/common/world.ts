@@ -43,13 +43,13 @@ export class ReadonlyWorldOps {
     position: TilePosition,
     underground: UndergroundBelt,
   ): [TilePosition, UndergroundBelt] | undefined {
-    const queryDirection = oppositeDirection(underground.shapeDirection())
+    const scanDirection = underground.structureDirection()
     const maxDistance = underground.tier.undergroundDistance
 
     for (let i = 1; i <= maxDistance; i++) {
       const queryPos = addVec(
         position,
-        mulVec(directionToVector(queryDirection), i),
+        mulVec(directionToVector(scanDirection), i),
       )
       const entity = this.world.get(queryPos)
 
@@ -57,12 +57,9 @@ export class ReadonlyWorldOps {
         entity instanceof UndergroundBelt &&
         entity.tier === underground.tier
       ) {
-        const entityShapeDir = entity.shapeDirection()
-        const undergroundShapeDir = underground.shapeDirection()
-
-        if (entityShapeDir === queryDirection) {
+        if (entity.structureDirection() === oppositeDirection(scanDirection)) {
           return [queryPos, entity]
-        } else if (entityShapeDir === undergroundShapeDir) {
+        } else if (entity.structureDirection() === scanDirection) {
           return undefined
         }
       }

@@ -4,7 +4,7 @@ use crate::{
     world::ReadonlyWorld,
 };
 
-use super::DragDirection;
+use super::RaySense;
 
 /**
 World view for TileClassifier.
@@ -14,7 +14,7 @@ Handles geometric transformations, and belt shapes.
 pub(super) struct DragWorldView<'a> {
     world: TileHistoryView<'a>,
     ray: Ray,
-    pub(crate) direction: DragDirection,
+    ray_sense: RaySense,
 }
 
 impl<'a> DragWorldView<'a> {
@@ -22,13 +22,21 @@ impl<'a> DragWorldView<'a> {
         world: &'a dyn ReadonlyWorld,
         ray: Ray,
         tile_history: &'a [TileHistory],
-        direction: DragDirection,
+        ray_sense: RaySense,
     ) -> Self {
         Self {
             world: TileHistoryView::new(world, tile_history),
             ray,
-            direction,
+            ray_sense,
         }
+    }
+
+    pub fn ray_sense(&self) -> RaySense {
+        self.ray_sense
+    }
+
+    pub fn step_sign(&self) -> i32 {
+        self.ray.direction.axis_sign() * self.ray_sense.direction_multiplier()
     }
 
     /// Direction of the belt.
@@ -37,7 +45,7 @@ impl<'a> DragWorldView<'a> {
     }
     /// Direction of the next belt, maybe be opposite in case of backwards drags
     pub fn ray_direction(&self) -> Direction {
-        if self.direction == DragDirection::Forward {
+        if self.ray_sense == RaySense::Forward {
             self.ray.direction
         } else {
             self.ray.direction.opposite()
@@ -60,15 +68,17 @@ impl<'a> DragWorldView<'a> {
 
     /// If this entity belt-connects to the previous entity, forming part of the same belt segment.
     pub fn is_belt_connected_to_previous_tile(&self, next_pos: i32) -> bool {
-        let (last_pos, cur_pos) = if self.direction == DragDirection::Forward {
+        let fwd = self.ray.direction.axis_sign();
+
+        let (last_pos, cur_pos) = if self.ray_sense == RaySense::Forward {
             (
-                self.ray.get_position(next_pos - 1),
+                self.ray.get_position(next_pos - fwd),
                 self.ray.get_position(next_pos),
             )
         } else {
             (
                 self.ray.get_position(next_pos),
-                self.ray.get_position(next_pos + 1),
+                self.ray.get_position(next_pos + fwd),
             )
         };
 
@@ -84,11 +94,12 @@ impl<'a> DragWorldView<'a> {
         next_pos: i32,
         input_ug_pos: Option<i32>,
     ) -> bool {
-        if input_ug_pos == Some(next_pos - 2 * self.direction.direction_multiplier()) {
+        let drag_step = self.step_sign();
+
+        if input_ug_pos == Some(next_pos - 2 * drag_step) {
             return false;
         }
-        let last_pos = next_pos - self.direction.direction_multiplier();
-        let last_world_pos = self.ray.get_position(last_pos);
+        let last_world_pos = self.ray.get_position(next_pos - drag_step);
         self.world
             .input_dependencies_at(last_world_pos)
             .contains(&self.ray_direction().opposite())

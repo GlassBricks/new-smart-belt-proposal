@@ -1,4 +1,4 @@
-use super::{DragDirection, DragState, Error};
+use super::{DragState, Error, RaySense};
 use crate::belts::BeltTier;
 use crate::smart_belt::{DragWorldView, belt_curving::TileHistory};
 use crate::world::{ReadonlyWorld, WorldImpl};
@@ -16,20 +16,21 @@ pub struct DragContext<'a> {
     pub last_position: i32,
     pub tile_history: Vec<TileHistory>,
     pub furthest_placement_pos: i32,
-    pub direction: DragDirection,
+    pub ray_sense: RaySense,
 }
 
 impl<'a> DragContext<'a> {
     pub fn next_position(&self) -> i32 {
-        self.last_position + self.direction.direction_multiplier()
+        self.last_position + self.step_sign()
     }
 
-    pub fn direction_multiplier(&self) -> i32 {
-        self.direction.direction_multiplier()
+    /// Combined step sign: positive when stepping increases the absolute coordinate.
+    pub fn step_sign(&self) -> i32 {
+        self.ray.direction.axis_sign() * self.ray_sense.direction_multiplier()
     }
 
     pub(super) fn drag_world_view(&self) -> DragWorldView<'_> {
-        DragWorldView::new(self.world, self.ray, &self.tile_history, self.direction)
+        DragWorldView::new(self.world, self.ray, &self.tile_history, self.ray_sense)
     }
 }
 
@@ -49,15 +50,13 @@ pub struct LineDrag<'a> {
     // After rotation, we also may want the last placed belt of the previous rotation in tile history.
     last_end_tile_history: Option<(TilePosition, BeltConnections)>,
 
-    // Last entity built, for "resuming" underground belt and tile history
-    pub(super) max_placement: i32,
-    pub(super) min_placement: i32,
-    pub(super) furthest_placement_direction: DragDirection,
+    pub(super) forward_placement: i32,
+    pub(super) backward_placement: i32,
+    pub(super) furthest_placement_direction: RaySense,
 
-    // Position tracking for rotation: how far have we dragged?
-    pub(super) max_pos: i32,
-    pub(super) min_pos: i32,
-    pub(super) rotation_pivot_direction: DragDirection,
+    pub(super) forward_pos: i32,
+    pub(super) backward_pos: i32,
+    pub(super) rotation_pivot_direction: RaySense,
 }
 
 impl<'a> LineDrag<'a> {
@@ -83,21 +82,23 @@ impl<'a> LineDrag<'a> {
         }
 
         let initial_state = DragState::initial_state(can_place);
+        let ray = Ray::new(start_pos, belt_direction);
+        let start_coord = ray.ray_position(start_pos);
 
         LineDrag {
             world,
-            ray: Ray::new(start_pos, belt_direction),
+            ray,
             tier,
             last_state: initial_state,
-            last_position: 0,
+            last_position: start_coord,
             tile_history,
             last_end_tile_history: None,
-            max_placement: 0,
-            min_placement: 0,
-            furthest_placement_direction: DragDirection::Forward,
-            max_pos: 0,
-            min_pos: 0,
-            rotation_pivot_direction: DragDirection::Forward,
+            forward_placement: start_coord,
+            backward_placement: start_coord,
+            furthest_placement_direction: RaySense::Forward,
+            forward_pos: start_coord,
+            backward_pos: start_coord,
+            rotation_pivot_direction: RaySense::Forward,
         }
     }
 
@@ -135,6 +136,7 @@ impl<'a> LineDrag<'a> {
 
         let (pivot, backward) = self.get_rotation_pivot();
         let old_direction = self.ray.direction;
+
         let (new_belt_direction, first_belt_direction) = if backward {
             (turn_direction.opposite(), old_direction)
         } else {
@@ -172,15 +174,15 @@ impl<'a> LineDrag<'a> {
         new_position: TilePosition,
     ) {
         let target_pos = self.ray.ray_position(new_position);
-        while self.last_position < target_pos {
-            let ctx = self.create_context(DragDirection::Forward);
+        while self.ray.is_before(self.last_position, target_pos) {
+            let ctx = self.create_context(RaySense::Forward);
             let result = self.last_state.step(&ctx);
-            self.apply_step(error_handler, result, DragDirection::Forward);
+            self.apply_step(error_handler, result, RaySense::Forward);
         }
-        while self.last_position > target_pos {
-            let ctx = self.create_context(DragDirection::Backward);
+        while self.ray.is_before(target_pos, self.last_position) {
+            let ctx = self.create_context(RaySense::Backward);
             let result = self.last_state.step(&ctx);
-            self.apply_step(error_handler, result, DragDirection::Backward);
+            self.apply_step(error_handler, result, RaySense::Backward);
         }
         self.update_furthest_position(target_pos);
     }
@@ -189,18 +191,18 @@ impl<'a> LineDrag<'a> {
         &mut self,
         error_handler: &mut dyn FnMut(TilePosition, Error),
         step: DragStepResult,
-        direction: DragDirection,
+        ray_sense: RaySense,
     ) {
         let DragStepResult(action, next_state, error) = step;
         debug!("action: {:?}", action);
-        let next_position = self.create_context(direction).next_position();
+        let next_position = self.create_context(ray_sense).next_position();
         if action != Action::None {
-            self.update_furthest_placement(next_position, direction)
+            self.update_furthest_placement(next_position, ray_sense)
         }
-        self.apply_action(error_handler, action, direction);
+        self.apply_action(error_handler, action, ray_sense);
 
         if let Some(error) = error {
-            self.add_error(error_handler, error, direction);
+            self.add_error(error_handler, error, ray_sense);
         }
 
         debug!("Next state: {:?}\n", next_state);
@@ -215,57 +217,56 @@ impl<'a> LineDrag<'a> {
         debug!("New tile history: {:?}", self.tile_history);
     }
 
-    fn update_furthest_placement(&mut self, position: i32, direction: DragDirection) {
-        match direction {
-            DragDirection::Forward => {
-                if position > self.max_placement {
-                    self.max_placement = position;
+    fn update_furthest_placement(&mut self, position: i32, ray_sense: RaySense) {
+        match ray_sense {
+            RaySense::Forward => {
+                if self.ray.is_before(self.forward_placement, position) {
+                    self.forward_placement = position;
                     self.store_tile_history(position);
-                    self.furthest_placement_direction = DragDirection::Forward;
+                    self.furthest_placement_direction = RaySense::Forward;
                 }
             }
-            DragDirection::Backward => {
-                if position < self.min_placement {
-                    self.min_placement = position;
+            RaySense::Backward => {
+                if self.ray.is_before(position, self.backward_placement) {
+                    self.backward_placement = position;
                     self.store_tile_history(position);
-                    self.furthest_placement_direction = DragDirection::Backward;
+                    self.furthest_placement_direction = RaySense::Backward;
                 }
             }
         };
     }
 
     fn update_furthest_position(&mut self, target_pos: i32) {
-        if target_pos > self.max_pos {
-            self.max_pos = target_pos;
-            self.rotation_pivot_direction = DragDirection::Forward;
+        if self.ray.is_before(self.forward_pos, target_pos) {
+            self.forward_pos = target_pos;
+            self.rotation_pivot_direction = RaySense::Forward;
         }
-        if target_pos < self.min_pos {
-            self.min_pos = target_pos;
-            self.rotation_pivot_direction = DragDirection::Backward;
+        if self.ray.is_before(target_pos, self.backward_pos) {
+            self.backward_pos = target_pos;
+            self.rotation_pivot_direction = RaySense::Backward;
         }
     }
 
     pub(super) fn get_rotation_pivot(&self) -> (TilePosition, bool) {
         let furthest_pos = match self.rotation_pivot_direction {
-            DragDirection::Forward => self.max_pos,
-            DragDirection::Backward => self.min_pos,
+            RaySense::Forward => self.forward_pos,
+            RaySense::Backward => self.backward_pos,
         };
         (
             self.ray.get_position(furthest_pos),
-            self.rotation_pivot_direction == DragDirection::Backward,
+            self.rotation_pivot_direction == RaySense::Backward,
         )
     }
 
-    /// Used for tile history.
     pub fn furthest_placement_pos(&self) -> i32 {
         match self.furthest_placement_direction {
-            DragDirection::Forward => self.max_placement,
-            DragDirection::Backward => self.min_placement,
+            RaySense::Forward => self.forward_placement,
+            RaySense::Backward => self.backward_placement,
         }
     }
 
     #[inline]
-    pub(super) fn create_context(&self, direction: DragDirection) -> DragContext<'_> {
+    pub(super) fn create_context(&self, ray_sense: RaySense) -> DragContext<'_> {
         let tile_history = self
             .tile_history
             .map(|h| (self.ray.get_position(self.furthest_placement_pos()), h))
@@ -278,11 +279,11 @@ impl<'a> LineDrag<'a> {
             tier: self.tier,
             last_position: self.last_position,
             tile_history,
-            furthest_placement_pos: match direction {
-                DragDirection::Forward => self.max_placement,
-                DragDirection::Backward => self.min_placement,
+            furthest_placement_pos: match ray_sense {
+                RaySense::Forward => self.forward_placement,
+                RaySense::Backward => self.backward_placement,
             },
-            direction,
+            ray_sense,
         }
     }
 
@@ -290,12 +291,12 @@ impl<'a> LineDrag<'a> {
         &mut self,
         error_handler: &mut dyn FnMut(TilePosition, Error),
         error: Error,
-        direction: DragDirection,
+        ray_sense: RaySense,
     ) {
         debug!("error: {:?}", error);
         let position = self
             .ray
-            .get_position(self.create_context(direction).next_position());
+            .get_position(self.create_context(ray_sense).next_position());
         error_handler(position, error);
     }
 }

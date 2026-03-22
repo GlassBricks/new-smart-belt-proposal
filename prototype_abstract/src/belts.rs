@@ -216,11 +216,12 @@ impl UndergroundBelt {
         self.direction = self.direction.opposite();
     }
 
-    pub fn shape_direction(&self) -> Direction {
+    /// Direction toward the underground gap/partner. Matches C++ structureDirection().
+    pub fn structure_direction(&self) -> Direction {
         if self.is_input {
-            self.direction.opposite()
-        } else {
             self.direction
+        } else {
+            self.direction.opposite()
         }
     }
 }
@@ -262,11 +263,12 @@ impl LoaderLike {
         }
     }
 
-    pub fn shape_direction(&self) -> Direction {
+    /// Direction toward the underground gap/partner. Matches C++ structureDirection().
+    pub fn structure_direction(&self) -> Direction {
         if self.is_input {
-            self.direction.opposite()
-        } else {
             self.direction
+        } else {
+            self.direction.opposite()
         }
     }
 }
@@ -339,22 +341,20 @@ mod tests {
     }
 
     #[test]
-    fn test_underground_belt_shape_direction() {
-        let belt = UndergroundBelt {
+    fn test_underground_belt_structure_direction() {
+        let input = UndergroundBelt {
             direction: North,
             tier: YELLOW_BELT,
             is_input: true,
         };
+        assert_eq!(input.structure_direction(), North);
 
-        assert_eq!(belt.shape_direction(), South);
-
-        let belt = UndergroundBelt {
-            direction: South,
+        let output = UndergroundBelt {
+            direction: North,
             tier: YELLOW_BELT,
-            is_input: true,
+            is_input: false,
         };
-
-        assert_eq!(belt.shape_direction(), North);
+        assert_eq!(output.structure_direction(), South);
     }
 
     #[test]

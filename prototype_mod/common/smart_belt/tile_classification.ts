@@ -8,7 +8,7 @@ import {
 } from "../belts"
 import { Direction, directionAxis } from "../geometry"
 
-import { directionMultiplier, DragDirection } from "./DragDirection"
+import { RaySense } from "./RaySense"
 
 import type { DragContext } from "./drag_state"
 import { DragWorldView } from "./world_view"
@@ -35,22 +35,22 @@ export class TileClassifier {
       ctx.world,
       ctx.ray,
       ctx.tileHistory,
-      ctx.direction,
+      ctx.raySense,
     )
     this.lastPosition = ctx.lastPosition
     this.tier = ctx.tier
   }
 
-  private dragDirection(): DragDirection {
-    return this.worldView.direction
+  private raySense(): RaySense {
+    return this.worldView.raySense
   }
 
-  private directionMultiplier(): number {
-    return directionMultiplier(this.dragDirection())
+  private stepSign(): number {
+    return this.worldView.stepSign()
   }
 
   private nextPosition(): number {
-    return this.lastPosition + this.directionMultiplier()
+    return this.lastPosition + this.stepSign()
   }
 
   private rayDirection(): Direction {
@@ -168,9 +168,7 @@ export class TileClassifier {
   }
 
   private ugIsEnterable(ug: UndergroundBelt): boolean {
-    const shapeDirection = ug.shapeDirection()
-    const oppositeDirection = ((shapeDirection + 2) % 4) as Direction
-    return this.rayDirection() === oppositeDirection
+    return this.rayDirection() === ug.structureDirection()
   }
 
   private classifySplitter(splitter: Splitter): TileType {
@@ -202,11 +200,9 @@ export class TileClassifier {
   }
 
   private beltConnectsIntoLoader(loader: LoaderLike): boolean {
-    const shapeDirection = loader.shapeDirection()
-    const oppositeRayDirection = ((this.rayDirection() + 2) % 4) as Direction
     return (
-      shapeDirection === oppositeRayDirection &&
-      loader.isInput === (this.dragDirection() === DragDirection.Forward)
+      loader.structureDirection() === this.rayDirection() &&
+      loader.isInput === (this.raySense() === RaySense.Forward)
     )
   }
 
@@ -257,24 +253,23 @@ export class TileClassifier {
       return true
     }
 
-    const dirMult = this.directionMultiplier()
+    const ss = this.stepSign()
     const startPos = this.nextPosition()
-    let scanPos = startPos + dirMult
+    let scanPos = startPos + ss
 
     if (skipInitialSplitters) {
-      while (scanPos * dirMult < maxUndergroundPosition * dirMult) {
+      while (scanPos * ss < maxUndergroundPosition * ss) {
         const entity = this.worldView.getBeltEntity(scanPos)
         if (
           entity instanceof Splitter &&
           entity.direction === this.beltDirection()
         ) {
-          scanPos += dirMult
+          scanPos += ss
         } else {
           break
         }
       }
-      // if the next entity after a splitter is a "trivial" obstacle, we can't exit it -- so underground over it
-      if (scanPos * dirMult < maxUndergroundPosition * dirMult) {
+      if (scanPos * ss < maxUndergroundPosition * ss) {
         const entity = this.worldView.getEntity(scanPos)
         if (entity && this.isTrivialObstacle(entity, scanPos)) {
           return false
@@ -282,7 +277,7 @@ export class TileClassifier {
       }
     }
 
-    while (scanPos * dirMult < maxUndergroundPosition * dirMult) {
+    while (scanPos * ss < maxUndergroundPosition * ss) {
       const beltConnectable = this.worldView.getBeltEntity(scanPos)
       if (!beltConnectable) {
         break
@@ -314,7 +309,7 @@ export class TileClassifier {
         return segmentBeltDirectionMatches
       }
 
-      scanPos += dirMult
+      scanPos += ss
     }
 
     return true
@@ -325,8 +320,7 @@ export class TileClassifier {
       return undefined
     }
     return (
-      this.undergroundInputPos +
-      this.tier.undergroundDistance * this.directionMultiplier()
+      this.undergroundInputPos + this.tier.undergroundDistance * this.stepSign()
     )
   }
 }

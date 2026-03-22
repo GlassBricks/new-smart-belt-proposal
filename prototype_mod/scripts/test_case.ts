@@ -10,17 +10,20 @@ import {
   type BeltTier,
 } from "../common/belts"
 import {
+  Axis,
   boundsUnion,
   createRay,
   Direction,
-  directionToVector,
-  getRayPosition,
+  directionAxis,
   oppositeDirection,
   pos,
-  rayDistance,
+  rayPosition,
+  raySnap,
+  vec2,
   type BoundingBox,
   type Ray,
   type TilePosition,
+  type TileVec,
 } from "../common/geometry"
 import {
   LineDrag,
@@ -545,7 +548,7 @@ export function runTestCase(
 
   const ray = createRay(startPos, beltDirection)
 
-  const snapped = getRayPosition(ray, rayDistance(ray, endPos))
+  const snapped = raySnap(ray, endPos)
   if (snapped.x !== endPos.x || snapped.y !== endPos.y) {
     throw new Error(
       "end_pos must be on the same line as start_pos in drag_direction",
@@ -571,18 +574,10 @@ export function runTestCase(
 
   switch (testVariant) {
     case TestVariant.MegaWiggle:
-      runMegaWiggle(drag, result, errorHandler, startPos, endPos, beltDirection)
+      runMegaWiggle(drag, result, errorHandler, startPos, endPos, ray)
       break
     case TestVariant.Wiggle:
-      runWiggle(
-        drag,
-        result,
-        errorHandler,
-        startPos,
-        endPos,
-        beltDirection,
-        ray,
-      )
+      runWiggle(drag, result, errorHandler, startPos, endPos, ray)
       break
     case TestVariant.ForwardBack:
       runForwardBack(drag, result, errorHandler, leftmostPos, endPos)
@@ -600,32 +595,44 @@ export function runTestCase(
   return [result, errors]
 }
 
+function towardEndStep(
+  startPos: TilePosition,
+  endPos: TilePosition,
+  ray: Ray,
+): TileVec {
+  const dx = endPos.x - startPos.x
+  const dy = endPos.y - startPos.y
+  return directionAxis(ray.direction) === Axis.X
+    ? vec2(Math.sign(dx), 0)
+    : vec2(0, Math.sign(dy))
+}
+
+function addStep(p: TilePosition, step: TileVec, n: number): TilePosition {
+  return pos(p.x + step.x * n, p.y + step.y * n)
+}
+
 function runWiggle(
   drag: LineDrag,
   world: SimulatedWorld,
   errorHandler: ErrorHandler,
   startPos: TilePosition,
   endPos: TilePosition,
-  dragDirection: Direction,
   ray: Ray,
 ): void {
-  const endPosRay = rayDistance(ray, endPos)
-  const dirVec = directionToVector(dragDirection)
+  const endRay = rayPosition(ray, endPos)
+  const step = towardEndStep(startPos, endPos, ray)
 
   let currentPos = startPos
 
-  while (rayDistance(ray, currentPos) + 2 < endPosRay) {
-    const forward2 = pos(
-      currentPos.x + dirVec.x * 2,
-      currentPos.y + dirVec.y * 2,
-    )
+  while (Math.abs(rayPosition(ray, currentPos) - endRay) > 2) {
+    const forward2 = addStep(currentPos, step, 2)
     drag.interpolateTo(world, errorHandler, forward2)
-    const back1 = pos(currentPos.x + dirVec.x, currentPos.y + dirVec.y)
+    const back1 = addStep(currentPos, step, 1)
     drag.interpolateTo(world, errorHandler, back1)
     currentPos = back1
   }
 
-  if (rayDistance(ray, currentPos) !== endPosRay) {
+  if (rayPosition(ray, currentPos) !== endRay) {
     drag.interpolateTo(world, errorHandler, endPos)
   }
 }
@@ -636,18 +643,17 @@ function runMegaWiggle(
   errorHandler: ErrorHandler,
   startPos: TilePosition,
   endPos: TilePosition,
-  dragDirection: Direction,
+  ray: Ray,
 ): void {
-  const ray = createRay(startPos, dragDirection)
-  const endPosRay = rayDistance(ray, endPos)
-  const dirVec = directionToVector(dragDirection)
+  const startRay = rayPosition(ray, startPos)
+  const endRay = rayPosition(ray, endPos)
+  const dragDistance = Math.abs(startRay - endRay)
+  const step = towardEndStep(startPos, endPos, ray)
 
-  let n = 1
-  while (n < endPosRay) {
-    const forwardN = pos(startPos.x + dirVec.x * n, startPos.y + dirVec.y * n)
+  for (let n = 1; n < dragDistance; n++) {
+    const forwardN = addStep(startPos, step, n)
     drag.interpolateTo(world, errorHandler, forwardN)
     drag.interpolateTo(world, errorHandler, startPos)
-    n += 1
   }
   drag.interpolateTo(world, errorHandler, endPos)
 }

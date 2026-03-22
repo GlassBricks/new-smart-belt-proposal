@@ -1,16 +1,18 @@
 use std::cmp::max;
 use std::collections::HashSet;
 
+use crate::BoundingBox;
 use crate::belts::{BELT_TIERS, Belt, BeltTier, LoaderLike, Splitter, UndergroundBelt};
+use crate::geometry::Axis;
 use crate::geometry::Ray;
 use crate::world::{ReadonlyWorld, World};
 use crate::{
-    BeltCollidable, BeltConnectable, BeltConnectableTrait, Direction,
-    TilePosition, Transform, WorldImpl, pos,
+    BeltCollidable, BeltConnectable, BeltConnectableTrait, Direction, TilePosition, TileVec,
+    Transform, WorldImpl, pos,
     smart_belt::{LineDrag, action, action::Error},
 };
-use crate::BoundingBox;
 use anyhow::{Context, Result, bail};
+use euclid::vec2;
 use itertools::Itertools;
 use serde::{Deserialize, Deserializer};
 
@@ -230,7 +232,6 @@ fn run_test_case(
     } = *test;
 
     let ray = Ray::new(start_pos, belt_direction);
-    let end_pos_ray = ray.ray_position(end_pos);
     assert_eq!(
         ray.snap(end_pos),
         end_pos,
@@ -259,25 +260,10 @@ fn run_test_case(
                 run_forward_back(&mut drag, &mut error_handler, leftmost_pos, end_pos);
             }
             TestVariant::Wiggle => {
-                run_wiggle(
-                    &mut drag,
-                    &mut error_handler,
-                    start_pos,
-                    end_pos,
-                    belt_direction,
-                    &ray,
-                    end_pos_ray,
-                );
+                run_wiggle(&mut drag, &mut error_handler, start_pos, end_pos, &ray);
             }
             TestVariant::MegaWiggle => {
-                run_mega_wiggle(
-                    &mut drag,
-                    &mut error_handler,
-                    start_pos,
-                    end_pos,
-                    belt_direction,
-                    end_pos_ray,
-                );
+                run_mega_wiggle(&mut drag, &mut error_handler, start_pos, end_pos, &ray);
             }
         }
     }
@@ -286,26 +272,34 @@ fn run_test_case(
     (result, errors.into_iter().collect())
 }
 
+fn toward_end_step(start_pos: TilePosition, end_pos: TilePosition, ray: &Ray) -> TileVec {
+    let diff = end_pos - start_pos;
+    match ray.direction.axis() {
+        Axis::X => vec2(diff.x.signum(), 0),
+
+        Axis::Y => vec2(0, diff.y.signum()),
+    }
+}
+
 fn run_wiggle(
     drag: &mut LineDrag<'_>,
     error_handler: &mut dyn FnMut(TilePosition, Error),
     start_pos: TilePosition,
     end_pos: TilePosition,
-    drag_direction: Direction,
     ray: &Ray,
-    end_pos_ray: i32,
 ) {
-    let dir_vec = drag_direction.to_vector();
+    let end_ray = ray.ray_position(end_pos);
+    let step = toward_end_step(start_pos, end_pos, ray);
     let mut current_pos = start_pos;
 
-    while ray.ray_position(current_pos) + 2 < end_pos_ray {
-        let forward_2 = current_pos + dir_vec * 2;
+    while (ray.ray_position(current_pos) - end_ray).unsigned_abs() > 2 {
+        let forward_2 = current_pos + step * 2;
         drag.interpolate_to(error_handler, forward_2);
-        let back_1 = current_pos + dir_vec;
+        let back_1 = current_pos + step;
         drag.interpolate_to(error_handler, back_1);
         current_pos = back_1
     }
-    if ray.ray_position(current_pos) != end_pos_ray {
+    if ray.ray_position(current_pos) != end_ray {
         drag.interpolate_to(error_handler, end_pos);
     }
 }
@@ -315,17 +309,17 @@ fn run_mega_wiggle(
     error_handler: &mut dyn FnMut(TilePosition, Error),
     start_pos: TilePosition,
     end_pos: TilePosition,
-    drag_direction: Direction,
-    end_pos_ray: i32,
+    ray: &Ray,
 ) {
-    let dir_vec = drag_direction.to_vector();
+    let start_ray = ray.ray_position(start_pos);
+    let end_ray = ray.ray_position(end_pos);
+    let drag_distance = start_ray.abs_diff(end_ray);
+    let step = toward_end_step(start_pos, end_pos, ray);
 
-    let mut n = 1;
-    while n < end_pos_ray {
-        let forward_n = start_pos + dir_vec * n;
+    for n in 1..drag_distance as i32 {
+        let forward_n = start_pos + step * n;
         drag.interpolate_to(error_handler, forward_n);
         drag.interpolate_to(error_handler, start_pos);
-        n += 1;
     }
     drag.interpolate_to(error_handler, end_pos);
 }
@@ -783,7 +777,10 @@ after: "2>\t^\tX"
             pos(1, 0),
             UndergroundBelt::new(Direction::North, true, BELT_TIERS[1]).into(),
         );
-        world.build(pos(0, 1), Splitter::new(Direction::West, BELT_TIERS[0]).into());
+        world.build(
+            pos(0, 1),
+            Splitter::new(Direction::West, BELT_TIERS[0]).into(),
+        );
         world.build(pos(2, 1), CollidingEntityOrTile.into());
 
         let output = print_world(&world, world.bounds(), &[]);

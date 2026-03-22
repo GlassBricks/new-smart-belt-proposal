@@ -1,12 +1,14 @@
 import { ImpassableTile, UndergroundBelt, type BeltTier } from "../belts"
-import { directionAxis, getRayPosition, type Ray } from "../geometry"
+import {
+  axisSign,
+  directionAxis,
+  getRayPosition,
+  isBeforeOnRay,
+  type Ray,
+} from "../geometry"
 import type { World } from "../world"
 import { Action, ActionError } from "./action"
-import {
-  directionMultiplier,
-  DragDirection,
-  swapIfBackwards,
-} from "./DragDirection"
+import { RaySense, senseMultiplier, swapIfBackwards } from "./RaySense"
 import { TileClassifier } from "./tile_classification"
 import type { TileHistory } from "./tile_history_view"
 import { DragWorldView } from "./world_view"
@@ -24,10 +26,10 @@ export type DragState =
       type: "BuildingUnderground"
       inputPos: number
       outputPos: number | undefined
-      direction: DragDirection
+      raySense: RaySense
     }
-  | { type: "PassThrough"; leftPos: number; rightPos: number }
-  | { type: "OverImpassable"; direction: DragDirection }
+  | { type: "PassThrough"; nearPos: number; farPos: number }
+  | { type: "OverImpassable"; raySense: RaySense }
   | { type: "ErrorRecovery" }
 
 export const DragState = {
@@ -36,21 +38,21 @@ export const DragState = {
   BuildingUnderground: (
     inputPos: number,
     outputPos: number | undefined,
-    direction: DragDirection,
+    raySense: RaySense,
   ): DragState => ({
     type: "BuildingUnderground",
     inputPos,
     outputPos,
-    direction,
+    raySense,
   }),
-  PassThrough: (leftPos: number, rightPos: number): DragState => ({
+  PassThrough: (nearPos: number, farPos: number): DragState => ({
     type: "PassThrough",
-    leftPos,
-    rightPos,
+    nearPos,
+    farPos,
   }),
-  OverImpassable: (direction: DragDirection): DragState => ({
+  OverImpassable: (raySense: RaySense): DragState => ({
     type: "OverImpassable",
-    direction,
+    raySense,
   }),
   ErrorRecovery: (): DragState => ({ type: "ErrorRecovery" }),
 
@@ -70,7 +72,7 @@ type DragEndShape =
       inputPos: number
       outputPos: number | undefined
     }
-  | { type: "OverImpassableObstacle"; direction: DragDirection }
+  | { type: "OverImpassableObstacle"; raySense: RaySense }
   | { type: "Error" }
 
 const DragEndShape = {
@@ -88,9 +90,9 @@ const DragEndShape = {
     inputPos,
     outputPos,
   }),
-  OverImpassableObstacle: (direction: DragDirection): DragEndShape => ({
+  OverImpassableObstacle: (raySense: RaySense): DragEndShape => ({
     type: "OverImpassableObstacle",
-    direction,
+    raySense,
   }),
   Error: (): DragEndShape => ({ type: "Error" }),
 }
@@ -103,11 +105,11 @@ export interface DragContext {
   nextPosition: number
   tileHistory: TileHistory[]
   furthestPlacementPos: number
-  direction: DragDirection
+  raySense: RaySense
 }
 
 export function takeStep(state: DragState, ctx: DragContext): DragStepResult {
-  const dragEnd = getDragEnd(state, ctx.lastPosition, ctx.direction)
+  const dragEnd = getDragEnd(state, ctx.lastPosition, ctx.raySense, ctx.ray)
   if (dragEnd === undefined) {
     return [Action.None(), state, undefined]
   }
@@ -116,7 +118,7 @@ export function takeStep(state: DragState, ctx: DragContext): DragStepResult {
     ctx.world,
     ctx.ray,
     ctx.tileHistory,
-    ctx.direction,
+    ctx.raySense,
   )
 
   const nextTile = new TileClassifier(
@@ -156,7 +158,8 @@ export function takeStep(state: DragState, ctx: DragContext): DragStepResult {
 function getDragEnd(
   state: DragState,
   lastPosition: number,
-  direction: DragDirection,
+  raySense: RaySense,
+  ray: Ray,
 ): DragEndShape | undefined {
   switch (state.type) {
     case "OverBelt":
@@ -164,18 +167,19 @@ function getDragEnd(
     case "OverSplitter":
       return DragEndShape.IntegratedOutput()
     case "OverImpassable":
-      return DragEndShape.OverImpassableObstacle(state.direction)
+      return DragEndShape.OverImpassableObstacle(state.raySense)
     case "ErrorRecovery":
       return DragEndShape.Error()
     case "BuildingUnderground": {
-      const { inputPos, outputPos, direction: lastDir } = state
-      if (direction !== lastDir) {
+      const { inputPos, outputPos, raySense: lastSense } = state
+      if (raySense !== lastSense) {
         if (outputPos !== undefined) {
           return lastPosition === inputPos
             ? DragEndShape.IntegratedOutput()
             : undefined
         } else {
-          const nextPosition = lastPosition + directionMultiplier(direction)
+          const nextPosition =
+            lastPosition + axisSign(ray.direction) * senseMultiplier(raySense)
           return nextPosition === inputPos ? DragEndShape.Belt() : undefined
         }
       } else if (outputPos === lastPosition) {
@@ -185,11 +189,11 @@ function getDragEnd(
       }
     }
     case "PassThrough": {
-      const { leftPos, rightPos } = state
+      const { nearPos, farPos } = state
       const inBetween =
-        direction === DragDirection.Forward
-          ? lastPosition < rightPos
-          : lastPosition > leftPos
+        raySense === RaySense.Forward
+          ? isBeforeOnRay(ray, lastPosition, farPos)
+          : isBeforeOnRay(ray, nearPos, lastPosition)
       return inBetween ? undefined : DragEndShape.IntegratedOutput()
     }
   }
@@ -209,7 +213,7 @@ function errorOnImpassableExit(
 ): ActionError | undefined {
   if (
     dragEnd.type === "OverImpassableObstacle" &&
-    dragEnd.direction === ctx.direction
+    dragEnd.raySense === ctx.raySense
   ) {
     return ActionError.BeltLineBroken
   }
@@ -259,21 +263,21 @@ function handleObstacle(
       newState = DragState.BuildingUnderground(
         ctx.lastPosition,
         undefined,
-        ctx.direction,
+        ctx.raySense,
       )
       break
     case "ExtendableUnderground":
       newState = DragState.BuildingUnderground(
         dragEnd.inputPos,
         ctx.lastPosition,
-        ctx.direction,
+        ctx.raySense,
       )
       break
     case "TraversingObstacle":
       newState = DragState.BuildingUnderground(
         dragEnd.inputPos,
         dragEnd.outputPos,
-        ctx.direction,
+        ctx.raySense,
       )
       break
     case "IntegratedOutput":
@@ -281,7 +285,7 @@ function handleObstacle(
       newState = DragState.ErrorRecovery()
       break
     case "OverImpassableObstacle":
-      newState = DragState.OverImpassable(dragEnd.direction)
+      newState = DragState.OverImpassable(dragEnd.raySense)
       break
     case "Error":
       newState = DragState.ErrorRecovery()
@@ -295,11 +299,9 @@ function handleImpassableObstacle(
   dragEnd: DragEndShape,
   ctx: DragContext,
 ): DragStepResult {
-  const direction =
-    dragEnd.type === "OverImpassableObstacle"
-      ? dragEnd.direction
-      : ctx.direction
-  return [Action.None(), DragState.OverImpassable(direction), undefined]
+  const raySense =
+    dragEnd.type === "OverImpassableObstacle" ? dragEnd.raySense : ctx.raySense
+  return [Action.None(), DragState.OverImpassable(raySense), undefined]
 }
 
 function placeUnderground(
@@ -322,7 +324,7 @@ function placeUnderground(
 
   return [
     action,
-    DragState.BuildingUnderground(inputPos, ctx.nextPosition, ctx.direction),
+    DragState.BuildingUnderground(inputPos, ctx.nextPosition, ctx.raySense),
     undefined,
   ]
 }
@@ -334,20 +336,16 @@ function integrateUndergroundPair(
 ): DragStepResult {
   const action = Action.IntegrateUndergroundPair()
 
-  const [leftPos, rightPos] = swapIfBackwards(
-    ctx.direction,
+  const [nearPos, farPos] = swapIfBackwards(
+    ctx.raySense,
     ctx.nextPosition,
     outputPos,
   )
 
   const nextState =
     outputPos === ctx.furthestPlacementPos
-      ? DragState.BuildingUnderground(
-          ctx.nextPosition,
-          outputPos,
-          ctx.direction,
-        )
-      : DragState.PassThrough(leftPos, rightPos)
+      ? DragState.BuildingUnderground(ctx.nextPosition, outputPos, ctx.raySense)
+      : DragState.PassThrough(nearPos, farPos)
 
   const err = errorOnImpassableExit(dragEnd, ctx)
   return [action, nextState, err]
@@ -364,14 +362,15 @@ function canBuildUnderground(
     return ActionError.TooFarToConnect
   }
 
-  const startPos = isExtension ? ctx.lastPosition : inputPos
-  const checkPos = (pos: number): ActionError | undefined => {
+  const checkFromPos = isExtension ? ctx.lastPosition : inputPos
+  const start = Math.min(checkFromPos, ctx.nextPosition) + 1
+  const end = Math.max(checkFromPos, ctx.nextPosition) - 1
+
+  for (let pos = start; pos <= end; pos++) {
     const worldPos = getRayPosition(ctx.ray, pos)
     const entity = ctx.world.get(worldPos)
 
-    if (!entity) {
-      return undefined
-    }
+    if (!entity) continue
 
     if (entity instanceof ImpassableTile) {
       return ActionError.BeltLineBroken
@@ -383,24 +382,6 @@ function canBuildUnderground(
 
       if (entityAxis === rayAxis && entity.tier === ctx.tier) {
         return ActionError.BeltLineBroken
-      }
-    }
-
-    return undefined
-  }
-
-  if (ctx.direction === DragDirection.Forward) {
-    for (let pos = startPos + 1; pos <= ctx.nextPosition - 1; pos++) {
-      const error = checkPos(pos)
-      if (error !== undefined) {
-        return error
-      }
-    }
-  } else {
-    for (let pos = startPos; pos >= ctx.nextPosition + 1; pos--) {
-      const error = checkPos(pos)
-      if (error !== undefined) {
-        return error
       }
     }
   }
