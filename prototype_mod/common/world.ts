@@ -1,4 +1,3 @@
-import type { BeltConnections } from "./belt_curving"
 import {
   Belt,
   BeltConnectable,
@@ -12,10 +11,16 @@ import {
   directionToVector,
   mulVec,
   oppositeDirection,
+  subPos,
   type TilePosition,
 } from "./geometry"
 
-export interface ReadonlyWorld {
+export interface BeltConnections {
+  readonly input: Direction | undefined
+  readonly output: Direction | undefined
+}
+
+export interface World {
   get(position: TilePosition): EntityLike | undefined
   outputDirectionAt(position: TilePosition): Direction | undefined
   inputDirectionAt(position: TilePosition): Direction | undefined
@@ -24,20 +29,46 @@ export interface ReadonlyWorld {
     beltDirection: Direction,
     allowFastReplace: boolean,
   ): boolean
-}
 
-export interface World extends ReadonlyWorld {
   mine(pos: TilePosition): void
-
   tryBuild(position: TilePosition, entity: Belt | UndergroundBelt): boolean
-
   flipUg(position: TilePosition): void
   upgradeUg(position: TilePosition, tier: BeltTier): void
   upgradeSplitter(position: TilePosition, newName: string): void
 }
 
-export class ReadonlyWorldOps {
-  constructor(protected readonly world: ReadonlyWorld) {}
+export function beltCurvedInputDirection(
+  world: World,
+  position: TilePosition,
+  beltDirection: Direction,
+): Direction {
+  const hasInputIn = (direction: Direction): boolean => {
+    const dirVec = directionToVector(direction)
+    const queryPos = subPos(position, dirVec)
+    return world.outputDirectionAt(queryPos) === direction
+  }
+
+  if (hasInputIn(beltDirection)) {
+    return beltDirection
+  }
+
+  const rotateCW = ((beltDirection + 1) % 4) as Direction
+  const rotateCCW = ((beltDirection + 3) % 4) as Direction
+
+  const leftInput = hasInputIn(rotateCW)
+  const rightInput = hasInputIn(rotateCCW)
+
+  if (leftInput && !rightInput) {
+    return rotateCW
+  } else if (!leftInput && rightInput) {
+    return rotateCCW
+  }
+
+  return beltDirection
+}
+
+export class WorldOps {
+  constructor(protected readonly world: World) {}
 
   getUgPair(
     position: TilePosition,
@@ -78,13 +109,6 @@ export class ReadonlyWorldOps {
       input: this.world.inputDirectionAt(position),
       output: this.world.outputDirectionAt(position),
     }
-  }
-}
-
-export class WorldOps extends ReadonlyWorldOps {
-  declare world: World
-  constructor(world: World) {
-    super(world)
   }
 
   placeBelt(

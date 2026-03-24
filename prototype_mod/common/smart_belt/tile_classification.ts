@@ -4,14 +4,11 @@ import {
   LoaderLike,
   Splitter,
   UndergroundBelt,
-  type BeltTier,
 } from "../belts"
 import { Direction, directionAxis } from "../geometry"
 
 import { RaySense } from "./RaySense"
-
-import type { DragContext } from "./drag_state"
-import { DragWorldView } from "./world_view"
+import { SmartBeltWorldView } from "./world_view"
 
 export type TileType =
   | "Usable"
@@ -21,52 +18,19 @@ export type TileType =
   | "ImpassableObstacle"
 
 export class TileClassifier {
-  private worldView: DragWorldView
-  private lastPosition: number
-  private tier: BeltTier
-
   constructor(
-    ctx: DragContext,
+    private view: SmartBeltWorldView,
     private canEnterNextTile: boolean,
     private undergroundInputPos: number | undefined,
     private isErrorState: boolean,
-  ) {
-    this.worldView = new DragWorldView(
-      ctx.world,
-      ctx.ray,
-      ctx.tileHistory,
-      ctx.raySense,
-    )
-    this.lastPosition = ctx.lastPosition
-    this.tier = ctx.tier
-  }
-
-  private raySense(): RaySense {
-    return this.worldView.raySense
-  }
-
-  private stepSign(): number {
-    return this.worldView.stepSign()
-  }
-
-  private nextPosition(): number {
-    return this.lastPosition + this.stepSign()
-  }
-
-  private rayDirection(): Direction {
-    return this.worldView.rayDirection()
-  }
-
-  private beltDirection(): Direction {
-    return this.worldView.beltDirection()
-  }
+  ) {}
 
   private isPerpendicular(direction: Direction): boolean {
-    return directionAxis(this.rayDirection()) !== directionAxis(direction)
+    return directionAxis(this.view.rayDirection()) !== directionAxis(direction)
   }
 
   classifyNextTile(): TileType {
-    const entity = this.worldView.getEntity(this.nextPosition())
+    const entity = this.view.getEntity(this.view.nextPosition())
 
     if (!entity) {
       return "Usable"
@@ -90,7 +54,7 @@ export class TileClassifier {
   }
 
   private classifyBelt(belt: Belt): TileType {
-    if (this.worldView.beltWasCurved(this.nextPosition(), belt)) {
+    if (this.view.beltWasCurved(this.view.nextPosition(), belt)) {
       return this.classifyCurvedBelt()
     } else {
       return this.classifyStraightBelt(belt)
@@ -112,7 +76,7 @@ export class TileClassifier {
     ) {
       return "Obstacle"
     } else if (
-      (belt.direction === this.beltDirection() && this.canEnterNextTile) ||
+      (belt.direction === this.view.beltDirection() && this.canEnterNextTile) ||
       this.isConnectedToPreviousIntegratedBelt() ||
       this.shouldIntegrateBeltSegment(false, false)
     ) {
@@ -130,7 +94,7 @@ export class TileClassifier {
       return "Obstacle"
     }
 
-    const outputPos = this.worldView.getUgPairPos(this.nextPosition(), ug)
+    const outputPos = this.view.getUgPairPos(this.view.nextPosition(), ug)
     if (outputPos !== undefined) {
       return this.classifyPairedUndergroundBelt(ug, outputPos)
     } else {
@@ -152,27 +116,26 @@ export class TileClassifier {
   private classifyUnpairedUndergroundBelt(ug: UndergroundBelt): TileType {
     if (this.ugIsEnterable(ug)) {
       return "Usable"
+    } else if (
+      ug.tier === this.view.tier ||
+      this.shouldIntegrateBeltSegment(
+        ug.direction === this.view.beltDirection(),
+        false,
+      )
+    ) {
+      return "Usable"
     } else {
-      if (
-        ug.tier === this.tier ||
-        this.shouldIntegrateBeltSegment(
-          ug.direction === this.beltDirection(),
-          false,
-        )
-      ) {
-        return "Usable"
-      } else {
-        return "Obstacle"
-      }
+      return "Obstacle"
     }
   }
 
   private ugIsEnterable(ug: UndergroundBelt): boolean {
-    return this.rayDirection() === ug.structureDirection()
+    return this.view.rayDirection() === ug.structureDirection()
   }
 
   private classifySplitter(splitter: Splitter): TileType {
-    const splitterDirectionMatches = this.beltDirection() === splitter.direction
+    const splitterDirectionMatches =
+      this.view.beltDirection() === splitter.direction
 
     if (this.isConnectedToPreviousIntegratedBelt()) {
       if (splitterDirectionMatches) {
@@ -182,12 +145,10 @@ export class TileClassifier {
       }
     } else if (!(splitterDirectionMatches && this.canEnterNextTile)) {
       return "Obstacle"
+    } else if (this.shouldIntegrateBeltSegment(true, true)) {
+      return "IntegratedSplitter"
     } else {
-      if (this.shouldIntegrateBeltSegment(true, true)) {
-        return "IntegratedSplitter"
-      } else {
-        return "Obstacle"
-      }
+      return "Obstacle"
     }
   }
 
@@ -201,17 +162,18 @@ export class TileClassifier {
 
   private beltConnectsIntoLoader(loader: LoaderLike): boolean {
     return (
-      loader.structureDirection() === this.rayDirection() &&
-      loader.isInput === (this.raySense() === RaySense.Forward)
+      loader.structureDirection() === this.view.rayDirection() &&
+      loader.isInput === (this.view.raySense === RaySense.Forward)
     )
   }
 
   private isConnectedToPreviousBeltAsObstacle(): boolean {
+    const nextPos = this.view.nextPosition()
     return (
       (!this.canEnterNextTile || this.isErrorState) &&
-      (this.worldView.isBeltConnectedToPreviousTile(this.nextPosition()) ||
-        this.worldView.removingBeltWillChangePreviousBeltCurvature(
-          this.nextPosition(),
+      (this.view.isBeltConnectedToPreviousTile(nextPos) ||
+        this.view.removingBeltWillChangePreviousBeltCurvature(
+          nextPos,
           this.undergroundInputPos,
         ))
     )
@@ -220,7 +182,7 @@ export class TileClassifier {
   private isConnectedToPreviousIntegratedBelt(): boolean {
     return (
       this.canEnterNextTile &&
-      this.worldView.isBeltConnectedToPreviousTile(this.nextPosition())
+      this.view.isBeltConnectedToPreviousTile(this.view.nextPosition())
     )
   }
 
@@ -231,14 +193,15 @@ export class TileClassifier {
 
     if (entity instanceof Belt) {
       return (
-        directionAxis(entity.direction) !== directionAxis(this.beltDirection())
+        directionAxis(entity.direction) !==
+        directionAxis(this.view.beltDirection())
       )
     } else if (entity instanceof UndergroundBelt) {
       return !this.ugIsEnterable(entity)
     } else if (entity instanceof Splitter) {
-      return entity.direction !== this.beltDirection()
+      return entity.direction !== this.view.beltDirection()
     } else if (entity instanceof LoaderLike) {
-      return !this.worldView.isBeltConnectedToPreviousTile(pos)
+      return !this.view.isBeltConnectedToPreviousTile(pos)
     }
 
     return true
@@ -253,16 +216,16 @@ export class TileClassifier {
       return true
     }
 
-    const ss = this.stepSign()
-    const startPos = this.nextPosition()
+    const ss = this.view.stepSign()
+    const startPos = this.view.nextPosition()
     let scanPos = startPos + ss
 
     if (skipInitialSplitters) {
       while (scanPos * ss < maxUndergroundPosition * ss) {
-        const entity = this.worldView.getBeltEntity(scanPos)
+        const entity = this.view.getBeltConnectable(scanPos)
         if (
           entity instanceof Splitter &&
-          entity.direction === this.beltDirection()
+          entity.direction === this.view.beltDirection()
         ) {
           scanPos += ss
         } else {
@@ -270,7 +233,7 @@ export class TileClassifier {
         }
       }
       if (scanPos * ss < maxUndergroundPosition * ss) {
-        const entity = this.worldView.getEntity(scanPos)
+        const entity = this.view.getEntity(scanPos)
         if (entity && this.isTrivialObstacle(entity, scanPos)) {
           return false
         }
@@ -278,25 +241,25 @@ export class TileClassifier {
     }
 
     while (scanPos * ss < maxUndergroundPosition * ss) {
-      const beltConnectable = this.worldView.getBeltEntity(scanPos)
+      const beltConnectable = this.view.getBeltConnectable(scanPos)
       if (!beltConnectable) {
         break
       }
 
-      if (!this.worldView.isBeltConnectedToPreviousTile(scanPos)) {
+      if (!this.view.isBeltConnectedToPreviousTile(scanPos)) {
         break
       }
 
       if (beltConnectable instanceof Belt) {
-        if (this.worldView.beltWasCurved(scanPos, beltConnectable)) {
+        if (this.view.beltWasCurved(scanPos, beltConnectable)) {
           return false
         }
       } else if (beltConnectable instanceof UndergroundBelt) {
-        if (beltConnectable.tier === this.tier) {
+        if (beltConnectable.tier === this.view.tier) {
           break
         }
 
-        const pairPos = this.worldView.getUgPairPos(scanPos, beltConnectable)
+        const pairPos = this.view.getUgPairPos(scanPos, beltConnectable)
         if (pairPos === undefined) {
           break
         }
@@ -320,7 +283,8 @@ export class TileClassifier {
       return undefined
     }
     return (
-      this.undergroundInputPos + this.tier.undergroundDistance * this.stepSign()
+      this.undergroundInputPos +
+      this.view.tier.undergroundDistance * this.view.stepSign()
     )
   }
 }

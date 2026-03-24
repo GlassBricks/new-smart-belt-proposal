@@ -1,4 +1,4 @@
-import { beltCurvedInputDirection } from "../common/belt_curving"
+import { beltCurvedInputDirection } from "../common/world"
 import {
   Belt,
   BeltConnectable,
@@ -18,7 +18,7 @@ import {
   type BoundingBox,
   type TilePosition,
 } from "../common/geometry"
-import { ReadonlyWorldOps, type World } from "../common/world"
+import { WorldOps, type World } from "../common/world"
 import {
   keyToPosition,
   positionToKey,
@@ -34,8 +34,8 @@ export class SimulatedWorld implements World {
     this.entities = new Map()
   }
 
-  private ops(): ReadonlyWorldOps {
-    return new ReadonlyWorldOps(this)
+  private ops(): WorldOps {
+    return new WorldOps(this)
   }
 
   private posKey(pos: TilePosition): string {

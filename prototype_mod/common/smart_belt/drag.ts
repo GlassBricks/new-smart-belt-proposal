@@ -15,14 +15,9 @@ import {
 import { tryRegister } from "../metatable"
 import { WorldOps, type World } from "../world"
 import { Action, ActionError } from "./action"
-import {
-  DragState,
-  takeStep,
-  type DragContext,
-  type DragStepResult,
-} from "./drag_state"
+import { DragState, takeStep, type DragStepResult } from "./drag_state"
 import { RaySense, senseMultiplier } from "./RaySense"
-import type { TileHistory } from "./tile_history_view"
+import { SmartBeltWorldView, type TileHistory } from "./world_view"
 
 export interface ErrorHandler {
   handleError(position: TilePosition, error: ActionError): void
@@ -125,14 +120,14 @@ export class LineDrag {
     const targetPos = rayPosition(this.ray, newPosition)
 
     while (isBeforeOnRay(this.ray, this.lastPosition, targetPos)) {
-      const ctx = this.createContext(world, RaySense.Forward)
-      const result = takeStep(this.lastState, ctx)
+      const view = this.createWorldView(world, RaySense.Forward)
+      const result = takeStep(this.lastState, view)
       this.applyStep(world, errorHandler, result, RaySense.Forward)
     }
 
     while (isBeforeOnRay(this.ray, targetPos, this.lastPosition)) {
-      const ctx = this.createContext(world, RaySense.Backward)
-      const result = takeStep(this.lastState, ctx)
+      const view = this.createWorldView(world, RaySense.Backward)
+      const result = takeStep(this.lastState, view)
       this.applyStep(world, errorHandler, result, RaySense.Backward)
     }
     this.updateFurthestPosition(targetPos)
@@ -177,7 +172,6 @@ export class LineDrag {
       : turnDirection
     const firstBeltDirection = backward ? oldDirection : turnDirection
 
-    // lastTileHistory is only for the quick sideload case. If we are backwards, this doesn't apply.
     const lastTileHistory =
       this.tileHistory !== undefined &&
       !backward &&
@@ -321,15 +315,8 @@ export class LineDrag {
         const outputPos = rayPosition(this.ray, outputWorldPos)
 
         if (ug.tier != this.tier) {
-          if (
-            canUpgradeUnderground(
-              this.tier,
-              world,
-              this.ray,
-              position,
-              outputPos,
-            )
-          ) {
+          const view = this.createWorldView(world, raySense)
+          if (canUpgradeUnderground(view, outputPos)) {
             world.upgradeUg(worldPos, this.tier)
           } else {
             this.addError(
@@ -375,7 +362,10 @@ export class LineDrag {
       : this.backwardPlacement
   }
 
-  private createContext(world: World, raySense: RaySense): DragContext {
+  private createWorldView(
+    world: World,
+    raySense: RaySense,
+  ): SmartBeltWorldView {
     const tileHistory: TileHistory[] = [
       ...(this.tileHistory ? [this.tileHistory] : []),
       ...(this.lastEndTileHistory ? [this.lastEndTileHistory] : []),
@@ -384,28 +374,25 @@ export class LineDrag {
       raySense === RaySense.Forward
         ? this.forwardPlacement
         : this.backwardPlacement
-    const nextPosition = this.lastPosition + this.stepSign(raySense)
-    return {
-      world: world,
-      ray: this.ray,
-      tier: this.tier,
-      lastPosition: this.lastPosition,
-      nextPosition,
+    return new SmartBeltWorldView(
+      world,
       tileHistory,
-      furthestPlacementPos,
+      this.ray,
       raySense,
-    }
+      this.tier,
+      this.lastPosition,
+      furthestPlacementPos,
+    )
   }
 }
 
 function canUpgradeUnderground(
-  tier: BeltTier,
-  world: World,
-  ray: Ray,
-  inputPos: number,
+  view: SmartBeltWorldView,
   outputPos: number,
 ): boolean {
-  if (Math.abs(outputPos - inputPos) > tier.undergroundDistance) {
+  const inputPos = view.nextPosition()
+
+  if (Math.abs(outputPos - inputPos) > view.tier.undergroundDistance) {
     return false
   }
 
@@ -413,14 +400,14 @@ function canUpgradeUnderground(
   const end = Math.max(inputPos, outputPos) - 1
 
   for (let pos = start; pos <= end; pos++) {
-    const worldPos = getRayPosition(ray, pos)
-    const entity = world.get(worldPos)
+    const worldPos = getRayPosition(view.ray, pos)
+    const entity = view.world.get(worldPos)
 
     if (entity instanceof UndergroundBelt) {
       const entityAxis = directionAxis(entity.direction)
-      const rayAxis = directionAxis(ray.direction)
+      const rayAxis = directionAxis(view.ray.direction)
 
-      if (entityAxis === rayAxis && entity.tier === tier) {
+      if (entityAxis === rayAxis && entity.tier === view.tier) {
         return false
       }
     }

@@ -5,7 +5,7 @@ import {
   LuaSurface,
   MapPosition,
 } from "factorio:runtime"
-import { beltCurvedInputDirection } from "../common/belt_curving"
+import { beltCurvedInputDirection } from "../common/world"
 import {
   Belt,
   BeltCollider,

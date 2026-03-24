@@ -1,33 +1,41 @@
-import { beltCurveDependencies, beltIsCurvedAt } from "../belt_curving"
-import { Belt, BeltCollider, BeltConnectable, UndergroundBelt } from "../belts"
+import {
+  Belt,
+  BeltCollider,
+  BeltConnectable,
+  UndergroundBelt,
+  type BeltTier,
+} from "../belts"
 import {
   Direction,
   axisSign,
+  directionAxis,
+  directionToVector,
   getRayPosition,
   oppositeDirection,
   rayPosition,
+  subPos,
   type Ray,
   type TilePosition,
 } from "../geometry"
-import type { ReadonlyWorld } from "../world"
+import type { BeltConnections, World } from "../world"
+import { WorldOps } from "../world"
 import { RaySense, senseMultiplier } from "./RaySense"
 
-import { TileHistoryView, type TileHistory } from "./tile_history_view"
+export type TileHistory = [TilePosition, BeltConnections]
 
-export class DragWorldView {
-  private historyView: TileHistoryView
-  readonly raySense: RaySense
-  private ray: Ray
-
+export class SmartBeltWorldView {
   constructor(
-    world: ReadonlyWorld,
-    ray: Ray,
-    tileHistory: TileHistory[],
-    raySense: RaySense,
-  ) {
-    this.historyView = new TileHistoryView(world, tileHistory)
-    this.ray = ray
-    this.raySense = raySense
+    readonly world: World,
+    readonly tileHistory: TileHistory[],
+    readonly ray: Ray,
+    readonly raySense: RaySense,
+    readonly tier: BeltTier,
+    readonly lastPosition: number,
+    readonly furthestPlacementPos: number,
+  ) {}
+
+  nextPosition(): number {
+    return this.lastPosition + this.stepSign()
   }
 
   stepSign(): number {
@@ -45,17 +53,21 @@ export class DragWorldView {
   }
 
   getEntity(position: number): BeltCollider | undefined {
-    return this.historyView.get(getRayPosition(this.ray, position))
+    return this.world.get(getRayPosition(this.ray, position))
   }
 
-  getBeltEntity(position: number): BeltConnectable | undefined {
+  getBeltConnectable(position: number): BeltConnectable | undefined {
     const entity = this.getEntity(position)
     return entity instanceof BeltConnectable ? entity : undefined
   }
 
   beltWasCurved(position: number, belt: Belt): boolean {
     const worldPos = getRayPosition(this.ray, position)
-    return beltIsCurvedAt(this.historyView, worldPos, belt)
+    const input = this.inputDirectionAt(worldPos)
+    return (
+      input !== undefined &&
+      directionAxis(input) !== directionAxis(belt.direction)
+    )
   }
 
   isBeltConnectedToPreviousTile(nextPos: number): boolean {
@@ -72,24 +84,18 @@ export class DragWorldView {
     }
 
     const connectsForward =
-      this.historyView.outputDirectionAt(lastPos) === this.beltDirection() &&
-      this.historyView.inputDirectionAt(curPos) === this.beltDirection()
+      this.outputDirectionAt(lastPos) === this.beltDirection() &&
+      this.inputDirectionAt(curPos) === this.beltDirection()
 
     if (connectsForward) {
       return true
     }
 
-    const oppositeDir = ((this.beltDirection() + 2) % 4) as Direction
+    const oppositeDir = oppositeDirection(this.beltDirection())
     return (
-      this.historyView.inputDirectionAt(lastPos) === oppositeDir &&
-      this.historyView.outputDirectionAt(curPos) === oppositeDir
+      this.inputDirectionAt(lastPos) === oppositeDir &&
+      this.outputDirectionAt(curPos) === oppositeDir
     )
-  }
-
-  getUgPairPos(index: number, ug: UndergroundBelt): number | undefined {
-    const worldPosition = getRayPosition(this.ray, index)
-    const pairPos = this.historyView.getUgPairPos(worldPosition, ug)
-    return pairPos ? rayPosition(this.ray, pairPos) : undefined
   }
 
   removingBeltWillChangePreviousBeltCurvature(
@@ -101,15 +107,107 @@ export class DragWorldView {
       return false
     }
     const lastWorldPos = getRayPosition(this.ray, nextPos - dragStep)
-    const entity = this.historyView.get(lastWorldPos)
+    const entity = this.world.get(lastWorldPos)
     if (!(entity instanceof Belt)) {
       return false
     }
-    const dependencies = beltCurveDependencies(
-      this.historyView,
-      lastWorldPos,
-      entity.direction,
+    return this.inputDependenciesAt(lastWorldPos, entity.direction).includes(
+      oppositeDirection(this.rayDirection()),
     )
-    return dependencies.includes(oppositeDirection(this.rayDirection()))
+  }
+
+  getUgPairPos(index: number, ug: UndergroundBelt): number | undefined {
+    const worldPosition = getRayPosition(this.ray, index)
+    const ops = new WorldOps(this.world)
+    const pair = ops.getUgPair(worldPosition, ug)
+    return pair ? rayPosition(this.ray, pair[0]) : undefined
+  }
+
+  // -- History-aware world queries --
+
+  private findInHistory(position: TilePosition): BeltConnections | undefined {
+    for (const [p, connections] of this.tileHistory) {
+      if (p.x === position.x && p.y === position.y) {
+        return connections
+      }
+    }
+    return undefined
+  }
+
+  outputDirectionAt(position: TilePosition): Direction | undefined {
+    const hist = this.findInHistory(position)
+    if (hist) {
+      return hist.output
+    }
+    return this.world.outputDirectionAt(position)
+  }
+
+  inputDirectionAt(position: TilePosition): Direction | undefined {
+    const hist = this.findInHistory(position)
+    if (hist) {
+      return hist.input
+    }
+    const entity = this.world.get(position)
+    if (!entity || !(entity instanceof BeltConnectable)) {
+      return undefined
+    }
+    if (entity instanceof Belt) {
+      return this.beltCurvedInputDirection(position, entity.direction)
+    }
+    return entity.primaryInputDirection()
+  }
+
+  private beltCurvedInputDirection(
+    position: TilePosition,
+    beltDirection: Direction,
+  ): Direction {
+    const hasInputIn = (direction: Direction): boolean => {
+      const queryPos = subPos(position, directionToVector(direction))
+      return this.outputDirectionAt(queryPos) === direction
+    }
+
+    if (hasInputIn(beltDirection)) {
+      return beltDirection
+    }
+
+    const rotateCW = ((beltDirection + 1) % 4) as Direction
+    const rotateCCW = ((beltDirection + 3) % 4) as Direction
+
+    const leftInput = hasInputIn(rotateCW)
+    const rightInput = hasInputIn(rotateCCW)
+
+    if (leftInput && !rightInput) {
+      return rotateCW
+    } else if (!leftInput && rightInput) {
+      return rotateCCW
+    }
+
+    return beltDirection
+  }
+
+  private inputDependenciesAt(
+    position: TilePosition,
+    beltDirection: Direction,
+  ): Direction[] {
+    const hasInputIn = (direction: Direction): boolean => {
+      const queryPos = subPos(position, directionToVector(direction))
+      return this.outputDirectionAt(queryPos) === direction
+    }
+
+    if (hasInputIn(beltDirection)) {
+      return [beltDirection]
+    }
+
+    const rotateCW = ((beltDirection + 1) % 4) as Direction
+    const rotateCCW = ((beltDirection + 3) % 4) as Direction
+
+    const dependencies: Direction[] = []
+    if (hasInputIn(rotateCW)) {
+      dependencies.push(rotateCW)
+    }
+    if (hasInputIn(rotateCCW)) {
+      dependencies.push(rotateCCW)
+    }
+    return dependencies
   }
 }
