@@ -1,38 +1,11 @@
-use super::{DragState, Error, RaySense};
+use super::{DragState, Error, RaySense, SmartBeltWorldView};
 use crate::belts::BeltTier;
-use crate::smart_belt::{DragWorldView, belt_curving::TileHistory};
-use crate::world::{ReadonlyWorld, WorldImpl};
+use crate::world::WorldImpl;
 use crate::{BeltConnections, TilePosition};
 use crate::{Direction, Ray, smart_belt::Action};
 use log::debug;
 
 pub struct DragStepResult(pub Action, pub DragState, pub Option<Error>);
-
-/// Context for drag operations, containing all read-only state needed for decision-making.
-pub struct DragContext<'a> {
-    pub world: &'a dyn ReadonlyWorld,
-    pub ray: Ray,
-    pub tier: BeltTier,
-    pub last_position: i32,
-    pub tile_history: Vec<TileHistory>,
-    pub furthest_placement_pos: i32,
-    pub ray_sense: RaySense,
-}
-
-impl<'a> DragContext<'a> {
-    pub fn next_position(&self) -> i32 {
-        self.last_position + self.step_sign()
-    }
-
-    /// Combined step sign: positive when stepping increases the absolute coordinate.
-    pub fn step_sign(&self) -> i32 {
-        self.ray.direction.axis_sign() * self.ray_sense.direction_multiplier()
-    }
-
-    pub(super) fn drag_world_view(&self) -> DragWorldView<'_> {
-        DragWorldView::new(self.world, self.ray, &self.tile_history, self.ray_sense)
-    }
-}
 
 /// Handles dragging in a straight line (no rotations).
 pub struct LineDrag<'a> {
@@ -45,7 +18,7 @@ pub struct LineDrag<'a> {
     // want the logic to be independent of what we've placed. As such, we track
     // the history of tiles we've replaced. It suffices only to keep track of
     // one tile (the last placed output belt).
-    // See belt_curving.rs for more info
+    // See world_view.rs for more info
     tile_history: Option<BeltConnections>,
     // After rotation, we also may want the last placed belt of the previous rotation in tile history.
     last_end_tile_history: Option<(TilePosition, BeltConnections)>,
@@ -176,13 +149,13 @@ impl<'a> LineDrag<'a> {
     ) {
         let target_pos = self.ray.ray_position(new_position);
         while self.ray.is_before(self.last_position, target_pos) {
-            let ctx = self.create_context(RaySense::Forward);
-            let result = self.last_state.step(&ctx);
+            let view = self.create_world_view(RaySense::Forward);
+            let result = self.last_state.step(&view);
             self.apply_step(error_handler, result, RaySense::Forward);
         }
         while self.ray.is_before(target_pos, self.last_position) {
-            let ctx = self.create_context(RaySense::Backward);
-            let result = self.last_state.step(&ctx);
+            let view = self.create_world_view(RaySense::Backward);
+            let result = self.last_state.step(&view);
             self.apply_step(error_handler, result, RaySense::Backward);
         }
         self.update_furthest_position(target_pos);
@@ -196,7 +169,7 @@ impl<'a> LineDrag<'a> {
     ) {
         let DragStepResult(action, next_state, error) = step;
         debug!("action: {:?}", action);
-        let next_position = self.create_context(ray_sense).next_position();
+        let next_position = self.create_world_view(ray_sense).next_position();
         if action != Action::None {
             self.update_furthest_placement(next_position, ray_sense)
         }
@@ -267,15 +240,15 @@ impl<'a> LineDrag<'a> {
     }
 
     #[inline]
-    pub(super) fn create_context(&self, ray_sense: RaySense) -> DragContext<'_> {
+    pub(super) fn create_world_view(&self, ray_sense: RaySense) -> SmartBeltWorldView<'_> {
         let tile_history = self
             .tile_history
             .map(|h| (self.ray.get_position(self.furthest_placement_pos()), h))
             .into_iter()
             .chain(self.last_end_tile_history)
             .collect::<Vec<_>>();
-        DragContext {
-            world: self.world as &dyn ReadonlyWorld,
+        SmartBeltWorldView {
+            world: self.world,
             ray: self.ray,
             tier: self.tier,
             last_position: self.last_position,
@@ -297,7 +270,7 @@ impl<'a> LineDrag<'a> {
         debug!("error: {:?}", error);
         let position = self
             .ray
-            .get_position(self.create_context(ray_sense).next_position());
+            .get_position(self.create_world_view(ray_sense).next_position());
         error_handler(position, error);
     }
 }

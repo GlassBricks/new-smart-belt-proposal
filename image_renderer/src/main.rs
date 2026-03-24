@@ -13,9 +13,7 @@ use comrak::{
 };
 use image_renderer::{ImageRenderer, get_tail_pos};
 
-use prototype_abstract::{
-    BeltCollidable, ReadonlyWorld as _, Splitter, World, WorldImpl, bounds_new, pos,
-};
+use prototype_abstract::{BeltCollidable, Splitter, WorldImpl, bounds_new, pos};
 
 #[derive(Clone)]
 struct FacImg {

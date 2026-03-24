@@ -2,7 +2,7 @@ use serde::Deserialize;
 
 use super::{LineDrag, RaySense};
 use crate::belts::{Belt, BeltTier, UndergroundBelt};
-use crate::world::{ReadonlyWorld, World, WorldImpl};
+use crate::world::WorldImpl;
 use crate::{BeltCollidable, Direction, TilePosition};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -37,7 +37,7 @@ impl<'a> LineDrag<'a> {
         action: Action,
         ray_sense: RaySense,
     ) {
-        let position = self.create_context(ray_sense).next_position();
+        let position = self.create_world_view(ray_sense).next_position();
         let world_pos = self.ray.get_position(position);
         match action {
             Action::None => {}
@@ -115,8 +115,8 @@ impl<'a> LineDrag<'a> {
                     };
                     let output_pos = self.ray.ray_position(output_world_pos);
 
-                    let ctx = self.create_context(ray_sense);
-                    if super::drag_state::can_upgrade_underground(&ctx, output_pos) {
+                    let view = self.create_world_view(ray_sense);
+                    if super::drag_state::can_upgrade_underground(&view, output_pos) {
                         self.world.upgrade_ug(world_pos, self.tier);
                     } else {
                         self.add_error(error_handler, Error::CannotUpgradeUnderground, ray_sense);

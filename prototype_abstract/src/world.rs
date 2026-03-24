@@ -8,96 +8,6 @@ use crate::{
     TilePosition, Transform, UndergroundBelt,
 };
 
-/// Trait for read-only world queries, including belt curvature logic
-pub trait ReadonlyWorld {
-    // Entity queries
-    fn get(&self, position: TilePosition) -> Option<&BeltCollidable>;
-    fn get_belt(&self, position: TilePosition) -> Option<BeltConnectable>;
-    fn get_ug_pair(
-        &self,
-        position: TilePosition,
-        underground: &UndergroundBelt,
-    ) -> Option<(TilePosition, &UndergroundBelt)>;
-
-    // Belt curvature queries (from BeltCurveView)
-    fn output_direction_at(&self, position: TilePosition) -> Option<Direction>;
-    fn input_direction_at(&self, position: TilePosition) -> Option<Direction>;
-
-    // Derived queries with default implementations
-    fn belt_connections_at(&self, position: TilePosition) -> BeltConnections {
-        BeltConnections {
-            input: self.input_direction_at(position),
-            output: self.output_direction_at(position),
-        }
-    }
-
-    fn belt_curved_input_direction(
-        &self,
-        position: TilePosition,
-        belt_direction: Direction,
-    ) -> Direction {
-        let has_input_in = |direction: Direction| {
-            let query_pos = position - direction.to_vector();
-            self.output_direction_at(query_pos) == Some(direction)
-        };
-
-        if has_input_in(belt_direction) {
-            return belt_direction;
-        }
-        match (
-            has_input_in(belt_direction.rotate_cw()),
-            has_input_in(belt_direction.rotate_ccw()),
-        ) {
-            (true, false) => belt_direction.rotate_cw(),
-            (false, true) => belt_direction.rotate_ccw(),
-            _ => belt_direction,
-        }
-    }
-
-    fn input_dependencies_at(&self, position: TilePosition) -> ArrayVec<Direction, 3> {
-        let entity = self.get(position);
-        if let Some(BeltCollidable::Belt(belt)) = entity {
-            self.belt_curve_dependencies(position, belt.direction)
-        } else {
-            ArrayVec::new()
-        }
-    }
-
-    fn belt_curve_dependencies(
-        &self,
-        position: TilePosition,
-        belt_direction: Direction,
-    ) -> ArrayVec<Direction, 3> {
-        let has_input_in = |direction: Direction| {
-            let query_pos = position - direction.to_vector();
-            self.output_direction_at(query_pos) == Some(direction)
-        };
-
-        if has_input_in(belt_direction) {
-            [belt_direction].into_iter().collect()
-        } else {
-            let cw = Some(belt_direction.rotate_cw()).take_if(|d| has_input_in(*d));
-            let ccw = Some(belt_direction.rotate_ccw()).take_if(|d| has_input_in(*d));
-            [cw, ccw].into_iter().flatten().collect()
-        }
-    }
-
-    fn belt_is_curved_at(&self, position: TilePosition, belt: &Belt) -> bool {
-        self.input_direction_at(position)
-            .is_some_and(|d| d.axis() != belt.direction.axis())
-    }
-}
-
-/// Trait for mutable world operations
-pub trait World: ReadonlyWorld {
-    fn build(&mut self, position: TilePosition, entity: BeltCollidable);
-    fn build_unchecked(&mut self, position: TilePosition, entity: BeltCollidable);
-    fn mine(&mut self, position: TilePosition);
-    fn flip_ug(&mut self, position: TilePosition) -> bool;
-    fn upgrade_ug(&mut self, position: TilePosition, new_tier: BeltTier);
-    fn upgrade_splitter(&mut self, position: TilePosition, tier: BeltTier);
-}
-
 #[derive(Debug, Clone, Copy)]
 pub struct BeltConnections {
     pub input: Option<Direction>,
@@ -128,8 +38,101 @@ impl WorldImpl {
         }
     }
 
+    pub fn get(&self, position: TilePosition) -> Option<&BeltCollidable> {
+        self.entities.get(&position)
+    }
+
     pub fn get_mut(&mut self, position: TilePosition) -> Option<&mut BeltCollidable> {
         self.entities.get_mut(&position)
+    }
+
+    pub fn get_belt(&self, position: TilePosition) -> Option<BeltConnectable> {
+        self.get(position)
+            .and_then(|e| BeltConnectable::try_from(e).ok())
+    }
+
+    pub fn output_direction_at(&self, position: TilePosition) -> Option<Direction> {
+        self.get_belt(position).and_then(|e| e.output_direction())
+    }
+
+    pub fn input_direction_at(&self, position: TilePosition) -> Option<Direction> {
+        let entity = self.get_belt(position)?;
+        if let BeltConnectable::Belt(belt) = &entity {
+            Some(self.belt_curved_input_direction(position, belt.direction))
+        } else {
+            entity.primary_input_direction()
+        }
+    }
+
+    pub fn belt_connections_at(&self, position: TilePosition) -> BeltConnections {
+        BeltConnections {
+            input: self.input_direction_at(position),
+            output: self.output_direction_at(position),
+        }
+    }
+
+    pub fn belt_curved_input_direction(
+        &self,
+        position: TilePosition,
+        belt_direction: Direction,
+    ) -> Direction {
+        let has_input_in = |direction: Direction| {
+            let query_pos = position - direction.to_vector();
+            self.output_direction_at(query_pos) == Some(direction)
+        };
+
+        if has_input_in(belt_direction) {
+            return belt_direction;
+        }
+        match (
+            has_input_in(belt_direction.rotate_cw()),
+            has_input_in(belt_direction.rotate_ccw()),
+        ) {
+            (true, false) => belt_direction.rotate_cw(),
+            (false, true) => belt_direction.rotate_ccw(),
+            _ => belt_direction,
+        }
+    }
+
+    pub fn input_dependencies_at(&self, position: TilePosition) -> ArrayVec<Direction, 3> {
+        let entity = self.get(position);
+        if let Some(BeltCollidable::Belt(belt)) = entity {
+            self.belt_curve_dependencies(position, belt.direction)
+        } else {
+            ArrayVec::new()
+        }
+    }
+
+    pub fn belt_curve_dependencies(
+        &self,
+        position: TilePosition,
+        belt_direction: Direction,
+    ) -> ArrayVec<Direction, 3> {
+        let has_input_in = |direction: Direction| {
+            let query_pos = position - direction.to_vector();
+            self.output_direction_at(query_pos) == Some(direction)
+        };
+
+        if has_input_in(belt_direction) {
+            [belt_direction].into_iter().collect()
+        } else {
+            let cw = Some(belt_direction.rotate_cw()).take_if(|d| has_input_in(*d));
+            let ccw = Some(belt_direction.rotate_ccw()).take_if(|d| has_input_in(*d));
+            [cw, ccw].into_iter().flatten().collect()
+        }
+    }
+
+    pub fn belt_is_curved_at(&self, position: TilePosition, belt: &Belt) -> bool {
+        self.input_direction_at(position)
+            .is_some_and(|d| d.axis() != belt.direction.axis())
+    }
+
+    pub fn build(&mut self, position: TilePosition, entity: BeltCollidable) {
+        self.set(position, entity)
+    }
+
+    pub fn mine(&mut self, position: TilePosition) {
+        self.remove(position)
     }
 
     pub fn can_place_or_fast_replace_belt(
@@ -281,7 +284,7 @@ impl WorldImpl {
         }
     }
 
-    fn upgrade_ug_checked(&mut self, position: TilePosition, new_tier: BeltTier) {
+    pub fn upgrade_ug(&mut self, position: TilePosition, new_tier: BeltTier) {
         let (pair_ug, other_pos) = {
             let Some((other_pos, ug, pair_ug)) = self.get_ug_pair_both_mut(position) else {
                 return;
@@ -298,7 +301,7 @@ impl WorldImpl {
         assert_eq!(new_pos, position, "Upgrading changed ug pair position");
     }
 
-    fn upgrade_splitter(&mut self, position: TilePosition, tier: BeltTier) {
+    pub fn upgrade_splitter(&mut self, position: TilePosition, tier: BeltTier) {
         let Some(BeltCollidable::Splitter(splitter)) = self.get_mut(position) else {
             return;
         };
@@ -309,7 +312,7 @@ impl WorldImpl {
         self.entities.remove(&position);
     }
 
-    fn get_ug_pair(
+    pub fn get_ug_pair(
         &self,
         position: TilePosition,
         underground: &UndergroundBelt,
@@ -329,65 +332,6 @@ impl WorldImpl {
             }
         }
         None
-    }
-}
-
-// Implement ReadonlyWorld trait for WorldImpl
-impl ReadonlyWorld for WorldImpl {
-    fn get(&self, position: TilePosition) -> Option<&BeltCollidable> {
-        self.entities.get(&position)
-    }
-
-    fn get_belt(&self, position: TilePosition) -> Option<BeltConnectable> {
-        self.get(position)
-            .and_then(|e| BeltConnectable::try_from(e).ok())
-    }
-
-    fn get_ug_pair(
-        &self,
-        position: TilePosition,
-        underground: &UndergroundBelt,
-    ) -> Option<(TilePosition, &UndergroundBelt)> {
-        WorldImpl::get_ug_pair(self, position, underground)
-    }
-
-    fn output_direction_at(&self, position: TilePosition) -> Option<Direction> {
-        self.get_belt(position).and_then(|e| e.output_direction())
-    }
-
-    fn input_direction_at(&self, position: TilePosition) -> Option<Direction> {
-        let entity = self.get_belt(position)?;
-        if let BeltConnectable::Belt(belt) = &entity {
-            Some(self.belt_curved_input_direction(position, belt.direction))
-        } else {
-            entity.primary_input_direction()
-        }
-    }
-}
-
-// Implement World trait for WorldImpl
-impl World for WorldImpl {
-    fn build(&mut self, position: TilePosition, entity: BeltCollidable) {
-        WorldImpl::set(self, position, entity)
-    }
-
-    fn build_unchecked(&mut self, position: TilePosition, entity: BeltCollidable) {
-        WorldImpl::build_unchecked(self, position, entity)
-    }
-
-    fn mine(&mut self, position: TilePosition) {
-        WorldImpl::remove(self, position)
-    }
-
-    fn flip_ug(&mut self, position: TilePosition) -> bool {
-        WorldImpl::flip_ug(self, position)
-    }
-
-    fn upgrade_ug(&mut self, position: TilePosition, new_tier: BeltTier) {
-        WorldImpl::upgrade_ug_checked(self, position, new_tier)
-    }
-    fn upgrade_splitter(&mut self, position: TilePosition, tier: BeltTier) {
-        WorldImpl::upgrade_splitter(self, position, tier)
     }
 }
 

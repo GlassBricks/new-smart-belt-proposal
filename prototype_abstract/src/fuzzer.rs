@@ -4,7 +4,6 @@ use crate::{
     UndergroundBelt, WorldImpl, pos,
     smart_belt::{LineDrag, action::Error},
     test_case::print_world,
-    world::ReadonlyWorld,
 };
 use euclid::{Box2D, Size2D};
 use rand::{Rng, SeedableRng, rngs::StdRng};
@@ -197,7 +196,9 @@ pub fn scan_belt_line(world: &WorldImpl) -> Vec<TilePosition> {
     let mut result = Vec::new();
     let mut iterations = 0;
     const MAX_ITERATIONS: i32 = 100;
-    while let Some(belt_connectable) = world.get(scan_pos).and_then(|e| BeltConnectable::try_from(e).ok())
+    while let Some(belt_connectable) = world
+        .get(scan_pos)
+        .and_then(|e| BeltConnectable::try_from(e).ok())
         && (scan_pos.x == 0 || is_belt_connected_to_previous_tile(world, scan_pos.x))
         && iterations < MAX_ITERATIONS
     {

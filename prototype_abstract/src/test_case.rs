@@ -5,7 +5,6 @@ use crate::BoundingBox;
 use crate::belts::{BELT_TIERS, Belt, BeltTier, LoaderLike, Splitter, UndergroundBelt};
 use crate::geometry::Axis;
 use crate::geometry::Ray;
-use crate::world::{ReadonlyWorld, World};
 use crate::{
     BeltCollidable, BeltConnectable, BeltConnectableTrait, Direction, TilePosition, TileVec,
     Transform, WorldImpl, pos,

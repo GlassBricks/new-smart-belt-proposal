@@ -1,8 +1,8 @@
 use anyhow::Result;
 use euclid::{Point2D, Rect, Size2D, Vector2D};
 use prototype_abstract::{
-    BeltCollidable, BeltConnectable, BoundingBox, Direction, ReadonlyWorld as _, Splitter,
-    TilePosition, WorldImpl as World,
+    BeltCollidable, BeltConnectable, BoundingBox, Direction, Splitter, TilePosition,
+    WorldImpl as World,
 };
 use std::path::Path;
 use tiny_skia::{Pixmap, PremultipliedColorU8};
@@ -176,7 +176,7 @@ impl ImageRenderer {
             (Some(BeltConnectable::Splitter(splitter)), RenderLayer::Top) => {
                 let tier_idx = splitter.tier.tier_index();
                 let is_head = if let Some(tail_pos) = get_tail_pos(&splitter, pos, bounds)
-                  && matches!(world.get(tail_pos), Some(BeltCollidable::Splitter(_)))
+                    && matches!(world.get(tail_pos), Some(BeltCollidable::Splitter(_)))
                 {
                     false
                 } else {
@@ -397,7 +397,7 @@ pub fn get_tail_pos(
 mod tests {
     use super::*;
     use prototype_abstract::{
-        Belt, Splitter, UndergroundBelt, World as _, WorldImpl as World, belts::YELLOW_BELT, pos,
+        Belt, Splitter, UndergroundBelt, WorldImpl as World, belts::YELLOW_BELT, pos,
     };
 
     #[test]
