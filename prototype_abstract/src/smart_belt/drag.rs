@@ -143,7 +143,8 @@ impl<'a> LineDrag<'a> {
             (turn_direction, turn_direction)
         };
 
-        let last_tile_history = if let Some(connections) = self.tile_history
+        let last_tile_history = if !backward
+            && let Some(connections) = self.tile_history
             && self.furthest_placement_pos() == self.last_position
         {
             let world_pos = self.ray.get_position(self.last_position);

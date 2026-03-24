@@ -43,8 +43,8 @@ export interface DragResult {
   errors: string[]
 }
 
-const OFFSET_X = 0
-const OFFSET_Y = 0
+export const OFFSET_X = 0
+export const OFFSET_Y = 0
 
 declare const storage: { players: Record<number, object> }
 
@@ -77,7 +77,7 @@ function resetPlayerDragState(player: LuaPlayer): void {
   storage.players[player.index as number] = {}
 }
 
-function toFacDir(direction: number): defines.direction {
+export function toFacDir(direction: number): defines.direction {
   switch (direction) {
     case Direction.North:
       return defines.direction.north
@@ -107,21 +107,22 @@ function dirVecFromDirection(direction: number): { dx: number; dy: number } {
   }
 }
 
-export function setupAndDrag(
+export interface TestWorldResult {
+  player: LuaPlayer
+  surface: LuaSurface
+}
+
+export function setupTestWorld(
   before: [TilePosition, TestEntity][],
-  after: [TilePosition, TestEntity][],
-  drag: DragConfig,
-): DragResult {
+  beltName: string,
+  bounds: Bounds,
+): TestWorldResult {
   const player = game.get_player(1 as PlayerIndex)!
   const surface = player.surface
 
   resetPlayerDragState(player)
-
-  const bounds = computeBounds(before, after, drag)
-
   clearArea(surface, bounds)
   resetTiles(surface, bounds)
-
   player.get_main_inventory()?.clear()
 
   placeImpassableTiles(surface, before)
@@ -131,10 +132,21 @@ export function setupAndDrag(
   if (!cursorStack) {
     error("player.cursor_stack is nil")
   }
-  cursorStack.set_stack({ name: "smarter-" + drag.beltName, count: 42 })
+  cursorStack.set_stack({ name: "smarter-" + beltName, count: 42 })
   if (!cursorStack.valid_for_read) {
     error("cursor_stack not valid_for_read after set_stack")
   }
+
+  return { player, surface }
+}
+
+export function setupAndDrag(
+  before: [TilePosition, TestEntity][],
+  after: [TilePosition, TestEntity][],
+  drag: DragConfig,
+): DragResult {
+  const bounds = computeBounds(before, after, drag)
+  const { player, surface } = setupTestWorld(before, drag.beltName, bounds)
 
   startErrorRecording()
 
@@ -173,28 +185,35 @@ export interface Bounds {
   maxY: number
 }
 
-function computeBounds(
-  before: [TilePosition, TestEntity][],
-  after: [TilePosition, TestEntity][],
-  drag: DragConfig,
-): Bounds {
-  let minX = Math.min(drag.startX, drag.endX)
-  let maxX = Math.max(drag.startX, drag.endX)
-  let minY = Math.min(drag.startY, drag.endY)
-  let maxY = Math.max(drag.startY, drag.endY)
-  if (drag.forwardBack && drag.leftmostX !== undefined) {
-    minX = Math.min(minX, drag.leftmostX)
-  }
-  if (drag.forwardBack && drag.leftmostY !== undefined) {
-    minY = Math.min(minY, drag.leftmostY)
-  }
-  for (const [pos] of [...before, ...after]) {
+export function boundsFromPositions(positions: TilePosition[]): Bounds {
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const pos of positions) {
     minX = Math.min(minX, pos.x)
     maxX = Math.max(maxX, pos.x)
     minY = Math.min(minY, pos.y)
     maxY = Math.max(maxY, pos.y)
   }
   return { minX: minX - 2, minY: minY - 2, maxX: maxX + 3, maxY: maxY + 3 }
+}
+
+function computeBounds(
+  before: [TilePosition, TestEntity][],
+  after: [TilePosition, TestEntity][],
+  drag: DragConfig,
+): Bounds {
+  const positions: TilePosition[] = [
+    ...before.map(([p]) => p),
+    ...after.map(([p]) => p),
+    { x: drag.startX, y: drag.startY },
+    { x: drag.endX, y: drag.endY },
+  ]
+  if (drag.forwardBack && drag.leftmostX !== undefined) {
+    positions.push({ x: drag.leftmostX, y: drag.leftmostY ?? drag.startY })
+  }
+  return boundsFromPositions(positions)
 }
 
 function boundsToArea(b: Bounds) {
@@ -488,7 +507,7 @@ function simulateMegaWiggleDragEvents(
   interpolateTo(drag.endX, drag.endY)
 }
 
-function fireSmartBeltEvent(
+export function fireSmartBeltEvent(
   player: LuaPlayer,
   smarterName: string,
   position: { x: number; y: number },
@@ -766,7 +785,7 @@ function isSubset(
   return true
 }
 
-function assertErrors(
+export function assertErrors(
   expected: string[],
   actual: string[],
   variant: "wiggle" | "mega_wiggle" | undefined,

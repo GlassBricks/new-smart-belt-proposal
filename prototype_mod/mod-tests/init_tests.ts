@@ -8,6 +8,7 @@ const manualTests: string[] = [
   "mod-tests.build_mode_action_test",
   "mod-tests.geometry_test",
   "mod-tests.belts_test",
+  "mod-tests.rotation_test",
 ]
 
 init([...generatedTests, ...manualTests])
