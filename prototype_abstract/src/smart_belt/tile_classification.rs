@@ -158,8 +158,7 @@ impl<'a> TileClassifier<'a> {
             // We're running into the back of an unpaired underground.
             // Check the belt segment, we might want to underground over it.
             // Additional check: we can't ug over another ug of the same tier, so always integrate that.
-            let this = &self;
-            this.should_integrate_belt_segment(ug.direction == this.belt_direction(), false)
+            self.should_integrate_belt_segment(ug.direction == self.belt_direction(), false)
         } {
             TileType::Usable
         } else {
