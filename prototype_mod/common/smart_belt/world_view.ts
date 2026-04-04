@@ -111,7 +111,9 @@ export class SmartBeltWorldView {
     if (!(entity instanceof Belt)) {
       return false
     }
-    return this.inputDependenciesAt(lastWorldPos, entity.direction).includes(
+    return this.inputDependenciesContains(
+      lastWorldPos,
+      entity.direction,
       oppositeDirection(this.rayDirection()),
     )
   }
@@ -185,29 +187,19 @@ export class SmartBeltWorldView {
     return beltDirection
   }
 
-  private inputDependenciesAt(
+  private inputDependenciesContains(
     position: TilePosition,
     beltDirection: Direction,
-  ): Direction[] {
+    query: Direction,
+  ): boolean {
     const hasInputIn = (direction: Direction): boolean => {
       const queryPos = subPos(position, directionToVector(direction))
       return this.outputDirectionAt(queryPos) === direction
     }
 
     if (hasInputIn(beltDirection)) {
-      return [beltDirection]
+      return query === beltDirection
     }
-
-    const rotateCW = ((beltDirection + 1) % 4) as Direction
-    const rotateCCW = ((beltDirection + 3) % 4) as Direction
-
-    const dependencies: Direction[] = []
-    if (hasInputIn(rotateCW)) {
-      dependencies.push(rotateCW)
-    }
-    if (hasInputIn(rotateCCW)) {
-      dependencies.push(rotateCCW)
-    }
-    return dependencies
+    return query % 2 !== beltDirection % 2 && hasInputIn(query)
   }
 }

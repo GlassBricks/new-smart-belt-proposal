@@ -1,4 +1,4 @@
-use arrayvec::ArrayVec;
+
 
 use crate::belts::BeltTier;
 use crate::world::{BeltConnections, WorldImpl};
@@ -97,8 +97,7 @@ impl<'a> SmartBeltWorldView<'a> {
             return false;
         }
         let last_world_pos = self.ray.get_position(next_pos - drag_step);
-        self.input_dependencies_at(last_world_pos)
-            .contains(&self.ray_direction().opposite())
+        self.input_dependencies_contains(last_world_pos, self.ray_direction().opposite())
     }
 
     pub fn get_ug_pair_pos(&self, index: i32, ug: &UndergroundBelt) -> Option<i32> {
@@ -162,31 +161,30 @@ impl<'a> SmartBeltWorldView<'a> {
         }
     }
 
-    fn input_dependencies_at(&self, position: TilePosition) -> ArrayVec<Direction, 3> {
+    fn input_dependencies_contains(&self, position: TilePosition, query: Direction) -> bool {
         let entity = self.world.get(position);
         if let Some(BeltCollidable::Belt(belt)) = entity {
-            self.belt_curve_dependencies(position, belt.direction)
+            self.belt_curve_deps_contains(position, belt.direction, query)
         } else {
-            ArrayVec::new()
+            false
         }
     }
 
-    fn belt_curve_dependencies(
+    fn belt_curve_deps_contains(
         &self,
         position: TilePosition,
         belt_direction: Direction,
-    ) -> ArrayVec<Direction, 3> {
+        query: Direction,
+    ) -> bool {
         let has_input_in = |direction: Direction| {
             let query_pos = position - direction.to_vector();
             self.output_direction_at(query_pos) == Some(direction)
         };
 
         if has_input_in(belt_direction) {
-            [belt_direction].into_iter().collect()
+            query == belt_direction
         } else {
-            let cw = Some(belt_direction.rotate_cw()).take_if(|d| has_input_in(*d));
-            let ccw = Some(belt_direction.rotate_ccw()).take_if(|d| has_input_in(*d));
-            [cw, ccw].into_iter().flatten().collect()
+            query.axis() != belt_direction.axis() && has_input_in(query)
         }
     }
 }
