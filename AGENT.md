@@ -10,7 +10,8 @@ The main prototype implementation is a rust crate, with tests.
 
 in prototype_mod/, a prototype that is a direct port of the rust prototype, compiled to a Factorio mod using TypescriptToLua.
 
-Testing: use `bun run tests`, launches `factorio-test`, which runs runs tests in headless mode (it can be run from CLI, no GUI needed)
+- Tests: use `bun run tests`, don't only typecheck. This CAN be run in CLI.
+  - launches `factorio-test`, which runs in headless mode
 
 ## Testing
 
