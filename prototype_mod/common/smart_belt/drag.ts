@@ -1,4 +1,10 @@
-import { Splitter, UndergroundBelt, type BeltTier } from "../belts"
+import {
+  Belt,
+  BeltConnectable,
+  Splitter,
+  UndergroundBelt,
+  type BeltTier,
+} from "../belts"
 import {
   Direction,
   axisSign,
@@ -15,7 +21,12 @@ import {
 import { tryRegister } from "../metatable"
 import { WorldOps, type World } from "../world"
 import { Action, ActionError } from "./action"
-import { DragState, takeStep, type DragStepResult } from "./drag_state"
+import {
+  LastBuiltEntity,
+  step,
+  type DragStepResult,
+  type EntityUpdate,
+} from "./drag_state"
 import { RaySense, senseMultiplier } from "./RaySense"
 import { SmartBeltWorldView, type TileHistory } from "./world_view"
 
@@ -34,7 +45,8 @@ export class LineDrag {
   private constructor(
     public ray: Ray,
     private tier: BeltTier,
-    private lastState: DragState,
+    private lastBuiltEntity: LastBuiltEntity | undefined,
+    private overImpassable: RaySense | undefined,
     private lastPosition: number,
     private tileHistory: TileHistory | undefined,
     private lastEndTileHistory: TileHistory | undefined,
@@ -71,14 +83,21 @@ export class LineDrag {
       errorHandler.handleError(startPos, ActionError.EntityInTheWay)
     }
 
-    const initialState = DragState.initialState(canPlace)
     const ray = createRay(startPos, beltDirection)
     const startCoord = rayPosition(ray, startPos)
+
+    const lastBuiltEntity = canPlace
+      ? LastBuiltEntity.fromBuild(
+          new Belt(firstBeltDirection, tier),
+          startCoord,
+        )
+      : undefined
 
     return new LineDrag(
       ray,
       tier,
-      initialState,
+      lastBuiltEntity,
+      undefined,
       startCoord,
       tileHistory,
       undefined,
@@ -121,13 +140,13 @@ export class LineDrag {
 
     while (isBeforeOnRay(this.ray, this.lastPosition, targetPos)) {
       const view = this.createWorldView(world, RaySense.Forward)
-      const result = takeStep(this.lastState, view)
+      const result = step(this.lastBuiltEntity, this.overImpassable, view)
       this.applyStep(world, errorHandler, result, RaySense.Forward)
     }
 
     while (isBeforeOnRay(this.ray, targetPos, this.lastPosition)) {
       const view = this.createWorldView(world, RaySense.Backward)
-      const result = takeStep(this.lastState, view)
+      const result = step(this.lastBuiltEntity, this.overImpassable, view)
       this.applyStep(world, errorHandler, result, RaySense.Backward)
     }
     this.updateFurthestPosition(targetPos)
@@ -196,23 +215,69 @@ export class LineDrag {
   private applyStep(
     world: World,
     errorHandler: ErrorHandler,
-    step: DragStepResult,
+    result: DragStepResult,
     raySense: RaySense,
   ): void {
-    let [action, nextState, err] = step
+    const [action, entityUpdate, err] = result
     const nextPosition = this.nextPosition(raySense)
     if (action.type !== "None") {
       this.updateFurthestPlacement(nextPosition, raySense, world)
     }
 
-    this.applyAction(world, errorHandler, action, raySense)
+    this.applyAction(world, errorHandler, action, nextPosition, raySense)
 
     if (err !== undefined) {
-      this.addError(errorHandler, err, raySense)
+      const worldPos = getRayPosition(this.ray, nextPosition)
+      errorHandler.handleError(worldPos, err)
     }
 
-    this.lastState = nextState
-    this.lastPosition = this.nextPosition(raySense)
+    this.applyEntityUpdate(entityUpdate, nextPosition, world)
+    this.lastPosition = nextPosition
+  }
+
+  private applyEntityUpdate(
+    update: EntityUpdate,
+    nextPosition: number,
+    world: World,
+  ): void {
+    switch (update.type) {
+      case "PlacedBelt": {
+        const belt = new Belt(this.ray.direction, this.tier)
+        this.lastBuiltEntity = LastBuiltEntity.fromBuild(belt, nextPosition)
+        this.overImpassable = undefined
+        break
+      }
+      case "FetchBuild": {
+        const worldPos = getRayPosition(this.ray, update.pos)
+        const entity = world.get(worldPos)
+        if (entity instanceof BeltConnectable) {
+          this.lastBuiltEntity = LastBuiltEntity.fromBuild(entity, update.pos)
+        }
+        this.overImpassable = undefined
+        break
+      }
+      case "FetchOverbuild": {
+        const worldPos = getRayPosition(this.ray, update.pos)
+        const entity = world.get(worldPos)
+        if (entity instanceof BeltConnectable) {
+          this.lastBuiltEntity = LastBuiltEntity.fromOverbuild(
+            entity,
+            update.pos,
+          )
+        }
+        this.overImpassable = undefined
+        break
+      }
+      case "ClearEntity":
+        this.lastBuiltEntity = undefined
+        this.overImpassable = undefined
+        break
+      case "SetImpassable":
+        this.overImpassable = update.raySense
+        break
+      case "Unchanged":
+        break
+    }
   }
 
   private storeTileHistory(position: number, world: World): void {
@@ -245,11 +310,11 @@ export class LineDrag {
     world: World,
     errorHandler: ErrorHandler,
     action: Action,
+    nextPosition: number,
     raySense: RaySense,
   ): void {
     const worldOps = new WorldOps(world)
-    const position = this.nextPosition(raySense)
-    const worldPos = getRayPosition(this.ray, position)
+    const worldPos = getRayPosition(this.ray, nextPosition)
 
     switch (action.type) {
       case "None":
@@ -319,10 +384,10 @@ export class LineDrag {
           if (canUpgradeUnderground(view, outputPos)) {
             world.upgradeUg(worldPos, this.tier)
           } else {
-            this.addError(
+            LineDrag.reportError(
               errorHandler,
               ActionError.CannotUpgradeUnderground,
-              raySense,
+              worldPos,
             )
           }
         }
@@ -347,12 +412,11 @@ export class LineDrag {
     }
   }
 
-  private addError(
+  private static reportError(
     errorHandler: ErrorHandler,
     error: ActionError,
-    raySense: RaySense,
+    worldPos: TilePosition,
   ): void {
-    const worldPos = getRayPosition(this.ray, this.nextPosition(raySense))
     errorHandler.handleError(worldPos, error)
   }
 
