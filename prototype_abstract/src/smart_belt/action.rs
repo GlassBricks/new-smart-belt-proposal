@@ -35,10 +35,10 @@ impl<'a> LineDrag<'a> {
         &mut self,
         error_handler: &mut dyn FnMut(TilePosition, Error),
         action: Action,
+        next_position: i32,
         ray_sense: RaySense,
     ) {
-        let position = self.create_world_view(ray_sense).next_position();
-        let world_pos = self.ray.get_position(position);
+        let world_pos = self.ray.get_position(next_position);
         match action {
             Action::None => {}
             Action::PlaceBelt => {
@@ -119,7 +119,7 @@ impl<'a> LineDrag<'a> {
                     if super::drag_state::can_upgrade_underground(&view, output_pos) {
                         self.world.upgrade_ug(world_pos, self.tier);
                     } else {
-                        self.add_error(error_handler, Error::CannotUpgradeUnderground, ray_sense);
+                        Self::report_error(error_handler, Error::CannotUpgradeUnderground, world_pos);
                     }
                 }
             }

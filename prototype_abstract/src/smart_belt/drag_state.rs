@@ -1,36 +1,47 @@
 use crate::BeltCollidable;
-use crate::Ray;
-use crate::smart_belt::drag::DragStepResult;
+use crate::BeltConnectable;
 use log::debug;
 
 use super::{Action, RaySense, SmartBeltWorldView, TileClassifier, TileType, action::Error};
 
-/// The state of the current drag we store. Needs to work in both directions.
 #[derive(Debug, Clone)]
-pub enum DragState {
-    /// We were hovering over a belt.
-    OverBelt,
-    /// We were hovering over a splitter.
-    OverSplitter,
-    /// We are hovering over, or have passed an obstacle, going in the given direction.
-    /// output_pos is given if we've already placed an underground.
-    BuildingUnderground {
-        input_pos: i32,
-        output_pos: Option<i32>,
-        ray_sense: RaySense,
-    },
-    /// An underground belt we will integrate (and not extend); just "passing-through" it.
-    /// near_pos = Forward-entry side, far_pos = Forward-exit side.
-    PassThrough { near_pos: i32, far_pos: i32 },
-    /// We are hovering over or have hovered over an impassable obstacle. Will error if we continue in the given direction.
-    OverImpassable { ray_sense: RaySense },
-    /// After any error (breaking the belt line). We will enter/place the next belt we see.
-    ErrorRecovery,
+pub struct LastBuiltEntity {
+    pub entity: BeltConnectable,
+    pub position: i32,
+    pub was_overbuild: bool,
 }
 
+impl LastBuiltEntity {
+    pub fn from_build(entity: BeltConnectable, position: i32) -> Self {
+        Self { entity, position, was_overbuild: false }
+    }
+    pub fn from_overbuild(entity: BeltConnectable, position: i32) -> Self {
+        Self { entity, position, was_overbuild: true }
+    }
+}
+
+/// How to update `last_built_entity` and `over_impassable` after a step.
+#[derive(Debug)]
+pub(super) enum EntityUpdate {
+    /// Belt placed at next_position (construct directly, no world fetch)
+    PlacedBelt,
+    /// Fetch entity from world at position, store as from_build
+    FetchBuild(i32),
+    /// Fetch entity from world at position, store as from_overbuild
+    FetchOverbuild(i32),
+    /// Enter error recovery: clear last_built_entity and over_impassable
+    ClearEntity,
+    /// Set over_impassable to given sense
+    SetImpassable(RaySense),
+    /// No change to entity state
+    Unchanged,
+}
+
+pub(super) struct DragStepResult(pub(super) Action, pub(super) EntityUpdate, pub(super) Option<Error>);
+
 /// The shape of the furthermost stop end of the current belt line, after factoring in direction.
-#[derive(Debug, Clone)]
-enum DragEndShape {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum DragEndShape {
     /// Ends with a belt.
     Belt,
     /// Ends with a belt entity, that we may _not_ replace with an underground belt.
@@ -50,97 +61,137 @@ enum DragEndShape {
     Error,
 }
 
-impl DragState {
-    pub fn initial_state(successful_placement: bool) -> Self {
-        if successful_placement {
-            DragState::OverBelt
-        } else {
-            DragState::ErrorRecovery
-        }
-    }
 
-    pub(super) fn step(&self, view: &SmartBeltWorldView) -> DragStepResult {
-        print_debug_info(view);
-        let Some(drag_end) = self.get_drag_end(view.last_position, view.ray_sense, &view.ray)
-        else {
-            debug!("Do nothing");
-            return DragStepResult(Action::None, self.clone(), None);
-        };
-        debug!("drag_end: {drag_end:?}");
-        let next_tile = TileClassifier::new(
-            view,
-            drag_end.can_enter_next_tile(),
-            drag_end.underground_input_pos(view.last_position),
-            drag_end.is_error_state(),
-        )
-        .classify_next_tile();
-        debug!("Tile type: {:?}", next_tile);
-        match next_tile {
-            TileType::Usable => drag_end.place_belt_or_underground(view),
-            TileType::IntegratedSplitter => DragStepResult(
-                Action::IntegrateSplitter,
-                DragState::OverSplitter,
-                drag_end.error_on_impassable_exit(view),
-            ),
-            TileType::IntegratedUnderground { output_pos } => {
-                drag_end.integrate_underground_pair(view, output_pos)
+// --- Derivation from LastBuiltEntity ---
+
+pub(super) fn derive_drag_end(
+    last_built_entity: Option<&LastBuiltEntity>,
+    over_impassable: Option<RaySense>,
+    view: &SmartBeltWorldView,
+) -> Option<DragEndShape> {
+    if let Some(sense) = over_impassable {
+        return Some(DragEndShape::OverImpassableObstacle { ray_sense: sense });
+    }
+    let Some(lbe) = last_built_entity else {
+        return Some(DragEndShape::Error);
+    };
+    match &lbe.entity {
+        BeltConnectable::Belt(_) => derive_belt_end(lbe, view),
+        BeltConnectable::Splitter(_) => Some(DragEndShape::IntegratedOutput),
+        BeltConnectable::UndergroundBelt(ug) => {
+            let pair_pos = view.get_ug_pair_pos(lbe.position, ug);
+            if lbe.was_overbuild {
+                derive_passthrough_end(lbe, pair_pos, view)
+            } else {
+                derive_building_underground_end(lbe, pair_pos, view)
             }
-            TileType::Obstacle => drag_end.handle_obstacle(view),
-            TileType::ImpassableObstacle => drag_end.handle_impassable_obstacle(view),
+        }
+        BeltConnectable::LoaderLike(_) => Some(DragEndShape::IntegratedOutput),
+    }
+}
+
+fn derive_belt_end(lbe: &LastBuiltEntity, view: &SmartBeltWorldView) -> Option<DragEndShape> {
+    if lbe.position == view.last_position {
+        return Some(DragEndShape::Belt);
+    }
+    let step_sign = view.step_sign();
+    let diff = (view.last_position - lbe.position) * step_sign;
+    if diff > 0 {
+        Some(DragEndShape::TraversingObstacle {
+            input_pos: lbe.position,
+            output_pos: None,
+        })
+    } else {
+        let next_pos = view.next_position();
+        if next_pos == lbe.position {
+            Some(DragEndShape::Belt)
+        } else {
+            None
         }
     }
 }
 
-impl DragState {
-    /// Resolve the belt end shape, after taking into account the direction.
-    /// If this returns None, that means that we should do nothing!
-    fn get_drag_end(
-        &self,
-        last_position: i32,
-        ray_sense: RaySense,
-        ray: &Ray,
-    ) -> Option<DragEndShape> {
-        match *self {
-            DragState::OverBelt => Some(DragEndShape::Belt),
-            DragState::OverSplitter => Some(DragEndShape::IntegratedOutput),
-            DragState::OverImpassable { ray_sense } => {
-                Some(DragEndShape::OverImpassableObstacle { ray_sense })
-            }
-            DragState::ErrorRecovery => Some(DragEndShape::Error),
-            DragState::BuildingUnderground {
-                input_pos,
-                output_pos,
-                ray_sense: last_sense,
-            } => {
-                if ray_sense != last_sense {
-                    if output_pos.is_some() {
-                        (last_position == input_pos).then_some(DragEndShape::IntegratedOutput)
-                    } else {
-                        let next_position = last_position
-                            + ray.direction.axis_sign() * ray_sense.direction_multiplier();
+fn derive_building_underground_end(
+    lbe: &LastBuiltEntity,
+    pair_pos: Option<i32>,
+    view: &SmartBeltWorldView,
+) -> Option<DragEndShape> {
+    let input_pos = pair_pos.expect("UG pair missing for BuildingUnderground derivation");
+    let output_pos = lbe.position;
 
-                        (next_position == input_pos).then_some(DragEndShape::Belt)
-                    }
-                } else if output_pos == Some(last_position) {
-                    Some(DragEndShape::ExtendableUnderground { input_pos })
-                } else {
-                    Some(DragEndShape::TraversingObstacle {
-                        input_pos,
-                        output_pos,
-                    })
-                }
-            }
-            DragState::PassThrough { near_pos, far_pos } => {
-                if match ray_sense {
-                    RaySense::Forward => ray.is_before(last_position, far_pos),
-                    RaySense::Backward => ray.is_before(near_pos, last_position),
-                } {
-                    None
-                } else {
-                    Some(DragEndShape::IntegratedOutput)
-                }
-            }
+    let original_sense = if view.ray.is_before(input_pos, output_pos) {
+        RaySense::Forward
+    } else {
+        RaySense::Backward
+    };
+
+    if view.ray_sense == original_sense {
+        if output_pos == view.last_position {
+            Some(DragEndShape::ExtendableUnderground { input_pos })
+        } else {
+            Some(DragEndShape::TraversingObstacle {
+                input_pos,
+                output_pos: Some(output_pos),
+            })
         }
+    } else if view.last_position == input_pos {
+        Some(DragEndShape::IntegratedOutput)
+    } else {
+        None
+    }
+}
+
+fn derive_passthrough_end(
+    lbe: &LastBuiltEntity,
+    pair_pos: Option<i32>,
+    view: &SmartBeltWorldView,
+) -> Option<DragEndShape> {
+    let other_pos = pair_pos.expect("UG pair missing for PassThrough derivation");
+    let (near_pos, far_pos) = if view.ray.is_before(lbe.position, other_pos) {
+        (lbe.position, other_pos)
+    } else {
+        (other_pos, lbe.position)
+    };
+
+    let within = match view.ray_sense {
+        RaySense::Forward => view.ray.is_before(view.last_position, far_pos),
+        RaySense::Backward => view.ray.is_before(near_pos, view.last_position),
+    };
+
+    if within { None } else { Some(DragEndShape::IntegratedOutput) }
+}
+
+pub(super) fn step(
+    last_built_entity: Option<&LastBuiltEntity>,
+    over_impassable: Option<RaySense>,
+    view: &SmartBeltWorldView,
+) -> DragStepResult {
+    print_debug_info(view);
+    let Some(drag_end) = derive_drag_end(last_built_entity, over_impassable, view) else {
+        debug!("Do nothing");
+        return DragStepResult(Action::None, EntityUpdate::Unchanged, None);
+    };
+    debug!("drag_end: {drag_end:?}");
+    let next_tile = TileClassifier::new(
+        view,
+        drag_end.can_enter_next_tile(),
+        drag_end.underground_input_pos(view.last_position),
+        drag_end.is_error_state(),
+    )
+    .classify_next_tile();
+    debug!("Tile type: {:?}", next_tile);
+    match next_tile {
+        TileType::Usable => drag_end.place_belt_or_underground(view),
+        TileType::IntegratedSplitter => DragStepResult(
+            Action::IntegrateSplitter,
+            EntityUpdate::FetchOverbuild(view.next_position()),
+            drag_end.error_on_impassable_exit(view),
+        ),
+        TileType::IntegratedUnderground { output_pos } => {
+            drag_end.integrate_underground_pair(view, output_pos)
+        }
+        TileType::Obstacle => drag_end.handle_obstacle(view),
+        TileType::ImpassableObstacle => drag_end.handle_impassable_obstacle(view),
     }
 }
 
@@ -165,15 +216,14 @@ impl DragEndShape {
 
     fn place_belt_or_underground(&self, view: &SmartBeltWorldView) -> DragStepResult {
         if let Some(err) = self.error_on_impassable_exit(view) {
-            DragStepResult(Action::PlaceBelt, DragState::OverBelt, Some(err))
+            DragStepResult(Action::PlaceBelt, EntityUpdate::PlacedBelt, Some(err))
         } else {
             match *self {
                 DragEndShape::TraversingObstacle {
                     input_pos,
                     output_pos,
                 } => Self::place_underground(view, input_pos, output_pos),
-                // For anything else, place a belt
-                _ => DragStepResult(Action::PlaceBelt, DragState::OverBelt, None),
+                _ => DragStepResult(Action::PlaceBelt, EntityUpdate::PlacedBelt, None),
             }
         }
     }
@@ -186,7 +236,7 @@ impl DragEndShape {
         let next_position = view.next_position();
         let is_extension = last_output_pos.is_some();
         if let Err(error) = can_build_underground(view, input_pos, is_extension) {
-            DragStepResult(Action::PlaceBelt, DragState::OverBelt, Some(error))
+            DragStepResult(Action::PlaceBelt, EntityUpdate::PlacedBelt, Some(error))
         } else {
             let action = if let Some(last_output_pos) = last_output_pos {
                 Action::ExtendUnderground {
@@ -199,15 +249,7 @@ impl DragEndShape {
                     output_pos: next_position,
                 }
             };
-            DragStepResult(
-                action,
-                DragState::BuildingUnderground {
-                    input_pos,
-                    ray_sense: view.ray_sense,
-                    output_pos: Some(next_position),
-                },
-                None,
-            )
+            DragStepResult(action, EntityUpdate::FetchBuild(next_position), None)
         }
     }
 
@@ -216,51 +258,30 @@ impl DragEndShape {
         view: &SmartBeltWorldView,
         output_pos: i32,
     ) -> DragStepResult {
-        let input_pos = view.next_position();
-        let (near_pos, far_pos) = view.ray_sense.swap_if_backwards(input_pos, output_pos);
-        let next_state = if output_pos == view.furthest_placement_pos {
-            DragState::BuildingUnderground {
-                input_pos,
-                output_pos: Some(output_pos),
-                ray_sense: view.ray_sense,
-            }
+        let next_position = view.next_position();
+        let entity_update = if output_pos == view.furthest_placement_pos {
+            EntityUpdate::FetchBuild(output_pos)
         } else {
-            DragState::PassThrough { near_pos, far_pos }
+            EntityUpdate::FetchOverbuild(next_position)
         };
         let err = self.error_on_impassable_exit(view);
-        DragStepResult(Action::IntegrateUndergroundPair, next_state, err)
+        DragStepResult(Action::IntegrateUndergroundPair, entity_update, err)
     }
 
-    fn handle_obstacle(&self, view: &SmartBeltWorldView) -> DragStepResult {
-        let new_state = match *self {
-            DragEndShape::Belt => DragState::BuildingUnderground {
-                input_pos: view.last_position,
-                ray_sense: view.ray_sense,
-                output_pos: None,
-            },
-            DragEndShape::ExtendableUnderground { input_pos } => DragState::BuildingUnderground {
-                input_pos,
-                ray_sense: view.ray_sense,
-                output_pos: Some(view.last_position),
-            },
-            DragEndShape::TraversingObstacle {
-                input_pos,
-                output_pos,
-            } => DragState::BuildingUnderground {
-                input_pos,
-                ray_sense: view.ray_sense,
-                output_pos,
-            },
-            DragEndShape::Error | DragEndShape::IntegratedOutput => DragState::ErrorRecovery,
+    fn handle_obstacle(&self, _view: &SmartBeltWorldView) -> DragStepResult {
+        let (entity_update, error) = match *self {
+            DragEndShape::Belt
+            | DragEndShape::ExtendableUnderground { .. }
+            | DragEndShape::TraversingObstacle { .. } => (EntityUpdate::Unchanged, None),
+            DragEndShape::IntegratedOutput => {
+                (EntityUpdate::ClearEntity, Some(Error::EntityInTheWay))
+            }
+            DragEndShape::Error => (EntityUpdate::ClearEntity, None),
             DragEndShape::OverImpassableObstacle { ray_sense } => {
-                DragState::OverImpassable { ray_sense }
+                (EntityUpdate::SetImpassable(ray_sense), None)
             }
         };
-        let error = match *self {
-            DragEndShape::IntegratedOutput => Some(Error::EntityInTheWay),
-            _ => None,
-        };
-        DragStepResult(Action::None, new_state, error)
+        DragStepResult(Action::None, entity_update, error)
     }
 
     fn handle_impassable_obstacle(&self, view: &SmartBeltWorldView) -> DragStepResult {
@@ -268,7 +289,7 @@ impl DragEndShape {
             DragEndShape::OverImpassableObstacle { ray_sense } => ray_sense,
             _ => view.ray_sense,
         };
-        DragStepResult(Action::None, DragState::OverImpassable { ray_sense }, None)
+        DragStepResult(Action::None, EntityUpdate::SetImpassable(ray_sense), None)
     }
 
     fn error_on_impassable_exit(&self, view: &SmartBeltWorldView) -> Option<Error> {
