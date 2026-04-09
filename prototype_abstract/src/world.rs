@@ -126,7 +126,7 @@ impl WorldImpl {
             .is_some_and(|d| d.axis() != belt.direction.axis())
     }
 
-    pub fn build(&mut self, position: TilePosition, entity: BeltCollidable) {
+    pub fn build(&mut self, position: TilePosition, entity: BeltCollidable) -> &BeltCollidable {
         self.set(position, entity)
     }
 
@@ -158,7 +158,7 @@ impl WorldImpl {
         BoundingBox::new(basic_bb.min, basic_bb.max + vec2(1, 1))
     }
 
-    fn set(&mut self, position: TilePosition, entity: BeltCollidable) {
+    fn set(&mut self, position: TilePosition, entity: BeltCollidable) -> &BeltCollidable {
         self.try_set(position, entity)
             .expect("Failed to place entity")
     }
@@ -167,12 +167,12 @@ impl WorldImpl {
         &mut self,
         position: TilePosition,
         mut entity: BeltCollidable,
-    ) -> Result<(), String> {
+    ) -> Result<&BeltCollidable, String> {
         if let BeltCollidable::UndergroundBelt(ug) = &mut entity {
             self.handle_underground_belt(position, ug)?;
         }
         self.entities.insert(position, entity);
-        Ok(())
+        Ok(self.entities.get(&position).unwrap())
     }
 
     fn flip_ug_if_needed(
@@ -226,11 +226,12 @@ impl WorldImpl {
         }
     }
 
-    fn set_unchecked(&mut self, position: TilePosition, mut entity: BeltCollidable) {
+    fn set_unchecked(&mut self, position: TilePosition, mut entity: BeltCollidable) -> &BeltCollidable {
         if let BeltCollidable::UndergroundBelt(ug) = &mut entity {
             self.handle_underground_belt_flip_only(position, ug);
         }
         self.entities.insert(position, entity);
+        self.entities.get(&position).unwrap()
     }
 
     /// Try to build an entity, returning an error instead of panicking if it would break underground pairs
@@ -238,13 +239,13 @@ impl WorldImpl {
         &mut self,
         position: TilePosition,
         entity: BeltCollidable,
-    ) -> Result<(), String> {
+    ) -> Result<&BeltCollidable, String> {
         self.try_set(position, entity)
     }
 
     /// Build an entity without checking if it would break existing underground belt pairs.
     /// May still flip the underground belt to maintain valid pairing with its pair.
-    pub fn build_unchecked(&mut self, position: TilePosition, entity: BeltCollidable) {
+    pub fn build_unchecked(&mut self, position: TilePosition, entity: BeltCollidable) -> &BeltCollidable {
         self.set_unchecked(position, entity)
     }
 
@@ -300,12 +301,6 @@ impl WorldImpl {
         assert_eq!(new_pos, position, "Upgrading changed ug pair position");
     }
 
-    pub fn upgrade_splitter(&mut self, position: TilePosition, tier: BeltTier) {
-        let Some(BeltCollidable::Splitter(splitter)) = self.get_mut(position) else {
-            return;
-        };
-        splitter.tier = tier;
-    }
 
     fn remove(&mut self, position: TilePosition) {
         self.entities.remove(&position);

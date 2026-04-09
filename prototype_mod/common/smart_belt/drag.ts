@@ -1,5 +1,4 @@
 import {
-  Belt,
   BeltConnectable,
   Splitter,
   UndergroundBelt,
@@ -72,21 +71,17 @@ export class LineDrag {
       ? [startPos, worldOps.beltConnectionsAt(startPos)]
       : undefined
 
-    if (canPlace) {
-      worldOps.placeBelt(startPos, firstBeltDirection, tier)
-    } else {
-      errorHandler.handleError(startPos, ActionError.EntityInTheWay)
-    }
-
     const ray = createRay(startPos, beltDirection)
     const startCoord = rayPosition(ray, startPos)
 
-    const lastBuiltEntity = canPlace
-      ? LastBuiltEntity.fromBuild(
-          new Belt(firstBeltDirection, tier),
-          startCoord,
-        )
-      : undefined
+    let lastBuiltEntity: LastBuiltEntity | undefined
+    if (canPlace) {
+      const belt = worldOps.placeBelt(startPos, firstBeltDirection, tier)
+      lastBuiltEntity = LastBuiltEntity.fromBuild(belt, startCoord)
+    } else {
+      errorHandler.handleError(startPos, ActionError.EntityInTheWay)
+      lastBuiltEntity = undefined
+    }
 
     return new LineDrag(
       ray,
@@ -270,11 +265,8 @@ export class LineDrag {
         break
 
       case "PlaceBelt": {
-        worldOps.placeBelt(worldPos, this.ray.direction, this.tier)
-        const belt = new Belt(this.ray.direction, this.tier)
-        this.setLastBuiltEntity(
-          LastBuiltEntity.fromBuild(belt, nextPosition),
-        )
+        const belt = worldOps.placeBelt(worldPos, this.ray.direction, this.tier)
+        this.setLastBuiltEntity(LastBuiltEntity.fromBuild(belt, nextPosition))
         break
       }
 
@@ -290,15 +282,16 @@ export class LineDrag {
           false,
         )
 
-        worldOps.placeUndergroundBelt(
+        const outputEntity = worldOps.placeUndergroundBelt(
           outputWorldPos,
           this.ray.direction,
           raySense === RaySense.Backward,
           this.tier,
           true,
         )
-
-        this.fetchAndSetBuild(world, action.outputPos)
+        this.setLastBuiltEntity(
+          LastBuiltEntity.fromBuild(outputEntity, action.outputPos),
+        )
         break
       }
 
@@ -311,15 +304,16 @@ export class LineDrag {
 
         world.mine(previousOutputWorldPos)
 
-        worldOps.placeUndergroundBelt(
+        const entity = worldOps.placeUndergroundBelt(
           newOutputWorldPos,
           this.ray.direction,
           raySense === RaySense.Backward,
           this.tier,
           false,
         )
-
-        this.fetchAndSetBuild(world, action.newOutputPos)
+        this.setLastBuiltEntity(
+          LastBuiltEntity.fromBuild(entity, action.newOutputPos),
+        )
         break
       }
 
@@ -351,9 +345,20 @@ export class LineDrag {
             ? this.forwardPlacement
             : this.backwardPlacement
         if (action.outputPos === senseFurthest) {
-          this.fetchAndSetBuild(world, action.outputPos)
+          const outputWorldPos = getRayPosition(this.ray, action.outputPos)
+          const outputEntity = world.get(outputWorldPos)
+          if (outputEntity instanceof BeltConnectable) {
+            this.setLastBuiltEntity(
+              LastBuiltEntity.fromBuild(outputEntity, action.outputPos),
+            )
+          }
         } else {
-          this.fetchAndSetOverbuild(world, nextPosition)
+          const entity = world.get(worldPos)
+          if (entity instanceof BeltConnectable) {
+            this.setLastBuiltEntity(
+              LastBuiltEntity.fromOverbuild(entity, nextPosition),
+            )
+          }
         }
         break
       }
@@ -366,13 +371,14 @@ export class LineDrag {
 
         if (
           this.tier.splitterName !== undefined &&
-          entity.name !== this.tier.splitterName &&
-          this.tier.splitterName !== undefined
+          entity.name !== this.tier.splitterName
         ) {
           world.upgradeSplitter(worldPos, this.tier.splitterName)
         }
 
-        this.fetchAndSetOverbuild(world, nextPosition)
+        this.setLastBuiltEntity(
+          LastBuiltEntity.fromOverbuild(entity, nextPosition),
+        )
         break
       }
 
@@ -390,22 +396,6 @@ export class LineDrag {
   private setLastBuiltEntity(entity: LastBuiltEntity): void {
     this.lastBuiltEntity = entity
     this.overImpassable = undefined
-  }
-
-  private fetchAndSetBuild(world: World, pos: number): void {
-    const worldPos = getRayPosition(this.ray, pos)
-    const entity = world.get(worldPos)
-    if (entity instanceof BeltConnectable) {
-      this.setLastBuiltEntity(LastBuiltEntity.fromBuild(entity, pos))
-    }
-  }
-
-  private fetchAndSetOverbuild(world: World, pos: number): void {
-    const worldPos = getRayPosition(this.ray, pos)
-    const entity = world.get(worldPos)
-    if (entity instanceof BeltConnectable) {
-      this.setLastBuiltEntity(LastBuiltEntity.fromOverbuild(entity, pos))
-    }
   }
 
   private static reportError(

@@ -115,9 +115,10 @@ export class WorldOps {
     position: TilePosition,
     direction: Direction,
     tier: BeltTier,
-  ): void {
+  ): Belt {
     const newBelt = new Belt(direction, tier)
     this.world.tryBuild(position, newBelt)
+    return newBelt
   }
 
   placeUndergroundBelt(
@@ -126,12 +127,13 @@ export class WorldOps {
     isInput: boolean,
     tier: BeltTier,
     verifyDirection: boolean,
-  ): void {
+  ): BeltConnectable {
     this.world.tryBuild(position, new UndergroundBelt(direction, isInput, tier))
 
-    const belt = this.world.get(position)
-    if (belt instanceof UndergroundBelt && belt.direction != direction) {
+    const entity = this.world.get(position)
+    if (entity instanceof UndergroundBelt && entity.direction != direction) {
       this.world.flipUg(position)
     }
+    return this.world.get(position) as BeltConnectable
   }
 }

@@ -60,11 +60,10 @@ impl<'a> LineDrag<'a> {
         match action {
             Action::None => {}
             Action::PlaceBelt => {
-                self.world
-                    .place_belt(world_pos, self.ray.direction, self.tier);
-                let belt = crate::belts::Belt::new(self.ray.direction, self.tier);
+                let entity = self.world.place_belt(world_pos, self.ray.direction, self.tier);
+                let connectable = BeltConnectable::try_from(entity).unwrap();
                 self.set_last_built_entity(LastBuiltEntity::from_build(
-                    BeltConnectable::Belt(belt),
+                    connectable,
                     next_position,
                 ));
             }
@@ -72,10 +71,8 @@ impl<'a> LineDrag<'a> {
                 input_pos,
                 output_pos,
             } => {
-                let (input_world_pos, output_world_pos) = (
-                    self.ray.get_position(input_pos),
-                    self.ray.get_position(output_pos),
-                );
+                let input_world_pos = self.ray.get_position(input_pos);
+                let output_world_pos = self.ray.get_position(output_pos);
 
                 self.world.place_underground_belt(
                     input_world_pos,
@@ -85,36 +82,34 @@ impl<'a> LineDrag<'a> {
                     false,
                 );
 
-                self.world.place_underground_belt(
+                let entity = self.world.place_underground_belt(
                     output_world_pos,
                     self.ray.direction,
                     ray_sense == RaySense::Backward,
                     self.tier,
                     true,
                 );
-
-                self.fetch_and_set_build(output_pos);
+                let connectable = BeltConnectable::try_from(entity).unwrap();
+                self.set_last_built_entity(LastBuiltEntity::from_build(connectable, output_pos));
             }
             Action::ExtendUnderground {
                 last_output_pos: previous_output_pos,
                 new_output_pos,
             } => {
-                let (previous_output_world_pos, new_output_world_pos) = (
-                    self.ray.get_position(previous_output_pos),
-                    self.ray.get_position(new_output_pos),
-                );
+                let previous_output_world_pos = self.ray.get_position(previous_output_pos);
+                let new_output_world_pos = self.ray.get_position(new_output_pos);
 
                 self.world.mine(previous_output_world_pos);
 
-                self.world.place_underground_belt(
+                let entity = self.world.place_underground_belt(
                     new_output_world_pos,
                     self.ray.direction,
                     ray_sense == RaySense::Backward,
                     self.tier,
                     false,
                 );
-
-                self.fetch_and_set_build(new_output_pos);
+                let connectable = BeltConnectable::try_from(entity).unwrap();
+                self.set_last_built_entity(LastBuiltEntity::from_build(connectable, new_output_pos));
             }
             Action::IntegrateUndergroundPair { output_pos } => {
                 let (is_input, tier) = {
@@ -143,14 +138,21 @@ impl<'a> LineDrag<'a> {
                     RaySense::Backward => self.backward_placement,
                 };
                 if output_pos == sense_furthest {
-                    self.fetch_and_set_build(output_pos);
-                } else {
-                    self.fetch_and_set_overbuild(next_position);
+                    let output_world_pos = self.ray.get_position(output_pos);
+                    if let Some(entity) = self.world.get_belt(output_world_pos) {
+                        self.set_last_built_entity(LastBuiltEntity::from_build(entity, output_pos));
+                    }
+                } else if let Some(entity) = self.world.get_belt(world_pos) {
+                    self.set_last_built_entity(LastBuiltEntity::from_overbuild(entity, next_position));
                 }
             }
             Action::IntegrateSplitter => {
-                self.world.upgrade_splitter(world_pos, self.tier);
-                self.fetch_and_set_overbuild(next_position);
+                let entity = self.world.upgrade_splitter(world_pos, self.tier);
+                let connectable = BeltConnectable::try_from(entity).unwrap();
+                self.set_last_built_entity(LastBuiltEntity::from_overbuild(
+                    connectable,
+                    next_position,
+                ));
             }
             Action::SetImpassable(sense) => {
                 self.over_impassable = Some(sense);
@@ -166,31 +168,9 @@ impl<'a> LineDrag<'a> {
         self.last_built_entity = Some(entity);
         self.over_impassable = None;
     }
-
-    fn fetch_and_set_build(&mut self, pos: i32) {
-        let world_pos = self.ray.get_position(pos);
-        if let Some(entity) = self
-            .world
-            .get(world_pos)
-            .and_then(|e| BeltConnectable::try_from(e).ok())
-        {
-            self.set_last_built_entity(LastBuiltEntity::from_build(entity, pos));
-        }
-    }
-
-    fn fetch_and_set_overbuild(&mut self, pos: i32) {
-        let world_pos = self.ray.get_position(pos);
-        if let Some(entity) = self
-            .world
-            .get(world_pos)
-            .and_then(|e| BeltConnectable::try_from(e).ok())
-        {
-            self.set_last_built_entity(LastBuiltEntity::from_overbuild(entity, pos));
-        }
-    }
 }
 impl WorldImpl {
-    pub fn place_belt(&mut self, position: TilePosition, direction: Direction, tier: BeltTier) {
+    pub fn place_belt(&mut self, position: TilePosition, direction: Direction, tier: BeltTier) -> &BeltCollidable {
         self.build(position, Belt::new(direction, tier).into())
     }
 
@@ -201,7 +181,7 @@ impl WorldImpl {
         is_input: bool,
         tier: BeltTier,
         verify_direction: bool,
-    ) {
+    ) -> &BeltCollidable {
         self.build_unchecked(
             position,
             UndergroundBelt::new(direction, is_input, tier).into(),
@@ -212,5 +192,13 @@ impl WorldImpl {
         {
             self.flip_ug(position);
         }
+        self.get(position).unwrap()
+    }
+
+    pub fn upgrade_splitter(&mut self, position: TilePosition, tier: BeltTier) -> &BeltCollidable {
+        if let Some(BeltCollidable::Splitter(splitter)) = self.get_mut(position) {
+            splitter.tier = tier;
+        }
+        self.get(position).unwrap()
     }
 }

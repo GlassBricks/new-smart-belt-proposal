@@ -49,14 +49,17 @@ impl<'a> LineDrag<'a> {
             world.can_place_or_fast_replace_belt(start_pos, belt_direction, allow_fast_replace);
         let tile_history = can_place.then(|| world.belt_connections_at(start_pos));
 
-        if can_place {
-            world.place_belt(start_pos, first_belt_direction, tier);
-        } else {
-            error_handler(start_pos, Error::EntityInTheWay);
-        }
-
         let ray = Ray::new(start_pos, belt_direction);
         let start_coord = ray.ray_position(start_pos);
+
+        let last_built_entity = if can_place {
+            let entity = world.place_belt(start_pos, first_belt_direction, tier);
+            let connectable = BeltConnectable::try_from(entity).unwrap();
+            Some(LastBuiltEntity::from_build(connectable, start_coord))
+        } else {
+            error_handler(start_pos, Error::EntityInTheWay);
+            None
+        };
 
         LineDrag {
             world,
@@ -71,12 +74,7 @@ impl<'a> LineDrag<'a> {
             forward_pos: start_coord,
             backward_pos: start_coord,
             rotation_pivot_direction: RaySense::Forward,
-            last_built_entity: if can_place {
-                let belt = crate::belts::Belt::new(first_belt_direction, tier);
-                Some(LastBuiltEntity::from_build(BeltConnectable::Belt(belt), start_coord))
-            } else {
-                None
-            },
+            last_built_entity,
             over_impassable: None,
         }
     }
