@@ -21,12 +21,7 @@ import {
 import { tryRegister } from "../metatable"
 import { WorldOps, type World } from "../world"
 import { Action, ActionError } from "./action"
-import {
-  LastBuiltEntity,
-  step,
-  type DragStepResult,
-  type EntityUpdate,
-} from "./drag_state"
+import { LastBuiltEntity, step, type DragStepResult } from "./drag_state"
 import { RaySense, senseMultiplier } from "./RaySense"
 import { SmartBeltWorldView, type TileHistory } from "./world_view"
 
@@ -218,9 +213,9 @@ export class LineDrag {
     result: DragStepResult,
     raySense: RaySense,
   ): void {
-    const [action, entityUpdate, err] = result
+    const [action, err] = result
     const nextPosition = this.nextPosition(raySense)
-    if (action.type !== "None") {
+    if (Action.isPlacement(action)) {
       this.updateFurthestPlacement(nextPosition, raySense, world)
     }
 
@@ -231,53 +226,7 @@ export class LineDrag {
       errorHandler.handleError(worldPos, err)
     }
 
-    this.applyEntityUpdate(entityUpdate, nextPosition, world)
     this.lastPosition = nextPosition
-  }
-
-  private applyEntityUpdate(
-    update: EntityUpdate,
-    nextPosition: number,
-    world: World,
-  ): void {
-    switch (update.type) {
-      case "PlacedBelt": {
-        const belt = new Belt(this.ray.direction, this.tier)
-        this.lastBuiltEntity = LastBuiltEntity.fromBuild(belt, nextPosition)
-        this.overImpassable = undefined
-        break
-      }
-      case "FetchBuild": {
-        const worldPos = getRayPosition(this.ray, update.pos)
-        const entity = world.get(worldPos)
-        if (entity instanceof BeltConnectable) {
-          this.lastBuiltEntity = LastBuiltEntity.fromBuild(entity, update.pos)
-        }
-        this.overImpassable = undefined
-        break
-      }
-      case "FetchOverbuild": {
-        const worldPos = getRayPosition(this.ray, update.pos)
-        const entity = world.get(worldPos)
-        if (entity instanceof BeltConnectable) {
-          this.lastBuiltEntity = LastBuiltEntity.fromOverbuild(
-            entity,
-            update.pos,
-          )
-        }
-        this.overImpassable = undefined
-        break
-      }
-      case "ClearEntity":
-        this.lastBuiltEntity = undefined
-        this.overImpassable = undefined
-        break
-      case "SetImpassable":
-        this.overImpassable = update.raySense
-        break
-      case "Unchanged":
-        break
-    }
   }
 
   private storeTileHistory(position: number, world: World): void {
@@ -322,6 +271,10 @@ export class LineDrag {
 
       case "PlaceBelt": {
         worldOps.placeBelt(worldPos, this.ray.direction, this.tier)
+        const belt = new Belt(this.ray.direction, this.tier)
+        this.setLastBuiltEntity(
+          LastBuiltEntity.fromBuild(belt, nextPosition),
+        )
         break
       }
 
@@ -344,6 +297,8 @@ export class LineDrag {
           this.tier,
           true,
         )
+
+        this.fetchAndSetBuild(world, action.outputPos)
         break
       }
 
@@ -363,6 +318,8 @@ export class LineDrag {
           this.tier,
           false,
         )
+
+        this.fetchAndSetBuild(world, action.newOutputPos)
         break
       }
 
@@ -376,12 +333,9 @@ export class LineDrag {
           world.flipUg(worldPos)
         }
 
-        const [outputWorldPos] = worldOps.getUgPair(worldPos, ug)!
-        const outputPos = rayPosition(this.ray, outputWorldPos)
-
         if (ug.tier != this.tier) {
           const view = this.createWorldView(world, raySense)
-          if (canUpgradeUnderground(view, outputPos)) {
+          if (canUpgradeUnderground(view, action.outputPos)) {
             world.upgradeUg(worldPos, this.tier)
           } else {
             LineDrag.reportError(
@@ -390,6 +344,16 @@ export class LineDrag {
               worldPos,
             )
           }
+        }
+
+        const senseFurthest =
+          raySense === RaySense.Forward
+            ? this.forwardPlacement
+            : this.backwardPlacement
+        if (action.outputPos === senseFurthest) {
+          this.fetchAndSetBuild(world, action.outputPos)
+        } else {
+          this.fetchAndSetOverbuild(world, nextPosition)
         }
         break
       }
@@ -407,8 +371,40 @@ export class LineDrag {
         ) {
           world.upgradeSplitter(worldPos, this.tier.splitterName)
         }
+
+        this.fetchAndSetOverbuild(world, nextPosition)
         break
       }
+
+      case "SetImpassable":
+        this.overImpassable = action.raySense
+        break
+
+      case "ClearEntity":
+        this.lastBuiltEntity = undefined
+        this.overImpassable = undefined
+        break
+    }
+  }
+
+  private setLastBuiltEntity(entity: LastBuiltEntity): void {
+    this.lastBuiltEntity = entity
+    this.overImpassable = undefined
+  }
+
+  private fetchAndSetBuild(world: World, pos: number): void {
+    const worldPos = getRayPosition(this.ray, pos)
+    const entity = world.get(worldPos)
+    if (entity instanceof BeltConnectable) {
+      this.setLastBuiltEntity(LastBuiltEntity.fromBuild(entity, pos))
+    }
+  }
+
+  private fetchAndSetOverbuild(world: World, pos: number): void {
+    const worldPos = getRayPosition(this.ray, pos)
+    const entity = world.get(worldPos)
+    if (entity instanceof BeltConnectable) {
+      this.setLastBuiltEntity(LastBuiltEntity.fromOverbuild(entity, pos))
     }
   }
 
@@ -434,10 +430,6 @@ export class LineDrag {
       ...(this.tileHistory ? [this.tileHistory] : []),
       ...(this.lastEndTileHistory ? [this.lastEndTileHistory] : []),
     ]
-    const furthestPlacementPos =
-      raySense === RaySense.Forward
-        ? this.forwardPlacement
-        : this.backwardPlacement
     return new SmartBeltWorldView(
       world,
       tileHistory,
@@ -445,7 +437,6 @@ export class LineDrag {
       raySense,
       this.tier,
       this.lastPosition,
-      furthestPlacementPos,
     )
   }
 }

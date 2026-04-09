@@ -31,7 +31,6 @@ export class SmartBeltWorldView {
     readonly raySense: RaySense,
     readonly tier: BeltTier,
     readonly lastPosition: number,
-    readonly furthestPlacementPos: number,
   ) {}
 
   nextPosition(): number {

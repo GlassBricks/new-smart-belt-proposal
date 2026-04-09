@@ -1,9 +1,13 @@
+import type { RaySense } from "./RaySense"
+
 export type Action =
   | { type: "PlaceBelt" }
   | { type: "CreateUnderground"; inputPos: number; outputPos: number }
   | { type: "ExtendUnderground"; lastOutputPos: number; newOutputPos: number }
-  | { type: "IntegrateUndergroundPair" }
+  | { type: "IntegrateUndergroundPair"; outputPos: number }
   | { type: "IntegrateSplitter" }
+  | { type: "SetImpassable"; raySense: RaySense }
+  | { type: "ClearEntity" }
   | { type: "None" }
 
 export const enum ActionError {
@@ -28,11 +32,32 @@ export const Action = {
     newOutputPos,
   }),
 
-  IntegrateUndergroundPair: (): Action => ({
+  IntegrateUndergroundPair: (outputPos: number): Action => ({
     type: "IntegrateUndergroundPair",
+    outputPos,
   }),
 
   IntegrateSplitter: (): Action => ({ type: "IntegrateSplitter" }),
 
+  SetImpassable: (raySense: RaySense): Action => ({
+    type: "SetImpassable",
+    raySense,
+  }),
+
+  ClearEntity: (): Action => ({ type: "ClearEntity" }),
+
   None: (): Action => ({ type: "None" }),
+
+  isPlacement(action: Action): boolean {
+    switch (action.type) {
+      case "PlaceBelt":
+      case "CreateUnderground":
+      case "ExtendUnderground":
+      case "IntegrateUndergroundPair":
+      case "IntegrateSplitter":
+        return true
+      default:
+        return false
+    }
+  },
 }
