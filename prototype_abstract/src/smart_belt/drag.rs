@@ -1,9 +1,9 @@
 use super::{Error, RaySense, SmartBeltWorldView};
-use super::drag_state::{DragStepResult, EntityUpdate, LastBuiltEntity, step};
+use super::drag_state::{DragStepResult, LastBuiltEntity, step};
 use crate::belts::BeltTier;
 use crate::world::WorldImpl;
 use crate::{BeltConnectable, BeltConnections, TilePosition};
-use crate::{Direction, Ray, smart_belt::Action};
+use crate::{Direction, Ray};
 use log::debug;
 
 /// Handles dragging in a straight line (no rotations).
@@ -29,8 +29,8 @@ pub struct LineDrag<'a> {
     pub(super) backward_pos: i32,
     pub(super) rotation_pivot_direction: RaySense,
 
-    last_built_entity: Option<LastBuiltEntity>,
-    over_impassable: Option<RaySense>,
+    pub(super) last_built_entity: Option<LastBuiltEntity>,
+    pub(super) over_impassable: Option<RaySense>,
 }
 
 impl<'a> LineDrag<'a> {
@@ -173,11 +173,11 @@ impl<'a> LineDrag<'a> {
         result: DragStepResult,
         ray_sense: RaySense,
     ) {
-        let DragStepResult(action, entity_update, error) = result;
+        let DragStepResult(action, error) = result;
         debug!("action: {:?}", action);
         let next_position = self.last_position
             + self.ray.direction.axis_sign() * ray_sense.direction_multiplier();
-        if action != Action::None {
+        if action.is_placement() {
             self.update_furthest_placement(next_position, ray_sense)
         }
         self.apply_action(error_handler, action, next_position, ray_sense);
@@ -188,51 +188,7 @@ impl<'a> LineDrag<'a> {
             error_handler(world_pos, error);
         }
 
-        self.apply_entity_update(entity_update, next_position);
         self.last_position = next_position;
-    }
-
-    fn apply_entity_update(&mut self, update: EntityUpdate, next_position: i32) {
-        match update {
-            EntityUpdate::PlacedBelt => {
-                let belt = crate::belts::Belt::new(self.ray.direction, self.tier);
-                self.last_built_entity = Some(LastBuiltEntity::from_build(
-                    BeltConnectable::Belt(belt),
-                    next_position,
-                ));
-                self.over_impassable = None;
-            }
-            EntityUpdate::FetchBuild(pos) => {
-                let world_pos = self.ray.get_position(pos);
-                if let Some(entity) = self
-                    .world
-                    .get(world_pos)
-                    .and_then(|e| BeltConnectable::try_from(e).ok())
-                {
-                    self.last_built_entity = Some(LastBuiltEntity::from_build(entity, pos));
-                }
-                self.over_impassable = None;
-            }
-            EntityUpdate::FetchOverbuild(pos) => {
-                let world_pos = self.ray.get_position(pos);
-                if let Some(entity) = self
-                    .world
-                    .get(world_pos)
-                    .and_then(|e| BeltConnectable::try_from(e).ok())
-                {
-                    self.last_built_entity = Some(LastBuiltEntity::from_overbuild(entity, pos));
-                }
-                self.over_impassable = None;
-            }
-            EntityUpdate::ClearEntity => {
-                self.last_built_entity = None;
-                self.over_impassable = None;
-            }
-            EntityUpdate::SetImpassable(sense) => {
-                self.over_impassable = Some(sense);
-            }
-            EntityUpdate::Unchanged => {}
-        }
     }
 
     fn store_tile_history(&mut self, position: i32) {
@@ -304,10 +260,6 @@ impl<'a> LineDrag<'a> {
             tier: self.tier,
             last_position: self.last_position,
             tile_history,
-            furthest_placement_pos: match ray_sense {
-                RaySense::Forward => self.forward_placement,
-                RaySense::Backward => self.backward_placement,
-            },
             ray_sense,
         }
     }

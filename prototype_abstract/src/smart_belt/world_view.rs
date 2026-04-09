@@ -17,7 +17,6 @@ pub(super) struct SmartBeltWorldView<'a> {
     pub(super) ray_sense: RaySense,
     pub(super) tier: BeltTier,
     pub(super) last_position: i32,
-    pub(super) furthest_placement_pos: i32,
 }
 
 impl<'a> SmartBeltWorldView<'a> {

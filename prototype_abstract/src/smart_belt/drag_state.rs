@@ -20,24 +20,7 @@ impl LastBuiltEntity {
     }
 }
 
-/// How to update `last_built_entity` and `over_impassable` after a step.
-#[derive(Debug)]
-pub(super) enum EntityUpdate {
-    /// Belt placed at next_position (construct directly, no world fetch)
-    PlacedBelt,
-    /// Fetch entity from world at position, store as from_build
-    FetchBuild(i32),
-    /// Fetch entity from world at position, store as from_overbuild
-    FetchOverbuild(i32),
-    /// Enter error recovery: clear last_built_entity and over_impassable
-    ClearEntity,
-    /// Set over_impassable to given sense
-    SetImpassable(RaySense),
-    /// No change to entity state
-    Unchanged,
-}
-
-pub(super) struct DragStepResult(pub(super) Action, pub(super) EntityUpdate, pub(super) Option<Error>);
+pub(super) struct DragStepResult(pub(super) Action, pub(super) Option<Error>);
 
 /// The shape of the furthermost stop end of the current belt line, after factoring in direction.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -169,7 +152,7 @@ pub(super) fn step(
     print_debug_info(view);
     let Some(drag_end) = derive_drag_end(last_built_entity, over_impassable, view) else {
         debug!("Do nothing");
-        return DragStepResult(Action::None, EntityUpdate::Unchanged, None);
+        return DragStepResult(Action::None, None);
     };
     debug!("drag_end: {drag_end:?}");
     let next_tile = TileClassifier::new(
@@ -184,7 +167,6 @@ pub(super) fn step(
         TileType::Usable => drag_end.place_belt_or_underground(view),
         TileType::IntegratedSplitter => DragStepResult(
             Action::IntegrateSplitter,
-            EntityUpdate::FetchOverbuild(view.next_position()),
             drag_end.error_on_impassable_exit(view),
         ),
         TileType::IntegratedUnderground { output_pos } => {
@@ -216,14 +198,14 @@ impl DragEndShape {
 
     fn place_belt_or_underground(&self, view: &SmartBeltWorldView) -> DragStepResult {
         if let Some(err) = self.error_on_impassable_exit(view) {
-            DragStepResult(Action::PlaceBelt, EntityUpdate::PlacedBelt, Some(err))
+            DragStepResult(Action::PlaceBelt, Some(err))
         } else {
             match *self {
                 DragEndShape::TraversingObstacle {
                     input_pos,
                     output_pos,
                 } => Self::place_underground(view, input_pos, output_pos),
-                _ => DragStepResult(Action::PlaceBelt, EntityUpdate::PlacedBelt, None),
+                _ => DragStepResult(Action::PlaceBelt, None),
             }
         }
     }
@@ -236,7 +218,7 @@ impl DragEndShape {
         let next_position = view.next_position();
         let is_extension = last_output_pos.is_some();
         if let Err(error) = can_build_underground(view, input_pos, is_extension) {
-            DragStepResult(Action::PlaceBelt, EntityUpdate::PlacedBelt, Some(error))
+            DragStepResult(Action::PlaceBelt, Some(error))
         } else {
             let action = if let Some(last_output_pos) = last_output_pos {
                 Action::ExtendUnderground {
@@ -249,7 +231,7 @@ impl DragEndShape {
                     output_pos: next_position,
                 }
             };
-            DragStepResult(action, EntityUpdate::FetchBuild(next_position), None)
+            DragStepResult(action, None)
         }
     }
 
@@ -258,30 +240,24 @@ impl DragEndShape {
         view: &SmartBeltWorldView,
         output_pos: i32,
     ) -> DragStepResult {
-        let next_position = view.next_position();
-        let entity_update = if output_pos == view.furthest_placement_pos {
-            EntityUpdate::FetchBuild(output_pos)
-        } else {
-            EntityUpdate::FetchOverbuild(next_position)
-        };
         let err = self.error_on_impassable_exit(view);
-        DragStepResult(Action::IntegrateUndergroundPair, entity_update, err)
+        DragStepResult(Action::IntegrateUndergroundPair { output_pos }, err)
     }
 
     fn handle_obstacle(&self, _view: &SmartBeltWorldView) -> DragStepResult {
-        let (entity_update, error) = match *self {
+        let (action, error) = match *self {
             DragEndShape::Belt
             | DragEndShape::ExtendableUnderground { .. }
-            | DragEndShape::TraversingObstacle { .. } => (EntityUpdate::Unchanged, None),
+            | DragEndShape::TraversingObstacle { .. } => (Action::None, None),
             DragEndShape::IntegratedOutput => {
-                (EntityUpdate::ClearEntity, Some(Error::EntityInTheWay))
+                (Action::ClearEntity, Some(Error::EntityInTheWay))
             }
-            DragEndShape::Error => (EntityUpdate::ClearEntity, None),
+            DragEndShape::Error => (Action::ClearEntity, None),
             DragEndShape::OverImpassableObstacle { ray_sense } => {
-                (EntityUpdate::SetImpassable(ray_sense), None)
+                (Action::SetImpassable(ray_sense), None)
             }
         };
-        DragStepResult(Action::None, entity_update, error)
+        DragStepResult(action, error)
     }
 
     fn handle_impassable_obstacle(&self, view: &SmartBeltWorldView) -> DragStepResult {
@@ -289,7 +265,7 @@ impl DragEndShape {
             DragEndShape::OverImpassableObstacle { ray_sense } => ray_sense,
             _ => view.ray_sense,
         };
-        DragStepResult(Action::None, EntityUpdate::SetImpassable(ray_sense), None)
+        DragStepResult(Action::SetImpassable(ray_sense), None)
     }
 
     fn error_on_impassable_exit(&self, view: &SmartBeltWorldView) -> Option<Error> {
