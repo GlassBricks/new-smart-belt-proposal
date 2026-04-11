@@ -206,21 +206,3 @@ _ _ _ _ _"#,
     })
     .unwrap();
 }
-
-#[test]
-fn rotation_over_obstacle_is_error() {
-    common::init_logger();
-    check_rotation_test(&RotationTestCase {
-        before: r#"_ _ X X _
-_ _ _ _ _
-_ _ _ _ _"#,
-        after: r#"> > X X _
-_ _ _ v _
-_ _ _ _ _"#,
-        start: pos(0, 0),
-        direction: Direction::East,
-        steps: vec![DragStep::MoveTo(pos(3, 0)), DragStep::Rotate(pos(3, 1))],
-        expected_errors: [(pos(3, 0), Error::EntityInTheWay)].into(),
-    })
-    .unwrap();
-}

@@ -27,10 +27,6 @@ pub struct LineDrag<'a> {
     pub(super) backward_placement: i32,
     pub(super) furthest_placement_direction: RaySense,
 
-    pub(super) forward_pos: i32,
-    pub(super) backward_pos: i32,
-    pub(super) rotation_pivot_direction: RaySense,
-
     pub(super) last_built_entity: Option<LastBuiltEntity>,
     pub(super) over_impassable: Option<RaySense>,
 }
@@ -73,9 +69,6 @@ impl<'a> LineDrag<'a> {
             forward_placement: start_coord,
             backward_placement: start_coord,
             furthest_placement_direction: RaySense::Forward,
-            forward_pos: start_coord,
-            backward_pos: start_coord,
-            rotation_pivot_direction: RaySense::Forward,
             last_built_entity,
             over_impassable: None,
         }
@@ -115,7 +108,7 @@ impl<'a> LineDrag<'a> {
 
         debug!("==== Begin rotate ====");
 
-        let (pivot, backward) = dbg!(self.get_rotation_pivot());
+        let (pivot, backward) = self.get_rotation_pivot();
         let old_direction = self.ray.direction;
 
         let (new_belt_direction, first_belt_direction) = if backward {
@@ -175,7 +168,6 @@ impl<'a> LineDrag<'a> {
             let next_pos = self.last_position - self.ray.direction.axis_sign();
             self.do_step(next_pos, error_handler);
         }
-        self.update_furthest_position(target_pos);
     }
 
     fn do_step(&mut self, next_position: i32, error_handler: &mut dyn FnMut(TilePosition, Error)) {
@@ -249,25 +241,11 @@ impl<'a> LineDrag<'a> {
         }
     }
 
-    fn update_furthest_position(&mut self, target_pos: i32) {
-        if self.ray.is_before(self.forward_pos, target_pos) {
-            self.forward_pos = target_pos;
-            self.rotation_pivot_direction = RaySense::Forward;
-        }
-        if self.ray.is_before(target_pos, self.backward_pos) {
-            self.backward_pos = target_pos;
-            self.rotation_pivot_direction = RaySense::Backward;
-        }
-    }
-
     pub(super) fn get_rotation_pivot(&self) -> (TilePosition, bool) {
-        let furthest_pos = match self.rotation_pivot_direction {
-            RaySense::Forward => self.forward_pos,
-            RaySense::Backward => self.backward_pos,
-        };
+        let furthest_pos = self.furthest_placement_pos();
         (
             self.ray.get_position(furthest_pos),
-            self.rotation_pivot_direction == RaySense::Backward,
+            self.furthest_placement_direction == RaySense::Backward,
         )
     }
 
