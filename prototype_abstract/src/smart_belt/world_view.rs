@@ -1,5 +1,3 @@
-
-
 use crate::belts::BeltTier;
 use crate::world::{BeltConnections, WorldImpl};
 use crate::{Belt, BeltCollidable, BeltConnectable, Direction, Ray, TilePosition, UndergroundBelt};
@@ -11,17 +9,22 @@ pub type TileHistory = (TilePosition, BeltConnections);
 /// World view for drag operations. Handles geometric transformations, belt shapes,
 /// and history-aware curvature queries.
 pub(super) struct SmartBeltWorldView<'a> {
-    pub(super) world: &'a WorldImpl,
-    pub(super) tile_history: Vec<TileHistory>,
-    pub(super) ray: Ray,
-    pub(super) ray_sense: RaySense,
-    pub(super) tier: BeltTier,
-    pub(super) last_position: i32,
+    pub world: &'a WorldImpl,
+    pub tile_history: Vec<TileHistory>,
+    pub ray: Ray,
+    pub ray_sense: RaySense,
+    pub tier: BeltTier,
+    pub next_position: i32,
+    pub sense_furthest_pos: i32,
 }
 
 impl<'a> SmartBeltWorldView<'a> {
+    pub fn last_position(&self) -> i32 {
+        self.next_position - self.step_sign()
+    }
+    
     pub fn next_position(&self) -> i32 {
-        self.last_position + self.step_sign()
+        self.next_position
     }
 
     /// Combined step sign: positive when stepping increases the absolute coordinate.

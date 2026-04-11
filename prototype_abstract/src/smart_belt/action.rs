@@ -60,12 +60,12 @@ impl<'a> LineDrag<'a> {
         match action {
             Action::None => {}
             Action::PlaceBelt => {
-                let entity = self.world.place_belt(world_pos, self.ray.direction, self.tier);
+                self.before_entity_placed(next_position);
+                let entity = self
+                    .world
+                    .place_belt(world_pos, self.ray.direction, self.tier);
                 let connectable = BeltConnectable::try_from(entity).unwrap();
-                self.set_last_built_entity(LastBuiltEntity::from_build(
-                    connectable,
-                    next_position,
-                ));
+                self.set_last_built_entity(LastBuiltEntity::from_build(connectable, next_position));
             }
             Action::CreateUnderground {
                 input_pos,
@@ -82,6 +82,7 @@ impl<'a> LineDrag<'a> {
                     false,
                 );
 
+                self.before_entity_placed(output_pos);
                 let entity = self.world.place_underground_belt(
                     output_world_pos,
                     self.ray.direction,
@@ -101,6 +102,7 @@ impl<'a> LineDrag<'a> {
 
                 self.world.mine(previous_output_world_pos);
 
+                self.before_entity_placed(new_output_pos);
                 let entity = self.world.place_underground_belt(
                     new_output_world_pos,
                     self.ray.direction,
@@ -109,7 +111,10 @@ impl<'a> LineDrag<'a> {
                     false,
                 );
                 let connectable = BeltConnectable::try_from(entity).unwrap();
-                self.set_last_built_entity(LastBuiltEntity::from_build(connectable, new_output_pos));
+                self.set_last_built_entity(LastBuiltEntity::from_build(
+                    connectable,
+                    new_output_pos,
+                ));
             }
             Action::IntegrateUndergroundPair { output_pos } => {
                 let (is_input, tier) = {
@@ -124,26 +129,30 @@ impl<'a> LineDrag<'a> {
                     self.world.flip_ug(world_pos);
                 }
 
+                let view = self.create_world_view(next_position, ray_sense);
+                let sense_furthest = view.sense_furthest_pos;
                 if tier != self.tier {
-                    let view = self.create_world_view(ray_sense);
                     if super::drag_state::can_upgrade_underground(&view, output_pos) {
                         self.world.upgrade_ug(world_pos, self.tier);
                     } else {
-                        Self::report_error(error_handler, Error::CannotUpgradeUnderground, world_pos);
+                        Self::report_error(
+                            error_handler,
+                            Error::CannotUpgradeUnderground,
+                            world_pos,
+                        );
                     }
                 }
 
-                let sense_furthest = match ray_sense {
-                    RaySense::Forward => self.forward_placement,
-                    RaySense::Backward => self.backward_placement,
+                let output_world_pos = self.ray.get_position(output_pos);
+                let Some(entity) = self.world.get_belt(output_world_pos) else {
+                    return;
                 };
+
+                // DON'T self.pre_entity_placement since we aren't creating any new entities
                 if output_pos == sense_furthest {
-                    let output_world_pos = self.ray.get_position(output_pos);
-                    if let Some(entity) = self.world.get_belt(output_world_pos) {
-                        self.set_last_built_entity(LastBuiltEntity::from_build(entity, output_pos));
-                    }
-                } else if let Some(entity) = self.world.get_belt(world_pos) {
-                    self.set_last_built_entity(LastBuiltEntity::from_overbuild(entity, next_position));
+                    self.set_last_built_entity(LastBuiltEntity::from_build(entity, output_pos));
+                } else {
+                    self.set_last_built_entity(LastBuiltEntity::from_overbuild(entity, output_pos));
                 }
             }
             Action::IntegrateSplitter => {
@@ -164,13 +173,22 @@ impl<'a> LineDrag<'a> {
         }
     }
 
+    fn before_entity_placed(&mut self, position: i32) {
+        self.update_furthest_placement(position);
+    }
+
     fn set_last_built_entity(&mut self, entity: LastBuiltEntity) {
         self.last_built_entity = Some(entity);
         self.over_impassable = None;
     }
 }
 impl WorldImpl {
-    pub fn place_belt(&mut self, position: TilePosition, direction: Direction, tier: BeltTier) -> &BeltCollidable {
+    pub fn place_belt(
+        &mut self,
+        position: TilePosition,
+        direction: Direction,
+        tier: BeltTier,
+    ) -> &BeltCollidable {
         self.build(position, Belt::new(direction, tier).into())
     }
 

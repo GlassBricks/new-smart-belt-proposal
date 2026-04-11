@@ -13,10 +13,18 @@ pub struct LastBuiltEntity {
 
 impl LastBuiltEntity {
     pub fn from_build(entity: BeltConnectable, position: i32) -> Self {
-        Self { entity, position, was_overbuild: false }
+        Self {
+            entity,
+            position,
+            was_overbuild: false,
+        }
     }
     pub fn from_overbuild(entity: BeltConnectable, position: i32) -> Self {
-        Self { entity, position, was_overbuild: true }
+        Self {
+            entity,
+            position,
+            was_overbuild: true,
+        }
     }
 }
 
@@ -44,10 +52,7 @@ pub(super) enum DragEndShape {
     Error,
 }
 
-
-// --- Derivation from LastBuiltEntity ---
-
-pub(super) fn derive_drag_end(
+pub(super) fn get_drag_end_shape(
     last_built_entity: Option<&LastBuiltEntity>,
     over_impassable: Option<RaySense>,
     view: &SmartBeltWorldView,
@@ -59,48 +64,82 @@ pub(super) fn derive_drag_end(
         return Some(DragEndShape::Error);
     };
     match &lbe.entity {
-        BeltConnectable::Belt(_) => derive_belt_end(lbe, view),
-        BeltConnectable::Splitter(_) => Some(DragEndShape::IntegratedOutput),
+        BeltConnectable::Splitter(_) | BeltConnectable::LoaderLike(_) => {
+            Some(DragEndShape::IntegratedOutput)
+        }
+        BeltConnectable::Belt(_) => get_belt_end_shape(lbe.position, view),
         BeltConnectable::UndergroundBelt(ug) => {
             let pair_pos = view.get_ug_pair_pos(lbe.position, ug);
+            let pos = lbe.position;
+            // let maybe_integrated = pos != view.sense_furthest_pos;
+            // if maybe_integrated != lbe.was_overbuild {
+            //     debug!(
+            //         "==== MISMATCH ==== pos={} sense_furthest_pos={} was_overbuild={}",
+            //         pos, view.sense_furthest_pos, lbe.was_overbuild
+            //     );
+            // }
             if lbe.was_overbuild {
-                derive_passthrough_end(lbe, pair_pos, view)
+                get_end_shape_integrated_underground(pos, pair_pos, view)
             } else {
-                derive_building_underground_end(lbe, pair_pos, view)
+                get_end_shape_built_underground(pos, pair_pos, view)
             }
         }
-        BeltConnectable::LoaderLike(_) => Some(DragEndShape::IntegratedOutput),
     }
 }
 
-fn derive_belt_end(lbe: &LastBuiltEntity, view: &SmartBeltWorldView) -> Option<DragEndShape> {
-    if lbe.position == view.last_position {
+fn get_belt_end_shape(lbe_position: i32, view: &SmartBeltWorldView) -> Option<DragEndShape> {
+    debug!(
+        "Get belt end shape: lbe_position={} last_position={}",
+        lbe_position,
+        view.last_position()
+    );
+    if lbe_position == view.last_position() {
         return Some(DragEndShape::Belt);
     }
-    let step_sign = view.step_sign();
-    let diff = (view.last_position - lbe.position) * step_sign;
+    let diff = (view.last_position() - lbe_position) * view.step_sign();
     if diff > 0 {
         Some(DragEndShape::TraversingObstacle {
-            input_pos: lbe.position,
+            input_pos: lbe_position,
             output_pos: None,
         })
     } else {
-        let next_pos = view.next_position();
-        if next_pos == lbe.position {
-            Some(DragEndShape::Belt)
-        } else {
-            None
-        }
+        None
     }
 }
 
-fn derive_building_underground_end(
-    lbe: &LastBuiltEntity,
+fn get_end_shape_integrated_underground(
+    output_pos: i32,
     pair_pos: Option<i32>,
     view: &SmartBeltWorldView,
 ) -> Option<DragEndShape> {
-    let input_pos = pair_pos.expect("UG pair missing for BuildingUnderground derivation");
-    let output_pos = lbe.position;
+    let Some(input_pos) = pair_pos else {
+        return Some(DragEndShape::Error);
+    };
+    let (min, max) = if input_pos < output_pos {
+        (input_pos, output_pos)
+    } else {
+        (output_pos, input_pos)
+    };
+
+    if view.step_sign() > 0 && view.last_position() == max
+        || view.step_sign() < 0 && view.last_position() == min
+    {
+        Some(DragEndShape::IntegratedOutput)
+    } else if (min..=max).contains(&view.last_position()) {
+        None
+    } else {
+        Some(DragEndShape::Error)
+    }
+}
+
+fn get_end_shape_built_underground(
+    output_pos: i32,
+    pair_pos: Option<i32>,
+    view: &SmartBeltWorldView,
+) -> Option<DragEndShape> {
+    let Some(input_pos) = pair_pos else {
+        return Some(DragEndShape::Error);
+    };
 
     let original_sense = if view.ray.is_before(input_pos, output_pos) {
         RaySense::Forward
@@ -109,7 +148,7 @@ fn derive_building_underground_end(
     };
 
     if view.ray_sense == original_sense {
-        if output_pos == view.last_position {
+        if output_pos == view.last_position() {
             Some(DragEndShape::ExtendableUnderground { input_pos })
         } else {
             Some(DragEndShape::TraversingObstacle {
@@ -117,31 +156,11 @@ fn derive_building_underground_end(
                 output_pos: Some(output_pos),
             })
         }
-    } else if view.last_position == input_pos {
+    } else if view.last_position() == input_pos {
         Some(DragEndShape::IntegratedOutput)
     } else {
         None
     }
-}
-
-fn derive_passthrough_end(
-    lbe: &LastBuiltEntity,
-    pair_pos: Option<i32>,
-    view: &SmartBeltWorldView,
-) -> Option<DragEndShape> {
-    let other_pos = pair_pos.expect("UG pair missing for PassThrough derivation");
-    let (near_pos, far_pos) = if view.ray.is_before(lbe.position, other_pos) {
-        (lbe.position, other_pos)
-    } else {
-        (other_pos, lbe.position)
-    };
-
-    let within = match view.ray_sense {
-        RaySense::Forward => view.ray.is_before(view.last_position, far_pos),
-        RaySense::Backward => view.ray.is_before(near_pos, view.last_position),
-    };
-
-    if within { None } else { Some(DragEndShape::IntegratedOutput) }
 }
 
 pub(super) fn step(
@@ -149,8 +168,7 @@ pub(super) fn step(
     over_impassable: Option<RaySense>,
     view: &SmartBeltWorldView,
 ) -> DragStepResult {
-    print_debug_info(view);
-    let Some(drag_end) = derive_drag_end(last_built_entity, over_impassable, view) else {
+    let Some(drag_end) = get_drag_end_shape(last_built_entity, over_impassable, view) else {
         debug!("Do nothing");
         return DragStepResult(Action::None, None);
     };
@@ -158,7 +176,7 @@ pub(super) fn step(
     let next_tile = TileClassifier::new(
         view,
         drag_end.can_enter_next_tile(),
-        drag_end.underground_input_pos(view.last_position),
+        drag_end.underground_input_pos(view.last_position()),
         drag_end.is_error_state(),
     )
     .classify_next_tile();
@@ -216,8 +234,7 @@ impl DragEndShape {
         last_output_pos: Option<i32>,
     ) -> DragStepResult {
         let next_position = view.next_position();
-        let is_extension = last_output_pos.is_some();
-        if let Err(error) = can_build_underground(view, input_pos, is_extension) {
+        if let Err(error) = can_build_underground(view, input_pos, last_output_pos) {
             DragStepResult(Action::PlaceBelt, Some(error))
         } else {
             let action = if let Some(last_output_pos) = last_output_pos {
@@ -249,9 +266,7 @@ impl DragEndShape {
             DragEndShape::Belt
             | DragEndShape::ExtendableUnderground { .. }
             | DragEndShape::TraversingObstacle { .. } => (Action::None, None),
-            DragEndShape::IntegratedOutput => {
-                (Action::ClearEntity, Some(Error::EntityInTheWay))
-            }
+            DragEndShape::IntegratedOutput => (Action::ClearEntity, Some(Error::EntityInTheWay)),
             DragEndShape::Error => (Action::ClearEntity, None),
             DragEndShape::OverImpassableObstacle { ray_sense } => {
                 (Action::SetImpassable(ray_sense), None)
@@ -276,14 +291,6 @@ impl DragEndShape {
             _ => None,
         }
     }
-}
-
-fn print_debug_info(view: &SmartBeltWorldView) {
-    let pos = view.next_position();
-    let world_pos = view.ray.get_position(pos);
-    debug!("STEP: {:?}, pos: {:?}", view.ray_sense, world_pos);
-    let next_entity = view.world.get(world_pos);
-    debug!("Entity: {next_entity:?}");
 }
 
 /// Checks if creating an underground belt connection will be valid between
@@ -329,14 +336,10 @@ fn check_underground_path(
 pub(super) fn can_build_underground(
     view: &SmartBeltWorldView,
     input_pos: i32,
-    is_extension: bool,
+    last_output_pos: Option<i32>,
 ) -> Result<(), Error> {
     let output_pos = view.next_position();
-    let check_from_pos = if is_extension {
-        view.last_position
-    } else {
-        input_pos
-    };
+    let check_from_pos = last_output_pos.unwrap_or(input_pos);
 
     check_underground_path(view, input_pos, output_pos, check_from_pos)
 }

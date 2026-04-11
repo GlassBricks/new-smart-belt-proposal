@@ -81,13 +81,13 @@ fn main() {
 
             if flags.forward_back {
                 // For forward_back tests, generate ForwardBack variants
-                test_fns.push(("run_test_case_forward_back", ""));
+                test_fns.push(("run_test_case_forward_back", "_normal"));
                 if !flags.not_reversible {
                     test_fns.push(("run_test_case_forward_back_reverse", "_reverse"));
                 }
             } else {
                 // For normal tests, generate normal and wiggle variants
-                test_fns.push(("run_test_case", ""));
+                test_fns.push(("run_test_case", "_normal"));
                 if !flags.not_reversible {
                     test_fns.push(("run_test_case_reverse", "_reverse"));
                 }

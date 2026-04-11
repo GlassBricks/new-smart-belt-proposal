@@ -1,5 +1,5 @@
-use super::{Error, RaySense, SmartBeltWorldView};
 use super::drag_state::{DragStepResult, LastBuiltEntity, step};
+use super::{Error, RaySense, SmartBeltWorldView};
 use crate::belts::BeltTier;
 use crate::world::WorldImpl;
 use crate::{BeltConnectable, BeltConnections, TilePosition};
@@ -111,7 +111,9 @@ impl<'a> LineDrag<'a> {
             }
         };
 
-        let (pivot, backward) = self.get_rotation_pivot();
+        debug!("==== Begin rotate ====");
+
+        let (pivot, backward) = dbg!(self.get_rotation_pivot());
         let old_direction = self.ray.direction;
 
         let (new_belt_direction, first_belt_direction) = if backward {
@@ -152,32 +154,65 @@ impl<'a> LineDrag<'a> {
         new_position: TilePosition,
     ) {
         let target_pos = self.ray.ray_position(new_position);
+        let mut iterations = 0;
         while self.ray.is_before(self.last_position, target_pos) {
-            let view = self.create_world_view(RaySense::Forward);
-            let result = step(self.last_built_entity.as_ref(), self.over_impassable, &view);
-            self.apply_step(error_handler, result, RaySense::Forward);
+            assert!(
+                iterations < 100,
+                "Too many iterations in interpolate_to (forward)"
+            );
+            iterations += 1;
+            let next_pos = self.last_position + self.ray.direction.axis_sign();
+            self.do_step(next_pos, error_handler);
         }
         while self.ray.is_before(target_pos, self.last_position) {
-            let view = self.create_world_view(RaySense::Backward);
-            let result = step(self.last_built_entity.as_ref(), self.over_impassable, &view);
-            self.apply_step(error_handler, result, RaySense::Backward);
+            assert!(
+                iterations < 100,
+                "Too many iterations in interpolate_to (backward)"
+            );
+            iterations += 1;
+            let next_pos = self.last_position - self.ray.direction.axis_sign();
+            self.do_step(next_pos, error_handler);
         }
         self.update_furthest_position(target_pos);
+    }
+
+    fn do_step(&mut self, next_position: i32, error_handler: &mut dyn FnMut(TilePosition, Error)) {
+        let last_entity_pos = self
+            .last_built_entity
+            .as_ref()
+            .map(|e| e.position)
+            .take_if(|p| *p != next_position)
+            .unwrap_or(self.last_position);
+        let ray_sense = if self.ray.is_before(last_entity_pos, next_position) {
+            RaySense::Forward
+        } else {
+            RaySense::Backward
+        };
+        let view = self.create_world_view(next_position, ray_sense);
+        {
+            debug!("==== STEP ====");
+            let pos = view.next_position();
+            let world_pos = view.ray.get_position(pos);
+            debug!("sense: {:?}, pos: {:?}", view.ray_sense, world_pos);
+            debug!("last_entity_pos: {:?}", last_entity_pos);
+            debug!("ray dir: {:?}", view.ray.direction);
+            let next_entity = view.world.get(world_pos);
+            debug!("Entity: {next_entity:?}");
+        };
+        let result = step(self.last_built_entity.as_ref(), self.over_impassable, &view);
+        self.apply_step(error_handler, result, next_position, view.ray_sense());
+        self.last_position = next_position;
     }
 
     fn apply_step(
         &mut self,
         error_handler: &mut dyn FnMut(TilePosition, Error),
         result: DragStepResult,
+        next_position: i32,
         ray_sense: RaySense,
     ) {
         let DragStepResult(action, error) = result;
-        debug!("action: {:?}", action);
-        let next_position = self.last_position
-            + self.ray.direction.axis_sign() * ray_sense.direction_multiplier();
-        if action.is_placement() {
-            self.update_furthest_placement(next_position, ray_sense)
-        }
+        debug!("action: {:?}, error: {:?}", action, error);
         self.apply_action(error_handler, action, next_position, ray_sense);
 
         if let Some(error) = error {
@@ -185,8 +220,6 @@ impl<'a> LineDrag<'a> {
             debug!("error: {:?}", error);
             error_handler(world_pos, error);
         }
-
-        self.last_position = next_position;
     }
 
     fn store_tile_history(&mut self, position: i32) {
@@ -196,23 +229,19 @@ impl<'a> LineDrag<'a> {
         debug!("New tile history: {:?}", self.tile_history);
     }
 
-    fn update_furthest_placement(&mut self, position: i32, ray_sense: RaySense) {
-        match ray_sense {
-            RaySense::Forward => {
-                if self.ray.is_before(self.forward_placement, position) {
-                    self.forward_placement = position;
-                    self.store_tile_history(position);
-                    self.furthest_placement_direction = RaySense::Forward;
-                }
-            }
-            RaySense::Backward => {
-                if self.ray.is_before(position, self.backward_placement) {
-                    self.backward_placement = position;
-                    self.store_tile_history(position);
-                    self.furthest_placement_direction = RaySense::Backward;
-                }
-            }
-        };
+    pub(super) fn update_furthest_placement(&mut self, position: i32) {
+        if self.ray.is_before(self.forward_placement, position) {
+            self.forward_placement = position;
+            self.store_tile_history(position);
+            self.furthest_placement_direction = RaySense::Forward;
+            debug!("New forward_placement: {}", position);
+        }
+        if self.ray.is_before(position, self.backward_placement) {
+            self.backward_placement = position;
+            self.store_tile_history(position);
+            self.furthest_placement_direction = RaySense::Backward;
+            debug!("New backward_placement: {}", position);
+        }
     }
 
     fn update_furthest_position(&mut self, target_pos: i32) {
@@ -244,21 +273,29 @@ impl<'a> LineDrag<'a> {
         }
     }
 
-    #[inline]
-    pub(super) fn create_world_view(&self, ray_sense: RaySense) -> SmartBeltWorldView<'_> {
+    pub(super) fn create_world_view(
+        &self,
+        target_pos: i32,
+        relative_sense: RaySense,
+    ) -> SmartBeltWorldView<'_> {
         let tile_history = self
             .tile_history
             .map(|h| (self.ray.get_position(self.furthest_placement_pos()), h))
             .into_iter()
             .chain(self.last_end_tile_history)
             .collect::<Vec<_>>();
+        let sense_furthest_pos = match relative_sense {
+            RaySense::Forward => self.forward_placement,
+            RaySense::Backward => self.backward_placement,
+        };
         SmartBeltWorldView {
             world: self.world,
             ray: self.ray,
             tier: self.tier,
-            last_position: self.last_position,
+            next_position: target_pos,
             tile_history,
-            ray_sense,
+            ray_sense: relative_sense,
+            sense_furthest_pos,
         }
     }
 

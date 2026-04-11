@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use euclid::{
     vec2, {Box2D, Point2D, Vector2D},
 };
@@ -132,6 +134,10 @@ impl Ray {
     /// True when `a` is strictly before `b` along the ray direction.
     pub fn is_before(&self, a: i32, b: i32) -> bool {
         (b - a) * self.direction.axis_sign() > 0
+    }
+
+    pub fn is_before_cmp(&self, a: i32, b: i32) -> Ordering {
+        ((a - b) * self.direction.axis_sign()).cmp(&0)
     }
 
     pub fn relative_direction(&self, position: TilePosition) -> Option<Direction> {
