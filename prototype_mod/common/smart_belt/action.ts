@@ -52,17 +52,4 @@ export const Action = {
   ClearEntity: (): Action => ({ type: "ClearEntity" }),
 
   None: (): Action => ({ type: "None" }),
-
-  isPlacement(action: Action): boolean {
-    switch (action.type) {
-      case "PlaceBelt":
-      case "CreateUnderground":
-      case "ExtendUnderground":
-      case "IntegrateInputUnderground":
-      case "IntegrateSplitter":
-        return true
-      default:
-        return false
-    }
-  },
 }

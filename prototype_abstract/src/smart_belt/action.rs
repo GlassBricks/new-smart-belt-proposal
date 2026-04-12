@@ -27,19 +27,6 @@ pub enum Action {
     None,
 }
 
-impl Action {
-    pub fn is_placement(&self) -> bool {
-        matches!(
-            self,
-            Action::PlaceBelt
-                | Action::CreateUnderground { .. }
-                | Action::ExtendUnderground { .. }
-                | Action::IntegrateInputUnderground { .. }
-                | Action::IntegrateSplitter
-        )
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Hash)]
 #[serde(rename_all = "snake_case")]
 pub enum Error {
