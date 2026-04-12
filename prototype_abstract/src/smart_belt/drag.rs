@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use super::drag_state::{DragStepResult, LastBuiltEntity, step};
 use super::{Error, RaySense, SmartBeltWorldView};
 use crate::belts::BeltTier;
@@ -55,7 +57,7 @@ impl<'a> LineDrag<'a> {
         let last_built_entity = if can_place {
             let entity = world.place_belt(start_pos, first_belt_direction, tier);
             let connectable = BeltConnectable::try_from(entity).unwrap();
-            Some(LastBuiltEntity::from_build(connectable, start_coord))
+            Some(LastBuiltEntity::new(connectable, start_coord))
         } else {
             error_handler(start_pos, Error::EntityInTheWay);
             None
@@ -181,12 +183,15 @@ impl<'a> LineDrag<'a> {
             .last_built_entity
             .as_ref()
             .map(|e| e.position)
-            .take_if(|p| *p != next_position)
             .unwrap_or(self.last_position);
-        let ray_sense = if self.ray.is_before(last_entity_pos, next_position) {
-            RaySense::Forward
-        } else {
-            RaySense::Backward
+        let ray_sense = match self.ray.is_before_cmp(last_entity_pos, next_position) {
+            Ordering::Less => RaySense::Forward,
+            Ordering::Greater => RaySense::Backward,
+            Ordering::Equal => {
+                debug!("Re-overlapping lbe, doing nothing");
+                self.last_position = next_position;
+                return;
+            }
         };
         let view = self.create_world_view(next_position, ray_sense);
         {

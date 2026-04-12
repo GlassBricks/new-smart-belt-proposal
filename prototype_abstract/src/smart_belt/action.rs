@@ -17,9 +17,10 @@ pub enum Action {
         last_output_pos: i32,
         new_output_pos: i32,
     },
-    IntegrateUndergroundPair {
+    IntegrateInputUnderground {
         output_pos: i32,
     },
+    IntegrateOutputUnderground ,
     IntegrateSplitter,
     SetImpassable(RaySense),
     ClearEntity,
@@ -33,7 +34,7 @@ impl Action {
             Action::PlaceBelt
                 | Action::CreateUnderground { .. }
                 | Action::ExtendUnderground { .. }
-                | Action::IntegrateUndergroundPair { .. }
+                | Action::IntegrateInputUnderground { .. }
                 | Action::IntegrateSplitter
         )
     }
@@ -65,7 +66,7 @@ impl<'a> LineDrag<'a> {
                     .world
                     .place_belt(world_pos, self.ray.direction, self.tier);
                 let connectable = BeltConnectable::try_from(entity).unwrap();
-                self.set_last_built_entity(LastBuiltEntity::from_build(connectable, next_position));
+                self.set_last_built_entity(LastBuiltEntity::new(connectable, next_position));
             }
             Action::CreateUnderground {
                 input_pos,
@@ -91,7 +92,7 @@ impl<'a> LineDrag<'a> {
                     true,
                 );
                 let connectable = BeltConnectable::try_from(entity).unwrap();
-                self.set_last_built_entity(LastBuiltEntity::from_build(connectable, output_pos));
+                self.set_last_built_entity(LastBuiltEntity::new(connectable, output_pos));
             }
             Action::ExtendUnderground {
                 last_output_pos: previous_output_pos,
@@ -111,12 +112,12 @@ impl<'a> LineDrag<'a> {
                     false,
                 );
                 let connectable = BeltConnectable::try_from(entity).unwrap();
-                self.set_last_built_entity(LastBuiltEntity::from_build(
+                self.set_last_built_entity(LastBuiltEntity::new(
                     connectable,
                     new_output_pos,
                 ));
             }
-            Action::IntegrateUndergroundPair { output_pos } => {
+            Action::IntegrateInputUnderground { output_pos } => {
                 let (is_input, tier) = {
                     let Some(BeltCollidable::UndergroundBelt(ug)) = self.world.get(world_pos)
                     else {
@@ -130,7 +131,6 @@ impl<'a> LineDrag<'a> {
                 }
 
                 let view = self.create_world_view(next_position, ray_sense);
-                let sense_furthest = view.sense_furthest_pos;
                 if tier != self.tier {
                     if super::drag_state::can_upgrade_underground(&view, output_pos) {
                         self.world.upgrade_ug(world_pos, self.tier);
@@ -143,22 +143,24 @@ impl<'a> LineDrag<'a> {
                     }
                 }
 
-                let output_world_pos = self.ray.get_position(output_pos);
-                let Some(entity) = self.world.get_belt(output_world_pos) else {
+                let Some(entity) = self.world.get_belt(world_pos) else {
                     return;
                 };
 
-                // DON'T self.pre_entity_placement since we aren't creating any new entities
-                if output_pos == sense_furthest {
-                    self.set_last_built_entity(LastBuiltEntity::from_build(entity, output_pos));
-                } else {
-                    self.set_last_built_entity(LastBuiltEntity::from_overbuild(entity, output_pos));
-                }
+                self.set_last_built_entity(LastBuiltEntity::new(entity, next_position));
             }
+            Action::IntegrateOutputUnderground  => {
+                let Some(entity) = self.world.get_belt(world_pos) else {
+                    return;
+                };
+
+                self.set_last_built_entity(LastBuiltEntity::new(entity, next_position));
+            }
+
             Action::IntegrateSplitter => {
                 let entity = self.world.upgrade_splitter(world_pos, self.tier);
                 let connectable = BeltConnectable::try_from(entity).unwrap();
-                self.set_last_built_entity(LastBuiltEntity::from_overbuild(
+                self.set_last_built_entity(LastBuiltEntity::new(
                     connectable,
                     next_position,
                 ));
