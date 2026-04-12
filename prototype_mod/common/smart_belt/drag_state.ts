@@ -22,21 +22,17 @@ import { SmartBeltWorldView } from "./world_view"
 export interface LastBuiltEntity {
   entity: BeltConnectable
   position: number
-  wasOverbuild: boolean
 }
 
 export const LastBuiltEntity = {
-  fromBuild(entity: BeltConnectable, position: number): LastBuiltEntity {
-    return { entity, position, wasOverbuild: false }
-  },
-  fromOverbuild(entity: BeltConnectable, position: number): LastBuiltEntity {
-    return { entity, position, wasOverbuild: true }
+  new(entity: BeltConnectable, position: number): LastBuiltEntity {
+    return { entity, position }
   },
 }
 
 export type DragStepResult = [action: Action, error: ActionError | undefined]
 
-type DragEndShape =
+type ExtendableEnd =
   | { type: "Belt" }
   | { type: "IntegratedOutput" }
   | { type: "ExtendableUnderground"; inputPos: number }
@@ -48,123 +44,135 @@ type DragEndShape =
   | { type: "OverImpassableObstacle"; raySense: RaySense }
   | { type: "Error" }
 
-const DragEndShape = {
-  Belt: (): DragEndShape => ({ type: "Belt" }),
-  IntegratedOutput: (): DragEndShape => ({ type: "IntegratedOutput" }),
-  ExtendableUnderground: (inputPos: number): DragEndShape => ({
+const ExtendableEnd = {
+  Belt: (): ExtendableEnd => ({ type: "Belt" }),
+  IntegratedOutput: (): ExtendableEnd => ({ type: "IntegratedOutput" }),
+  ExtendableUnderground: (inputPos: number): ExtendableEnd => ({
     type: "ExtendableUnderground",
     inputPos,
   }),
   TraversingObstacle: (
     inputPos: number,
     outputPos: number | undefined,
-  ): DragEndShape => ({
+  ): ExtendableEnd => ({
     type: "TraversingObstacle",
     inputPos,
     outputPos,
   }),
-  OverImpassableObstacle: (raySense: RaySense): DragEndShape => ({
+  OverImpassableObstacle: (raySense: RaySense): ExtendableEnd => ({
     type: "OverImpassableObstacle",
     raySense,
   }),
-  Error: (): DragEndShape => ({ type: "Error" }),
+  Error: (): ExtendableEnd => ({ type: "Error" }),
 }
 
-// --- Derivation from LastBuiltEntity ---
+type DragState =
+  | { type: "Extendable"; end: ExtendableEnd }
+  | { type: "OverlappingOutputUnderground" }
+  | { type: "InBetweenUndergrounds" }
 
-function deriveDragEnd(
+const DragState = {
+  Extendable: (end: ExtendableEnd): DragState => ({ type: "Extendable", end }),
+  OverlappingOutputUnderground: (): DragState => ({
+    type: "OverlappingOutputUnderground",
+  }),
+  InBetweenUndergrounds: (): DragState => ({ type: "InBetweenUndergrounds" }),
+}
+
+function getDragEndShape(
   lastBuiltEntity: LastBuiltEntity | undefined,
   overImpassable: RaySense | undefined,
   view: SmartBeltWorldView,
-): DragEndShape | undefined {
+): DragState {
   if (overImpassable !== undefined) {
-    return DragEndShape.OverImpassableObstacle(overImpassable)
+    return DragState.Extendable(ExtendableEnd.OverImpassableObstacle(overImpassable))
   }
   if (lastBuiltEntity === undefined) {
-    return DragEndShape.Error()
+    return DragState.Extendable(ExtendableEnd.Error())
   }
   const { entity } = lastBuiltEntity
   if (entity instanceof Belt) {
-    return deriveBeltEnd(lastBuiltEntity, view)
-  } else if (entity instanceof Splitter) {
-    return DragEndShape.IntegratedOutput()
+    return getBeltEndShape(lastBuiltEntity.position, view)
+  } else if (entity instanceof Splitter || entity instanceof LoaderLike) {
+    return DragState.Extendable(ExtendableEnd.IntegratedOutput())
   } else if (entity instanceof UndergroundBelt) {
-    const pairPos = view.getUgPairPos(lastBuiltEntity.position, entity)
-    if (lastBuiltEntity.wasOverbuild) {
-      return derivePassthroughEnd(lastBuiltEntity, pairPos, view)
+    const pos = lastBuiltEntity.position
+    const pairPos = view.getUgPairPos(pos, entity)
+    if (pos !== view.senseFurthestPos) {
+      return getEndShapeIntegratedUnderground(pos, pairPos, view)
     } else {
-      return deriveBuildingUndergroundEnd(lastBuiltEntity, pairPos, view)
+      return getEndShapeBuiltUnderground(pos, pairPos, view)
     }
-  } else if (entity instanceof LoaderLike) {
-    return DragEndShape.IntegratedOutput()
   }
   throw new Error("Unknown entity type")
 }
 
-function deriveBeltEnd(
-  lbe: LastBuiltEntity,
+function getBeltEndShape(
+  lbePosition: number,
   view: SmartBeltWorldView,
-): DragEndShape | undefined {
-  if (lbe.position === view.lastPosition) {
-    return DragEndShape.Belt()
+): DragState {
+  if (lbePosition === view.lastPosition()) {
+    return DragState.Extendable(ExtendableEnd.Belt())
   }
+  return DragState.Extendable(
+    ExtendableEnd.TraversingObstacle(lbePosition, undefined),
+  )
+}
+
+function getEndShapeIntegratedUnderground(
+  ugPos: number,
+  pairPos: number | undefined,
+  view: SmartBeltWorldView,
+): DragState {
+  if (pairPos === undefined) {
+    return DragState.Extendable(ExtendableEnd.Error())
+  }
+  const min = Math.min(pairPos, ugPos)
+  const max = Math.max(pairPos, ugPos)
   const stepSign = view.stepSign()
-  const diff = (view.lastPosition - lbe.position) * stepSign
-  if (diff > 0) {
-    return DragEndShape.TraversingObstacle(lbe.position, undefined)
+  const forwardPos = stepSign > 0 ? max : min
+  const lastPos = view.lastPosition()
+
+  if (lastPos === forwardPos - stepSign) {
+    return DragState.OverlappingOutputUnderground()
+  } else if (lastPos === forwardPos) {
+    return DragState.Extendable(ExtendableEnd.IntegratedOutput())
+  } else if (lastPos >= min && lastPos <= max) {
+    return DragState.InBetweenUndergrounds()
   } else {
-    const nextPos = view.nextPosition()
-    return nextPos === lbe.position ? DragEndShape.Belt() : undefined
+    return DragState.Extendable(ExtendableEnd.Error())
   }
 }
 
-function deriveBuildingUndergroundEnd(
-  lbe: LastBuiltEntity,
+function getEndShapeBuiltUnderground(
+  outputPos: number,
   pairPos: number | undefined,
   view: SmartBeltWorldView,
-): DragEndShape | undefined {
+): DragState {
   if (pairPos === undefined) {
-    throw new Error("UG pair missing for BuildingUnderground derivation")
+    return DragState.Extendable(ExtendableEnd.Error())
   }
   const inputPos = pairPos
-  const outputPos = lbe.position
 
   const originalSense = isBeforeOnRay(view.ray, inputPos, outputPos)
     ? RaySense.Forward
     : RaySense.Backward
 
   if (view.raySense === originalSense) {
-    if (outputPos === view.lastPosition) {
-      return DragEndShape.ExtendableUnderground(inputPos)
+    if (outputPos === view.lastPosition()) {
+      return DragState.Extendable(
+        ExtendableEnd.ExtendableUnderground(inputPos),
+      )
     } else {
-      return DragEndShape.TraversingObstacle(inputPos, outputPos)
+      return DragState.Extendable(
+        ExtendableEnd.TraversingObstacle(inputPos, outputPos),
+      )
     }
-  } else if (view.lastPosition === inputPos) {
-    return DragEndShape.IntegratedOutput()
+  } else if (view.lastPosition() === inputPos) {
+    return DragState.Extendable(ExtendableEnd.IntegratedOutput())
   } else {
-    return undefined
+    return DragState.InBetweenUndergrounds()
   }
-}
-
-function derivePassthroughEnd(
-  lbe: LastBuiltEntity,
-  pairPos: number | undefined,
-  view: SmartBeltWorldView,
-): DragEndShape | undefined {
-  if (pairPos === undefined) {
-    throw new Error("UG pair missing for PassThrough derivation")
-  }
-  const otherPos = pairPos
-  const [nearPos, farPos] = isBeforeOnRay(view.ray, lbe.position, otherPos)
-    ? [lbe.position, otherPos]
-    : [otherPos, lbe.position]
-
-  const within =
-    view.raySense === RaySense.Forward
-      ? isBeforeOnRay(view.ray, view.lastPosition, farPos)
-      : isBeforeOnRay(view.ray, nearPos, view.lastPosition)
-
-  return within ? undefined : DragEndShape.IntegratedOutput()
 }
 
 export function step(
@@ -172,23 +180,28 @@ export function step(
   overImpassable: RaySense | undefined,
   view: SmartBeltWorldView,
 ): DragStepResult {
-  const dragEnd = deriveDragEnd(lastBuiltEntity, overImpassable, view)
-  if (dragEnd === undefined) {
+  const dragEnd = getDragEndShape(lastBuiltEntity, overImpassable, view)
+
+  if (dragEnd.type === "OverlappingOutputUnderground") {
+    return [Action.IntegrateOutputUnderground(), undefined]
+  }
+  if (dragEnd.type === "InBetweenUndergrounds") {
     return [Action.None(), undefined]
   }
 
+  const end = dragEnd.end
   const nextTile = new TileClassifier(
     view,
-    canEnterNextTile(dragEnd),
-    undergroundInputPos(dragEnd, view.lastPosition),
-    isErrorState(dragEnd),
+    canEnterNextTile(end),
+    undergroundInputPos(end, view.lastPosition()),
+    isErrorState(end),
   ).classifyNextTile()
 
   switch (nextTile) {
     case "Usable":
-      return placeBeltOrUnderground(dragEnd, view)
+      return placeBeltOrUnderground(end, view)
     case "IntegratedSplitter":
-      return [Action.IntegrateSplitter(), errorOnImpassableExit(dragEnd, view)]
+      return [Action.IntegrateSplitter(), errorOnImpassableExit(end, view)]
     case "IntegratedUnderground": {
       const entity = view.getEntity(view.nextPosition())
       if (!(entity instanceof UndergroundBelt)) {
@@ -198,30 +211,30 @@ export function step(
       if (outputPos === undefined) {
         throw new Error("Expected paired underground for IntegratedUnderground")
       }
-      return integrateUndergroundPair(dragEnd, view, outputPos)
+      return integrateUndergroundPair(end, view, outputPos)
     }
     case "Obstacle":
-      return handleObstacle(dragEnd)
+      return handleObstacle(end)
     case "ImpassableObstacle":
-      return handleImpassableObstacle(dragEnd, view)
+      return handleImpassableObstacle(end, view)
   }
 }
 
-function canEnterNextTile(dragEnd: DragEndShape): boolean {
-  return dragEnd.type !== "TraversingObstacle"
+function canEnterNextTile(end: ExtendableEnd): boolean {
+  return end.type !== "TraversingObstacle"
 }
 
-export function isErrorState(dragEnd: DragEndShape): boolean {
-  return dragEnd.type === "Error" || dragEnd.type === "OverImpassableObstacle"
+export function isErrorState(end: ExtendableEnd): boolean {
+  return end.type === "Error" || end.type === "OverImpassableObstacle"
 }
 
 function errorOnImpassableExit(
-  dragEnd: DragEndShape,
+  end: ExtendableEnd,
   view: SmartBeltWorldView,
 ): ActionError | undefined {
   if (
-    dragEnd.type === "OverImpassableObstacle" &&
-    dragEnd.raySense === view.raySense
+    end.type === "OverImpassableObstacle" &&
+    end.raySense === view.raySense
   ) {
     return ActionError.BeltLineBroken
   }
@@ -229,38 +242,38 @@ function errorOnImpassableExit(
 }
 
 function undergroundInputPos(
-  dragEnd: DragEndShape,
+  end: ExtendableEnd,
   lastPosition: number,
 ): number | undefined {
-  switch (dragEnd.type) {
+  switch (end.type) {
     case "Belt":
       return lastPosition
     case "ExtendableUnderground":
-      return dragEnd.inputPos
+      return end.inputPos
     case "TraversingObstacle":
-      return dragEnd.inputPos
+      return end.inputPos
     default:
       return undefined
   }
 }
 
 function placeBeltOrUnderground(
-  dragEnd: DragEndShape,
+  end: ExtendableEnd,
   view: SmartBeltWorldView,
 ): DragStepResult {
-  const err = errorOnImpassableExit(dragEnd, view)
+  const err = errorOnImpassableExit(end, view)
   if (err !== undefined) {
     return [Action.PlaceBelt(), err]
   }
-  if (dragEnd.type === "TraversingObstacle") {
-    return placeUnderground(view, dragEnd.inputPos, dragEnd.outputPos)
+  if (end.type === "TraversingObstacle") {
+    return placeUnderground(view, end.inputPos, end.outputPos)
   } else {
     return [Action.PlaceBelt(), undefined]
   }
 }
 
-function handleObstacle(dragEnd: DragEndShape): DragStepResult {
-  switch (dragEnd.type) {
+function handleObstacle(end: ExtendableEnd): DragStepResult {
+  switch (end.type) {
     case "Belt":
     case "ExtendableUnderground":
     case "TraversingObstacle":
@@ -268,18 +281,18 @@ function handleObstacle(dragEnd: DragEndShape): DragStepResult {
     case "IntegratedOutput":
       return [Action.ClearEntity(), ActionError.EntityInTheWay]
     case "OverImpassableObstacle":
-      return [Action.SetImpassable(dragEnd.raySense), undefined]
+      return [Action.SetImpassable(end.raySense), undefined]
     case "Error":
       return [Action.ClearEntity(), undefined]
   }
 }
 
 function handleImpassableObstacle(
-  dragEnd: DragEndShape,
+  end: ExtendableEnd,
   view: SmartBeltWorldView,
 ): DragStepResult {
   const raySense =
-    dragEnd.type === "OverImpassableObstacle" ? dragEnd.raySense : view.raySense
+    end.type === "OverImpassableObstacle" ? end.raySense : view.raySense
   return [Action.SetImpassable(raySense), undefined]
 }
 
@@ -288,10 +301,9 @@ function placeUnderground(
   inputPos: number,
   lastOutputPos: number | undefined,
 ): DragStepResult {
-  const isExtension = lastOutputPos !== undefined
   const nextPosition = view.nextPosition()
 
-  const error = canBuildUnderground(view, inputPos, isExtension)
+  const error = canBuildUnderground(view, inputPos, lastOutputPos)
 
   if (error !== undefined) {
     return [Action.PlaceBelt(), error]
@@ -306,18 +318,18 @@ function placeUnderground(
 }
 
 function integrateUndergroundPair(
-  dragEnd: DragEndShape,
+  end: ExtendableEnd,
   view: SmartBeltWorldView,
   outputPos: number,
 ): DragStepResult {
-  const err = errorOnImpassableExit(dragEnd, view)
-  return [Action.IntegrateUndergroundPair(outputPos), err]
+  const err = errorOnImpassableExit(end, view)
+  return [Action.IntegrateInputUnderground(outputPos), err]
 }
 
 function canBuildUnderground(
   view: SmartBeltWorldView,
   inputPos: number,
-  isExtension: boolean,
+  lastOutputPos: number | undefined,
 ): ActionError | undefined {
   const nextPosition = view.nextPosition()
   const distance = Math.abs(nextPosition - inputPos)
@@ -326,7 +338,7 @@ function canBuildUnderground(
     return ActionError.TooFarToConnect
   }
 
-  const checkFromPos = isExtension ? view.lastPosition : inputPos
+  const checkFromPos = lastOutputPos ?? inputPos
   const start = Math.min(checkFromPos, nextPosition) + 1
   const end = Math.max(checkFromPos, nextPosition) - 1
 

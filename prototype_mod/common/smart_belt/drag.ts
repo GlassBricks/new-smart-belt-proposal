@@ -10,6 +10,7 @@ import {
   createRay,
   directionAxis,
   getRayPosition,
+  isBeforeCmpOnRay,
   isBeforeOnRay,
   oppositeDirection,
   rayPosition,
@@ -32,9 +33,6 @@ export interface ErrorHandler {
 export class LineDrag {
   forwardPlacement: number
   backwardPlacement: number
-  forwardPos: number
-  backwardPos: number
-  rotationPivotSense: RaySense = RaySense.Forward
   furthestPlacementSense: RaySense = RaySense.Forward
   private constructor(
     public ray: Ray,
@@ -48,8 +46,6 @@ export class LineDrag {
   ) {
     this.forwardPlacement = startCoord
     this.backwardPlacement = startCoord
-    this.forwardPos = startCoord
-    this.backwardPos = startCoord
   }
 
   private static newDrag(
@@ -77,7 +73,7 @@ export class LineDrag {
     let lastBuiltEntity: LastBuiltEntity | undefined
     if (canPlace) {
       const belt = worldOps.placeBelt(startPos, firstBeltDirection, tier)
-      lastBuiltEntity = LastBuiltEntity.fromBuild(belt, startCoord)
+      lastBuiltEntity = LastBuiltEntity.new(belt, startCoord)
     } else {
       errorHandler.handleError(startPos, ActionError.EntityInTheWay)
       lastBuiltEntity = undefined
@@ -113,54 +109,62 @@ export class LineDrag {
     )
   }
 
-  private stepSign(raySense: RaySense): number {
-    return axisSign(this.ray.direction) * senseMultiplier(raySense)
-  }
-
-  private nextPosition(raySense: RaySense): number {
-    return this.lastPosition + this.stepSign(raySense)
-  }
-
   interpolateTo(
     world: World,
     errorHandler: ErrorHandler,
     newPosition: TilePosition,
   ): void {
     const targetPos = rayPosition(this.ray, newPosition)
+    const axisStep = axisSign(this.ray.direction)
+    let iterations = 0
 
     while (isBeforeOnRay(this.ray, this.lastPosition, targetPos)) {
-      const view = this.createWorldView(world, RaySense.Forward)
-      const result = step(this.lastBuiltEntity, this.overImpassable, view)
-      this.applyStep(world, errorHandler, result, RaySense.Forward)
+      if (iterations++ >= 100) {
+        throw new Error("Too many iterations in interpolateTo (forward)")
+      }
+      const nextPos = this.lastPosition + axisStep
+      this.doStep(world, errorHandler, nextPos)
     }
 
     while (isBeforeOnRay(this.ray, targetPos, this.lastPosition)) {
-      const view = this.createWorldView(world, RaySense.Backward)
-      const result = step(this.lastBuiltEntity, this.overImpassable, view)
-      this.applyStep(world, errorHandler, result, RaySense.Backward)
+      if (iterations++ >= 100) {
+        throw new Error("Too many iterations in interpolateTo (backward)")
+      }
+      const nextPos = this.lastPosition - axisStep
+      this.doStep(world, errorHandler, nextPos)
     }
-    this.updateFurthestPosition(targetPos)
   }
 
-  updateFurthestPosition(targetPos: number): void {
-    if (isBeforeOnRay(this.ray, this.forwardPos, targetPos)) {
-      this.forwardPos = targetPos
-      this.rotationPivotSense = RaySense.Forward
+  private doStep(
+    world: World,
+    errorHandler: ErrorHandler,
+    nextPosition: number,
+  ): void {
+    const lastEntityPos =
+      this.lastBuiltEntity !== undefined
+        ? this.lastBuiltEntity.position
+        : this.lastPosition
+    const cmp = isBeforeCmpOnRay(this.ray, lastEntityPos, nextPosition)
+    let raySense: RaySense
+    if (cmp < 0) {
+      raySense = RaySense.Forward
+    } else if (cmp > 0) {
+      raySense = RaySense.Backward
+    } else {
+      this.lastPosition = nextPosition
+      return
     }
-    if (isBeforeOnRay(this.ray, targetPos, this.backwardPos)) {
-      this.backwardPos = targetPos
-      this.rotationPivotSense = RaySense.Backward
-    }
+    const view = this.createWorldView(world, nextPosition, raySense)
+    const result = step(this.lastBuiltEntity, this.overImpassable, view)
+    this.applyStep(world, errorHandler, result, nextPosition, raySense)
+    this.lastPosition = nextPosition
   }
 
   getRotationPivot(): [position: TilePosition, isBackward: boolean] {
-    const furthestPos =
-      this.rotationPivotSense === RaySense.Forward
-        ? this.forwardPos
-        : this.backwardPos
+    const furthestPos = this.furthestPlacementPos()
     return [
       getRayPosition(this.ray, furthestPos),
-      this.rotationPivotSense === RaySense.Backward,
+      this.furthestPlacementSense === RaySense.Backward,
     ]
   }
 
@@ -206,22 +210,16 @@ export class LineDrag {
     world: World,
     errorHandler: ErrorHandler,
     result: DragStepResult,
+    nextPosition: number,
     raySense: RaySense,
   ): void {
     const [action, err] = result
-    const nextPosition = this.nextPosition(raySense)
-    if (Action.isPlacement(action)) {
-      this.updateFurthestPlacement(nextPosition, raySense, world)
-    }
-
     this.applyAction(world, errorHandler, action, nextPosition, raySense)
 
     if (err !== undefined) {
       const worldPos = getRayPosition(this.ray, nextPosition)
       errorHandler.handleError(worldPos, err)
     }
-
-    this.lastPosition = nextPosition
   }
 
   private storeTileHistory(position: number, world: World): void {
@@ -230,24 +228,21 @@ export class LineDrag {
     this.tileHistory = [worldPos, worldOps.beltConnectionsAt(worldPos)]
   }
 
-  private updateFurthestPlacement(
-    position: number,
-    raySense: RaySense,
-    world: World,
-  ): void {
-    if (raySense === RaySense.Forward) {
-      if (isBeforeOnRay(this.ray, this.forwardPlacement, position)) {
-        this.forwardPlacement = position
-        this.storeTileHistory(position, world)
-        this.furthestPlacementSense = RaySense.Forward
-      }
-    } else {
-      if (isBeforeOnRay(this.ray, position, this.backwardPlacement)) {
-        this.backwardPlacement = position
-        this.storeTileHistory(position, world)
-        this.furthestPlacementSense = RaySense.Backward
-      }
+  private updateFurthestPlacement(position: number, world: World): void {
+    if (isBeforeOnRay(this.ray, this.forwardPlacement, position)) {
+      this.forwardPlacement = position
+      this.storeTileHistory(position, world)
+      this.furthestPlacementSense = RaySense.Forward
     }
+    if (isBeforeOnRay(this.ray, position, this.backwardPlacement)) {
+      this.backwardPlacement = position
+      this.storeTileHistory(position, world)
+      this.furthestPlacementSense = RaySense.Backward
+    }
+  }
+
+  private beforeEntityPlaced(position: number, world: World): void {
+    this.updateFurthestPlacement(position, world)
   }
 
   private applyAction(
@@ -265,8 +260,9 @@ export class LineDrag {
         break
 
       case "PlaceBelt": {
+        this.beforeEntityPlaced(nextPosition, world)
         const belt = worldOps.placeBelt(worldPos, this.ray.direction, this.tier)
-        this.setLastBuiltEntity(LastBuiltEntity.fromBuild(belt, nextPosition))
+        this.setLastBuiltEntity(LastBuiltEntity.new(belt, nextPosition))
         break
       }
 
@@ -282,6 +278,7 @@ export class LineDrag {
           false,
         )
 
+        this.beforeEntityPlaced(action.outputPos, world)
         const outputEntity = worldOps.placeUndergroundBelt(
           outputWorldPos,
           this.ray.direction,
@@ -290,7 +287,7 @@ export class LineDrag {
           true,
         )
         this.setLastBuiltEntity(
-          LastBuiltEntity.fromBuild(outputEntity, action.outputPos),
+          LastBuiltEntity.new(outputEntity, action.outputPos),
         )
         break
       }
@@ -304,6 +301,7 @@ export class LineDrag {
 
         world.mine(previousOutputWorldPos)
 
+        this.beforeEntityPlaced(action.newOutputPos, world)
         const entity = worldOps.placeUndergroundBelt(
           newOutputWorldPos,
           this.ray.direction,
@@ -312,12 +310,12 @@ export class LineDrag {
           false,
         )
         this.setLastBuiltEntity(
-          LastBuiltEntity.fromBuild(entity, action.newOutputPos),
+          LastBuiltEntity.new(entity, action.newOutputPos),
         )
         break
       }
 
-      case "IntegrateUndergroundPair": {
+      case "IntegrateInputUnderground": {
         const ug = world.get(worldPos)
         if (!(ug instanceof UndergroundBelt)) {
           throw new Error("Expected UndergroundBelt at position")
@@ -328,7 +326,7 @@ export class LineDrag {
         }
 
         if (ug.tier != this.tier) {
-          const view = this.createWorldView(world, raySense)
+          const view = this.createWorldView(world, nextPosition, raySense)
           if (canUpgradeUnderground(view, action.outputPos)) {
             world.upgradeUg(worldPos, this.tier)
           } else {
@@ -340,25 +338,17 @@ export class LineDrag {
           }
         }
 
-        const senseFurthest =
-          raySense === RaySense.Forward
-            ? this.forwardPlacement
-            : this.backwardPlacement
-        if (action.outputPos === senseFurthest) {
-          const outputWorldPos = getRayPosition(this.ray, action.outputPos)
-          const outputEntity = world.get(outputWorldPos)
-          if (outputEntity instanceof BeltConnectable) {
-            this.setLastBuiltEntity(
-              LastBuiltEntity.fromBuild(outputEntity, action.outputPos),
-            )
-          }
-        } else {
-          const entity = world.get(worldPos)
-          if (entity instanceof BeltConnectable) {
-            this.setLastBuiltEntity(
-              LastBuiltEntity.fromOverbuild(entity, nextPosition),
-            )
-          }
+        const entity = world.get(worldPos)
+        if (entity instanceof BeltConnectable) {
+          this.setLastBuiltEntity(LastBuiltEntity.new(entity, nextPosition))
+        }
+        break
+      }
+
+      case "IntegrateOutputUnderground": {
+        const entity = world.get(worldPos)
+        if (entity instanceof BeltConnectable) {
+          this.setLastBuiltEntity(LastBuiltEntity.new(entity, nextPosition))
         }
         break
       }
@@ -376,9 +366,7 @@ export class LineDrag {
           world.upgradeSplitter(worldPos, this.tier.splitterName)
         }
 
-        this.setLastBuiltEntity(
-          LastBuiltEntity.fromOverbuild(entity, nextPosition),
-        )
+        this.setLastBuiltEntity(LastBuiltEntity.new(entity, nextPosition))
         break
       }
 
@@ -414,19 +402,25 @@ export class LineDrag {
 
   private createWorldView(
     world: World,
-    raySense: RaySense,
+    targetPos: number,
+    relativeSense: RaySense,
   ): SmartBeltWorldView {
     const tileHistory: TileHistory[] = [
       ...(this.tileHistory ? [this.tileHistory] : []),
       ...(this.lastEndTileHistory ? [this.lastEndTileHistory] : []),
     ]
+    const senseFurthestPos =
+      relativeSense === RaySense.Forward
+        ? this.forwardPlacement
+        : this.backwardPlacement
     return new SmartBeltWorldView(
       world,
       tileHistory,
       this.ray,
-      raySense,
+      relativeSense,
       this.tier,
-      this.lastPosition,
+      targetPos,
+      senseFurthestPos,
     )
   }
 }

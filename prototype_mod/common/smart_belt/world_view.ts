@@ -30,11 +30,16 @@ export class SmartBeltWorldView {
     readonly ray: Ray,
     readonly raySense: RaySense,
     readonly tier: BeltTier,
-    readonly lastPosition: number,
+    private readonly _nextPosition: number,
+    readonly senseFurthestPos: number,
   ) {}
 
+  lastPosition(): number {
+    return this._nextPosition - this.stepSign()
+  }
+
   nextPosition(): number {
-    return this.lastPosition + this.stepSign()
+    return this._nextPosition
   }
 
   stepSign(): number {

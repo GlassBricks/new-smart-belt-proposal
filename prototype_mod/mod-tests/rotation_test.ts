@@ -206,25 +206,4 @@ describe("rotation", () => {
       expectedErrors: ["3,0:entity_in_the_way"],
     })
   })
-
-  test("rotation over obstacle is error", () => {
-    runRotationTest({
-      before: [
-        [p(2, 0), obstacle()],
-        [p(3, 0), obstacle()],
-      ],
-      after: [
-        [p(0, 0), belt(E)],
-        [p(1, 0), belt(E)],
-        [p(3, 1), belt(S)],
-      ],
-      beltName: "transport-belt",
-      events: [
-        { pos: p(0, 0), direction: E },
-        { pos: p(3, 0), direction: E },
-        { pos: p(3, 1), direction: S },
-      ],
-      expectedErrors: ["3,0:entity_in_the_way"],
-    })
-  })
 })

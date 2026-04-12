@@ -4,7 +4,8 @@ export type Action =
   | { type: "PlaceBelt" }
   | { type: "CreateUnderground"; inputPos: number; outputPos: number }
   | { type: "ExtendUnderground"; lastOutputPos: number; newOutputPos: number }
-  | { type: "IntegrateUndergroundPair"; outputPos: number }
+  | { type: "IntegrateInputUnderground"; outputPos: number }
+  | { type: "IntegrateOutputUnderground" }
   | { type: "IntegrateSplitter" }
   | { type: "SetImpassable"; raySense: RaySense }
   | { type: "ClearEntity" }
@@ -32,9 +33,13 @@ export const Action = {
     newOutputPos,
   }),
 
-  IntegrateUndergroundPair: (outputPos: number): Action => ({
-    type: "IntegrateUndergroundPair",
+  IntegrateInputUnderground: (outputPos: number): Action => ({
+    type: "IntegrateInputUnderground",
     outputPos,
+  }),
+
+  IntegrateOutputUnderground: (): Action => ({
+    type: "IntegrateOutputUnderground",
   }),
 
   IntegrateSplitter: (): Action => ({ type: "IntegrateSplitter" }),
@@ -53,7 +58,7 @@ export const Action = {
       case "PlaceBelt":
       case "CreateUnderground":
       case "ExtendUnderground":
-      case "IntegrateUndergroundPair":
+      case "IntegrateInputUnderground":
       case "IntegrateSplitter":
         return true
       default:

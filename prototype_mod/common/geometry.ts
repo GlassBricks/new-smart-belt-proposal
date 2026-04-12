@@ -140,6 +140,11 @@ export function isBeforeOnRay(ray: Ray, a: number, b: number): boolean {
   return (b - a) * axisSign(ray.direction) > 0
 }
 
+export function isBeforeCmpOnRay(ray: Ray, a: number, b: number): number {
+  const v = (a - b) * axisSign(ray.direction)
+  return v < 0 ? -1 : v > 0 ? 1 : 0
+}
+
 export function rayRelativeDirection(
   ray: Ray,
   position: TilePosition,
